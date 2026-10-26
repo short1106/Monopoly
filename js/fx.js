@@ -54,6 +54,7 @@
     pot() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, i * 0.07, 0.22, 'triangle', 0.12)); },
     win() { [523, 523, 523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.13, 0.24, 'square', 0.06)); },
     pop() { tone(1200, 0, 0.07, 'sine', 0.1, 600); },
+    step() { tone(1500, 0, 0.03, 'square', 0.025); },
   };
 
   function confetti() {

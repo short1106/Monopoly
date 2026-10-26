@@ -15,7 +15,7 @@
   let myId = store.get('duli-id');
   if (!myId) { myId = 'u' + Math.random().toString(36).slice(2, 10); store.set('duli-id', myId); }
 
-  const App = { mode: null, S: null, code: null, lastRoll: 0, lastPhase: null, localSel: null, confirmBankrupt: false, trade: null, conn: 'off', seenSeq: null, lastCurId: null };
+  const App = { mode: null, S: null, code: null, lastRoll: 0, lastPhase: null, localSel: null, confirmBankrupt: false, trade: null, conn: 'off', seenSeq: null, lastCurId: null, disp: {}, animT: null, botT: null, chat: [] };
   const REACTIONS = ['😂', '🔥', '💀', '🤡', '😭', '🫡', '🙏', '🥙', 'DIGGA', '67', 'WALLAH', 'NO RIZZ', 'TUNG TUNG'];
   const reactLimit = new Map();
 
@@ -83,6 +83,22 @@
     save();
     if (App.mode === 'host') Net.broadcast({ type: 'state', S: App.S });
     render();
+    scheduleBots();
+  }
+
+  // Bots laufen nur auf dem Host-Gerät (oder lokal)
+  function scheduleBots() {
+    if (App.botT || (App.mode !== 'host' && App.mode !== 'local')) return;
+    if (!App.S || App.S.phase !== 'play' || !E.botStep(App.S)) return;
+    App.botT = setTimeout(() => {
+      App.botT = null;
+      if (App.animT) return scheduleBots();
+      const st = App.S && E.botStep(App.S);
+      if (!st) return;
+      const err = E.act(App.S, st.pid, st.action);
+      if (err) { console.warn('Bot:', err, st.action); return; }
+      commit();
+    }, 750);
   }
   function doAct(action, pid) {
     App.confirmBankrupt = action.type === 'bankruptAsk';
@@ -97,6 +113,7 @@
 
   function canControl(pid) {
     if (!pid) return false;
+    if (P(pid) && P(pid).bot) return false;
     if (App.mode === 'local') return true;
     if (pid === myId) return true;
     const p = P(pid);
@@ -119,6 +136,8 @@
       toast(msg.msg);
     } else if (msg.type === 'react') {
       showBubble(msg.pid, msg.r);
+    } else if (msg.type === 'chat') {
+      showChat(msg.pid, msg.text);
     }
   };
   Net.handlers.peerLeft = (id) => {
@@ -153,6 +172,13 @@
       if (now - (reactLimit.get(conn.clientId) || 0) < 700) return;
       reactLimit.set(conn.clientId, now);
       sendReaction(conn.clientId, msg.r);
+    } else if (msg.type === 'chat') {
+      const text = String(msg.text || '').trim().slice(0, 80);
+      if (!conn.clientId || !text) return;
+      const now = Date.now();
+      if (now - (reactLimit.get(conn.clientId) || 0) < 700) return;
+      reactLimit.set(conn.clientId, now);
+      sendChat(conn.clientId, text);
     } else if (msg.type === 'act') {
       if (!conn.clientId) return;
       const err = E.act(S, conn.clientId, msg.action || {});
@@ -255,6 +281,7 @@
     if (App.S && App.S.phase !== 'lobby') { show('screen-game'); buildBoard(); }
     else show('screen-lobby');
     render();
+    scheduleBots();
   }
 
   $('#btn-copy').onclick = copyLink;
@@ -278,6 +305,22 @@
     render();
   };
   $('#in-local-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btn-local-add').click(); });
+
+  $('#btn-add-bot').onclick = () => {
+    const err = E.addBot(App.S);
+    if (err) return toast(err);
+    commit();
+  };
+  $('#settings').addEventListener('change', (e) => {
+    if (App.mode === 'client' || !App.S) return;
+    const t = e.target;
+    const o = {};
+    if (t.id === 'set-money') o.startMoney = Number(t.value);
+    if (t.id === 'set-pot') o.pot = t.checked;
+    if (t.id === 'set-go') o.goDouble = t.checked;
+    E.setSettings(App.S, o);
+    commit();
+  });
 
   $('#btn-start').onclick = () => {
     const err = E.startGame(App.S);
@@ -304,13 +347,23 @@
       : 'Wähle deine Figur';
     if (!S) { $('#lobby-players').innerHTML = ''; $('#token-grid').innerHTML = ''; return; }
     startBtn.disabled = S.players.length < 2 || S.players.some((p) => !p.token);
+    $('#lobby-tools').hidden = App.mode === 'client';
+    const st = S.settings || { startMoney: 1500, pot: true, goDouble: false };
+    const ro = App.mode === 'client' ? 'disabled' : '';
+    $('#settings').innerHTML = `
+      <label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
+        <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
+      <label class="row"><span>🐷 Aprils Spardose<small>Steuern und Strafen sammeln sich auf „Aprils Pause“</small></span>
+        <input type="checkbox" class="switch" id="set-pot" ${st.pot ? 'checked' : ''} ${ro}></label>
+      <label class="row"><span>💸 Doppelt auf LOS<small>Wer genau auf LOS landet, bekommt ${M(400)}</small></span>
+        <input type="checkbox" class="switch" id="set-go" ${st.goDouble ? 'checked' : ''} ${ro}></label>`;
 
     $('#lobby-players').innerHTML = S.players.map((p, i) => `
       <li class="${(local ? p.id === App.localSel : p.id === myId) ? 'is-me' : ''}" ${local ? `data-sel="${esc(p.id)}"` : ''}>
         ${tokHTML(p.token, D.PLAYER_COLORS[i % 6])}
-        <div class="who"><strong>${esc(p.name)}${p.id === myId && !local ? ' (du)' : ''}</strong>
+        <div class="who"><strong>${esc(p.name)}${p.id === myId && !local ? ' (du)' : ''} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</strong>
         <small>${p.token ? esc(TOKENS[p.token].name) : 'wählt noch …'}${i === 0 && !local ? ' · Host' : ''}</small></div>
-        ${local ? `<button class="btn btn-small btn-ghost" data-rm="${esc(p.id)}">Entfernen</button>` : ''}
+        ${local || (App.mode === 'host' && p.bot) ? `<button class="btn btn-small btn-ghost" data-rm="${esc(p.id)}">Entfernen</button>` : ''}
       </li>`).join('') || '<li><div class="who"><small>Noch niemand da.</small></div></li>';
 
     const chooser = local ? App.localSel : myId;
@@ -334,7 +387,7 @@
         if (!App.localSel) return toast('Tippe zuerst einen Spieler an.');
         const err = E.pickToken(App.S, App.localSel, token);
         if (err) return toast(err);
-        const next = App.S.players.find((p) => !p.token);
+        const next = App.S.players.find((p) => !p.token && !p.bot);
         if (next) App.localSel = next.id;
         return commit();
       }
@@ -342,9 +395,9 @@
     }
     const sel = e.target.closest('[data-sel]');
     const rm = e.target.closest('[data-rm]');
-    if (rm && App.mode === 'local') {
-      App.S.players = App.S.players.filter((p) => p.id !== rm.dataset.rm);
-      return render();
+    if (rm && App.mode !== 'client') {
+      E.removePlayer(App.S, rm.dataset.rm);
+      return commit();
     }
     if (sel && App.mode === 'local') { App.localSel = sel.dataset.sel; return render(); }
 
@@ -430,7 +483,7 @@
         const band = el.querySelector('.band');
         if (band) band.innerHTML = st.houses === 5 ? '<span class="hotel"></span>' : '<span class="house"></span>'.repeat(st.houses);
       }
-      const here = S.players.filter((p) => !p.bankrupt && p.pos === i);
+      const here = S.players.filter((p) => !p.bankrupt && (App.disp[p.id] ?? p.pos) === i);
       const tokKey = here.map((p) => p.id).join(',');
       const tokEl = el.querySelector('.cell-tokens');
       if (tokEl.dataset.key !== tokKey) {
@@ -458,7 +511,7 @@
       : `<strong>${esc(cur.name)}</strong> ist dran · Runde ${Math.ceil(S.turnNo / Math.max(1, S.players.filter((p) => !p.bankrupt).length))}`;
 
     const cc = $('#center-card');
-    if (S.card) {
+    if (S.card && S.phase === 'play') {
       const c = E.CARDS[S.card.deck][S.card.id];
       cc.className = `center-card deck-${S.card.deck}`;
       cc.innerHTML = `<div class="card-icon">${TYPE_ICON[S.card.deck]}</div><div class="card-kind">${S.card.deck === 'april' ? 'April-Karte' : 'Studio-Karte'}</div><div class="card-text">${esc(c.text)}</div>`;
@@ -530,6 +583,7 @@
       const w = P(S.winner);
       el.innerHTML = `<div class="winner">${tokHTML(w.token, w.color)}<h3>${esc(w.name)} gewinnt Dulidanopoly! 🏆</h3>
         <ol class="rank">${(S.ranking || []).map((r) => `<li><span>${esc(P(r.id).name)}</span><strong>${M(r.worth)}</strong></li>`).join('')}</ol>
+        ${awardsHTML()}
         ${App.mode !== 'client' ? uiBtn('Neue Runde', 'rematch', 'btn-primary') : '<p class="action-note">Der Host kann eine neue Runde starten.</p>'}</div>`;
       return;
     }
@@ -640,6 +694,28 @@
     el.innerHTML = h;
   }
 
+  const AWARDS = [
+    ['🦈', 'Miethai', 'rentGot', (v) => `${M(v)} Miete kassiert`],
+    ['💸', 'Goldesel', 'rentPaid', (v) => `${M(v)} Miete gezahlt`],
+    ['😱', 'Düsseldorf-Stammgast', 'jail', (v) => `${v}× in Düsseldorf`],
+    ['🎲', 'Pasch-König', 'doubles', (v) => `${v} Pasche`],
+    ['🐷', 'Spardosen-Dieb', 'pot', (v) => `${M(v)} aus der Spardose`],
+    ['🏗️', 'Baulöwe', 'built', (v) => `${v} Gebäude gebaut`],
+    ['🃏', 'Kartenjunkie', 'cards', (v) => `${v} Karten gezogen`],
+    ['🔥', 'Schmerzhaftester Moment', 'maxRent', (v) => `${M(v)} Miete auf einen Schlag`],
+  ];
+  function awardsHTML() {
+    const rows = AWARDS.map(([icon, title, key, fmt]) => {
+      let best = null;
+      for (const p of App.S.players) {
+        const v = (p.stats || {})[key] || 0;
+        if (v > 0 && (!best || v > best.v)) best = { p, v };
+      }
+      return best ? `<li><span class="aw-icon">${icon}</span><strong>${title}: ${esc(best.p.name)}</strong><small>${fmt(best.v)}</small></li>` : '';
+    }).join('');
+    return rows ? `<ul class="awards">${rows}</ul>` : '';
+  }
+
   function renderPlayers() {
     const S = App.S;
     $('#players').innerHTML = S.players.map((p, i) => {
@@ -648,11 +724,11 @@
       if (p.inJail) meta.push('<span class="warn">in Düsseldorf</span>');
       if (p.skip) meta.push('<span class="warn">setzt aus</span>');
       if (p.jailFree.length) meta.push(`<span>${p.jailFree.length}× Freikarte</span>`);
-      if (App.mode !== 'local' && !p.connected && !p.bankrupt) meta.push('<span class="warn">offline</span>');
+      if (App.mode !== 'local' && !p.connected && !p.bankrupt && !p.bot) meta.push('<span class="warn">offline</span>');
       if (p.id === myId && App.mode !== 'local') meta.push('<span>du</span>');
       return `<li class="player ${i === S.cur && S.phase === 'play' ? 'is-cur' : ''} ${p.bankrupt ? 'is-out' : ''}" style="--pc:${p.color}">
         ${tokHTML(p.token, p.color)}
-        <div style="min-width:0"><div class="pname">${esc(p.name)}</div>
+        <div style="min-width:0"><div class="pname">${esc(p.name)} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</div>
           <div class="swatches">${owned.map((k) => `<i class="${S.props[k].mort ? 'is-mort' : ''}" style="--g:${SPACES[k].group ? GROUPS[SPACES[k].group].color : '#cfc3e6'}" title="${esc(SPACES[k].name)}"></i>`).join('')}</div>
           <div class="pmeta">${meta.join('')}</div></div>
         <div class="pmoney">${M(p.money)}</div></li>`;
@@ -749,7 +825,12 @@
     if (kind === 'rematch') {
       const old = S.players;
       const N = E.newGame();
-      old.forEach((p) => { E.addPlayer(N, p.id, p.name); N.players[N.players.length - 1].token = p.token; N.players[N.players.length - 1].connected = p.connected; });
+      N.settings = Object.assign({}, S.settings || N.settings);
+      old.forEach((p) => {
+        E.addPlayer(N, p.id, p.name);
+        Object.assign(N.players[N.players.length - 1], { token: p.token, connected: p.connected, bot: !!p.bot });
+      });
+      App.disp = {};
       App.S = N;
       E.startGame(N);
       closeModal();
@@ -788,6 +869,56 @@
     $('#bubbles').appendChild(b);
     FX.play('pop');
     setTimeout(() => b.remove(), 2900);
+  }
+
+  // ---------- Chat ----------
+  $('#chat-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const inp = $('#chat-in');
+    const text = inp.value.trim().slice(0, 80);
+    if (!text || !App.S) return;
+    inp.value = '';
+    if (App.mode === 'client') Net.send({ type: 'chat', text });
+    else sendChat(App.mode === 'local' ? curP().id : myId, text);
+  });
+  function sendChat(pid, text) {
+    if (App.mode === 'host') Net.broadcast({ type: 'chat', pid, text });
+    showChat(pid, text);
+  }
+  function showChat(pid, text) {
+    const p = P(pid);
+    if (!p) return;
+    text = String(text).slice(0, 80);
+    App.chat.push({ name: p.name, text });
+    if (App.chat.length > 30) App.chat.shift();
+    $('#chat-panel').hidden = false;
+    $('#chat-log').innerHTML = App.chat.slice().reverse().map((m) => `<li><strong>${esc(m.name)}:</strong> ${esc(m.text)}</li>`).join('');
+    const b = document.createElement('div');
+    b.className = 'bubble is-chat';
+    b.style.setProperty('--pc', p.color);
+    b.style.left = (6 + Math.random() * 30) + '%';
+    b.innerHTML = `${tokHTML(p.token, p.color)}<span class="msg"><strong>${esc(p.name)}:</strong> ${esc(text)}</span>`;
+    $('#bubbles').appendChild(b);
+    FX.play('pop');
+    setTimeout(() => b.remove(), 4600);
+  }
+
+  // ---------- Figuren laufen Feld für Feld ----------
+  function animateTokens() {
+    const S = App.S;
+    if (!S || S.phase === 'lobby') return;
+    let moving = false;
+    for (const p of S.players) {
+      const d = App.disp[p.id];
+      if (d == null || p.bankrupt) { App.disp[p.id] = p.pos; continue; }
+      if (d === p.pos) continue;
+      const fwd = (p.pos - d + 40) % 40;
+      if (fwd > 0 && fwd <= 13 && !(p.inJail && p.pos === 10)) { App.disp[p.id] = (d + 1) % 40; moving = true; }
+      else App.disp[p.id] = p.pos;
+    }
+    renderBoard();
+    if (moving) { FX.play('step'); App.animT = setTimeout(animateTokens, 140); }
+    else App.animT = null;
   }
 
   // ---------- Sounds aus dem Verlauf ----------
@@ -838,6 +969,10 @@
       <li>Kannst du nicht zahlen, bist du bankrott.</li></ul>
     <h3>UH! Schreckensort Düsseldorf</h3><ul>
       <li>Raus kommst du mit Pasch, ${M(50)} oder einer Freikarte. Nach dem 3. Fehlversuch musst du zahlen.</li></ul>
+    <h3>Extras</h3><ul>
+      <li>🤖 Bots kann der Host in der Lobby hinzufügen. Sie spielen automatisch.</li>
+      <li>Hausregeln (Startgeld, Spardose, Doppelt auf LOS) stellt der Host in der Lobby ein.</li>
+      <li>Am Ende gibt es Awards wie Miethai, Pasch-König und Düsseldorf-Stammgast.</li></ul>
     <h3>Figuren</h3><ul>${Object.values(TOKENS).map((t) => `<li><strong>${esc(t.name)}:</strong> ${esc(t.power)}</li>`).join('')}</ul></div>`);
   $('#btn-menu').onclick = () => {
     const host = App.mode !== 'client';
@@ -861,7 +996,7 @@
     $('#room-chip').textContent = App.mode === 'local' ? 'Ein Gerät' : `Raum ${App.code}`;
     renderNet();
     if (S.sub !== 'debt') App.confirmBankrupt = false;
-    renderBoard();
+    if (!App.animT) animateTokens(); else renderBoard();
     renderAction();
     renderPlayers();
     renderProps();
@@ -870,7 +1005,7 @@
     if (S.phase === 'over' && App.lastPhase !== 'over') {
       FX.confetti();
       const w = P(S.winner);
-      openModal(`<div class="winner">${tokHTML(w.token, w.color)}<h2>${esc(w.name)} gewinnt!</h2><p>Herzlichen Glückwunsch zum Dulidanopoly-Sieg. 💜</p></div>`);
+      openModal(`<div class="winner">${tokHTML(w.token, w.color)}<h2>${esc(w.name)} gewinnt!</h2><p>Herzlichen Glückwunsch zum Dulidanopoly-Sieg. 💜</p>${awardsHTML()}</div>`);
     }
     App.lastPhase = S.phase;
   }

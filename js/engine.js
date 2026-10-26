@@ -25,8 +25,12 @@
       props: {}, decks: { april: [], studio: [] }, card: null, auction: null,
       debt: null, trade: null, log: [], logSeq: 0, pot: 0, winner: null, ranking: null,
       berlingoArmed: false, pendingMove: null, cardMult: 0, utilCard: false, lastLand: null,
+      settings: { startMoney: START_MONEY, pot: true, goDouble: false },
     };
   }
+
+  const BOT_NAMES = ['April-Bot', 'KI-Kevin', 'Bot Bernd', 'Captain Cache', 'Lady Algorithmus', 'Robo-Rüdiger'];
+  const newStats = () => ({ rentPaid: 0, rentGot: 0, maxRent: 0, jail: 0, doubles: 0, pot: 0, cards: 0, bought: 0, built: 0 });
 
   // ---------- Helfer ----------
   const P = (S, id) => S.players.find(p => p.id === id);
@@ -103,9 +107,37 @@
     S.players.push({
       id, name, token: null, color: PLAYER_COLORS[S.players.length % PLAYER_COLORS.length],
       money: START_MONEY, pos: 0, inJail: false, jailTries: 0, jailFree: [],
-      bankrupt: false, skip: 0, used: { april: false, berlingo: false }, connected: true,
+      bankrupt: false, skip: 0, used: { april: false, berlingo: false }, connected: true, bot: false,
     });
     log(S, `${name} ist beigetreten.`);
+    return null;
+  }
+
+  function addBot(S) {
+    if (S.phase !== 'lobby') return 'Das Spiel läuft schon.';
+    if (S.players.length >= 6) return 'Der Raum ist voll (max. 6 Spieler).';
+    const name = BOT_NAMES.find(n => !S.players.some(p => p.name === n)) || 'Bot';
+    const id = 'bot-' + Math.floor(rng() * 1e9).toString(36);
+    addPlayer(S, id, name);
+    const p = P(S, id);
+    p.bot = true;
+    const free = Object.keys(TOKENS).filter(t => !S.players.some(q => q.token === t));
+    p.token = free[Math.floor(rng() * free.length)];
+    return null;
+  }
+
+  function removePlayer(S, id) {
+    if (S.phase !== 'lobby') return 'Das Spiel läuft schon.';
+    S.players = S.players.filter(p => p.id !== id);
+    return null;
+  }
+
+  function setSettings(S, o) {
+    if (S.phase !== 'lobby') return 'Das Spiel läuft schon.';
+    const sm = Number(o.startMoney);
+    if ([1000, 1500, 2000, 3000].includes(sm)) S.settings.startMoney = sm;
+    if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
+    if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
     return null;
   }
 
@@ -121,8 +153,10 @@
   function startGame(S) {
     if (S.players.length < 2) return 'Ihr braucht mindestens 2 Spieler.';
     if (S.players.some(p => !p.token)) return 'Jeder muss zuerst eine Figur wählen.';
+    if (!S.settings) S.settings = { startMoney: START_MONEY, pot: true, goDouble: false };
     S.players.forEach((p, i) => {
-      Object.assign(p, { money: START_MONEY, pos: 0, inJail: false, jailTries: 0, jailFree: [], bankrupt: false, skip: 0, used: { april: false, berlingo: false } });
+      p.stats = newStats();
+      Object.assign(p, { money: S.settings.startMoney, pos: 0, inJail: false, jailTries: 0, jailFree: [], bankrupt: false, skip: 0, used: { april: false, berlingo: false } });
       p.color = PLAYER_COLORS[i % PLAYER_COLORS.length];
     });
     S.props = {};
@@ -153,6 +187,7 @@
   }
   function sendJail(S, p) {
     p.pos = 10; p.inJail = true; p.jailTries = 0;
+    if (p.stats) p.stats.jail++;
     S.rolledDouble = false; S.doublesCount = 0;
     log(S, `${p.name} muss nach Düsseldorf. 😱`);
     quip(S, 'jail', 0.6);
@@ -170,13 +205,18 @@
     }
   }
 
+  function toBank(S, amt) {
+    if (S.settings && S.settings.pot === false) return;
+    S.pot = (S.pot || 0) + amt;
+  }
+
   function charge(S, p, items) {
     const total = items.reduce((a, b) => a + b.amt, 0);
     if (p.money >= total) {
       for (const it of items) {
         p.money -= it.amt;
         if (it.to) P(S, it.to).money += it.amt;
-        else S.pot = (S.pot || 0) + it.amt;
+        else toBank(S, it.amt);
       }
       return true;
     }
@@ -198,6 +238,8 @@
       const owner = P(S, st.owner);
       const rent = calcRent(S, p.pos, p);
       log(S, `${p.name} zahlt ${money(rent)} Miete an ${owner.name}.`);
+      if (p.stats) { p.stats.rentPaid += rent; p.stats.maxRent = Math.max(p.stats.maxRent, rent); }
+      if (owner.stats) owner.stats.rentGot += rent;
       if (rent >= 200) quip(S, 'bigRent', 0.8);
       if (charge(S, p, [{ to: owner.id, amt: rent }])) proceed(S);
       return;
@@ -216,8 +258,15 @@
       case 'parking':
         if (S.pot > 0) {
           log(S, `${p.name} knackt Aprils Spardose: ${money(S.pot)}! 🐷`);
+          if (p.stats) p.stats.pot += S.pot;
           p.money += S.pot; S.pot = 0;
           quip(S, 'pot', 0.7);
+        }
+        return proceed(S);
+      case 'go':
+        if (S.settings && S.settings.goDouble) {
+          p.money += GO_MONEY;
+          log(S, `Genau auf LOS! ${p.name} bekommt nochmal ${money(GO_MONEY)}. 💸`);
         }
         return proceed(S);
       default:
@@ -263,6 +312,7 @@
 
     if (dbl) {
       S.doublesCount++;
+      if (p.stats) p.stats.doubles++;
       if (p.token === 'doener') { p.money += 20; log(S, `Döner-Pasch: ${p.name} bekommt ${money(20)}. Mit allem, scharf! 🥙`); }
       if (S.doublesCount >= 3) {
         log(S, `Drei Pasch hintereinander!`);
@@ -307,6 +357,7 @@
     const id = S.decks[deck].shift();
     S.card = { deck, id };
     S.sub = 'card';
+    if (curP(S).stats) curP(S).stats.cards++;
     log(S, `${curP(S).name} zieht eine ${DECK_NAME[deck]}.`);
   }
 
@@ -394,6 +445,7 @@
     if (p.money < price) return 'Nicht genug Dulis.';
     p.money -= price;
     S.props[idx].owner = p.id;
+    if (p.stats) p.stats.bought++;
     log(S, `${p.name} kauft ${SPACES[idx].name} für ${money(price)}.`);
     quip(S, 'buy', 0.15);
     proceed(S);
@@ -470,6 +522,7 @@
     if (st.houses === 4 ? sup.hotels < 1 : sup.houses < 1) return 'Die Bank hat keine Gebäude mehr.';
     p.money -= cost;
     st.houses++;
+    if (p.stats) p.stats.built++;
     log(S, `${p.name} baut ${st.houses === 5 ? 'ein Hotel' : 'ein Haus'} auf ${sp.name}.`);
     return null;
   }
@@ -517,7 +570,7 @@
     for (const it of d.items) {
       p.money -= it.amt;
       if (it.to) P(S, it.to).money += it.amt;
-      else S.pot = (S.pot || 0) + it.amt;
+      else toBank(S, it.amt);
     }
     S.debt = null;
     log(S, `${p.name} hat die Schulden bezahlt.`);
@@ -653,7 +706,7 @@
       case 'payJail':
         if (needCur() || S.sub !== 'roll' || !p.inJail) return 'Geht gerade nicht.';
         if (p.money < 50) return 'Nicht genug Dulis.';
-        p.money -= 50; S.pot = (S.pot || 0) + 50; p.inJail = false; p.jailTries = 0;
+        p.money -= 50; toBank(S, 50); p.inJail = false; p.jailTries = 0;
         log(S, `${p.name} zahlt ${money(50)} und verlässt Düsseldorf.`);
         return null;
       case 'useJailCard': {
@@ -724,8 +777,104 @@
     return 'Unbekannte Aktion.';
   }
 
+
+  // ---------- Bots ----------
+  const RESERVE = 150;
+  function valueFor(S, pid, idx) {
+    const sp = SPACES[idx];
+    let v = sp.price;
+    if (sp.type === 'prop') {
+      const g = groupIdx(sp.group);
+      const mine = g.filter(i => S.props[i].owner === pid || i === idx).length;
+      const others = g.filter(i => S.props[i].owner && S.props[i].owner !== pid).length;
+      if (!others) v *= 1 + 0.4 * mine / g.length;
+    } else if (sp.type === 'rail') {
+      v *= 1 + 0.15 * RAILS.filter(i => S.props[i].owner === pid).length;
+    }
+    return v;
+  }
+
+  function botManage(S, p) {
+    const owned = Object.keys(S.props).map(Number).filter(k => S.props[k].owner === p.id);
+    for (const k of owned) {
+      if (S.props[k].mort && p.money - unmortgageCost(k) > 450) return { type: 'unmortgage', idx: k };
+    }
+    const sup = bankSupply(S);
+    const cands = owned
+      .filter(k => SPACES[k].type === 'prop' && ownsGroup(S, p.id, SPACES[k].group))
+      .sort((a, b) => S.props[a].houses - S.props[b].houses || b - a);
+    for (const k of cands) {
+      const sp = SPACES[k], st = S.props[k], g = groupIdx(sp.group);
+      if (st.houses >= 5 || g.some(i => S.props[i].mort)) continue;
+      if (st.houses > Math.min(...g.map(i => S.props[i].houses))) continue;
+      if (p.money - houseCost(p, sp.group) < RESERVE + 100) continue;
+      if (st.houses === 4 ? sup.hotels < 1 : sup.houses < 1) continue;
+      return { type: 'build', idx: k };
+    }
+    return null;
+  }
+
+  function botRaise(S, p) {
+    const owned = Object.keys(S.props).map(Number).filter(k => S.props[k].owner === p.id);
+    for (const k of owned) {
+      const sp = SPACES[k], st = S.props[k];
+      if (sp.type !== 'prop' || !st.houses) continue;
+      if (st.houses === Math.max(...groupIdx(sp.group).map(i => S.props[i].houses))) return { type: 'sell', idx: k };
+    }
+    const mortgageable = owned
+      .filter(k => !S.props[k].mort && !(SPACES[k].type === 'prop' && groupHasHouses(S, SPACES[k].group)))
+      .sort((a, b) => valueFor(S, p.id, a) - valueFor(S, p.id, b));
+    if (mortgageable.length) return { type: 'mortgage', idx: mortgageable[0] };
+    return null;
+  }
+
+  function botStep(S) {
+    if (S.phase !== 'play') return null;
+    if (S.trade) {
+      const to = P(S, S.trade.to);
+      if (!to.bot) return null;
+      const t = S.trade;
+      const gain = t.give.props.reduce((a, i) => a + valueFor(S, to.id, i), 0) + t.give.money + t.give.jf * 50;
+      const loss = t.get.props.reduce((a, i) => a + valueFor(S, to.id, i) * 1.2, 0) + t.get.money + t.get.jf * 50;
+      return { pid: to.id, action: { type: gain >= loss * 1.25 && gain > 0 ? 'tradeAccept' : 'tradeDecline' } };
+    }
+    if (S.sub === 'auction') {
+      const a = S.auction, b = P(S, a.active[a.turn]);
+      if (!b.bot) return null;
+      const max = Math.min(b.money - RESERVE, valueFor(S, b.id, a.idx) * 0.95);
+      const next = a.high + 10;
+      return { pid: b.id, action: next <= max ? { type: 'bid', amt: next } : { type: 'pass' } };
+    }
+    const p = curP(S);
+    if (!p.bot) return null;
+    const go = (action) => ({ pid: p.id, action });
+    switch (S.sub) {
+      case 'roll': {
+        const m = botManage(S, p);
+        if (m) return go(m);
+        if (p.inJail && p.jailFree.length) return go({ type: 'useJailCard' });
+        if (p.inJail && p.money > 500 && S.turnNo < 60) return go({ type: 'payJail' });
+        return go({ type: 'roll' });
+      }
+      case 'berlingo': return go({ type: 'berlingoMove', d: 0 });
+      case 'buy': {
+        const price = buyPrice(p, p.pos);
+        const want = p.money - price >= RESERVE || (p.money >= price && valueFor(S, p.id, p.pos) > price * 1.3);
+        return go({ type: want ? 'buy' : 'auction' });
+      }
+      case 'card': return go({ type: 'cardOk' });
+      case 'debt': {
+        const total = S.debt.items.reduce((a, b) => a + b.amt, 0);
+        if (p.money >= total) return go({ type: 'payDebt' });
+        return go(botRaise(S, p) || { type: 'bankrupt' });
+      }
+      case 'end': return go(botManage(S, p) || { type: 'endTurn' });
+    }
+    return null;
+  }
+
   const ENGINE = {
-    newGame, addPlayer, pickToken, startGame, act, endGame, bankrupt, calcRent, netWorth,
+    newGame, addPlayer, addBot, removePlayer, setSettings, botStep, pickToken, startGame, act, endGame, bankrupt, calcRent, netWorth,
     buyPrice, houseCost, unmortgageCost, ownsGroup, groupIdx, groupHasHouses, bankSupply, CARDS,
     setRng: (f) => { rng = f; },
   };

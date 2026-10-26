@@ -61,6 +61,10 @@
 
       <h2 class="section-title">Spieler</h2>
       <ul id="lobby-players" class="lobby-players"></ul>
+      <div class="lobby-tools" id="lobby-tools"><button id="btn-add-bot" class="btn btn-small">🤖 Bot hinzufügen</button></div>
+
+      <h2 class="section-title">Hausregeln</h2>
+      <div id="settings" class="settings"></div>
 
       <h2 class="section-title" id="token-title">Wähle deine Figur</h2>
       <div id="token-grid" class="token-grid"></div>
@@ -101,6 +105,10 @@
         </div>
         <div class="bubbles" id="bubbles" aria-live="polite"></div>
         <div class="reactions" id="reactions" aria-label="Reaktionen"></div>
+        <form class="chat-form" id="chat-form" autocomplete="off">
+          <input id="chat-in" maxlength="80" placeholder="Nachricht an alle …" aria-label="Chat-Nachricht">
+          <button class="btn btn-small" type="submit">Senden</button>
+        </form>
       </div>
       <aside class="side">
         <section class="panel panel-action" id="panel-action"></section>
@@ -111,6 +119,10 @@
         <section class="panel">
           <h2 class="panel-title" id="props-title">Deine Felder</h2>
           <div id="my-props" class="my-props"></div>
+        </section>
+        <section class="panel" id="chat-panel" hidden>
+          <h2 class="panel-title">Chat</h2>
+          <ol class="log chat-log" id="chat-log"></ol>
         </section>
         <section class="panel">
           <h2 class="panel-title">Verlauf</h2>
