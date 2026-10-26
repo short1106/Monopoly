@@ -903,6 +903,16 @@
     setTimeout(() => b.remove(), 4600);
   }
 
+  function showApril(text) {
+    const b = document.createElement('div');
+    b.className = 'bubble is-chat is-april';
+    b.style.setProperty('--pc', '#da29cf');
+    b.style.left = (10 + Math.random() * 25) + '%';
+    b.innerHTML = `<span class="tok" style="--pc:#da29cf">🤖</span><span class="msg"><strong>April:</strong> ${esc(text)}</span>`;
+    // kurz warten, bis die Figur angekommen ist
+    setTimeout(() => { $('#bubbles').appendChild(b); setTimeout(() => b.remove(), 4600); }, 900);
+  }
+
   // ---------- Figuren laufen Feld für Feld ----------
   function animateTokens() {
     const S = App.S;
@@ -933,7 +943,10 @@
     const n = Math.min(seq - App.seenSeq, S.log.length);
     App.seenSeq = seq;
     if (n <= 0) return;
-    const fresh = S.log.slice(-n).join('\n');
+    const freshLines = S.log.slice(-n);
+    const fresh = freshLines.join('\n');
+    const aprilLine = freshLines.filter((l) => l.startsWith('April:')).pop();
+    if (aprilLine) showApril(aprilLine.replace(/^April:\s*/, ''));
     const hit = SOUND_RULES.find(([, re]) => re.test(fresh));
     if (hit) FX.play(hit[0]);
     const cur = curP();

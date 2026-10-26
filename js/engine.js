@@ -1,7 +1,7 @@
 // Dulidanopoly – Spielregeln. Läuft nur beim Host; Clients bekommen den Zustand geschickt.
 (function (root) {
   const D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.DULI_DATA;
-  const { SPACES, GROUPS, RAILS, UTILS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, GO_MONEY, PLAYER_COLORS, APRIL_SAYS } = D;
+  const { SPACES, GROUPS, RAILS, UTILS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, GO_MONEY, PLAYER_COLORS, APRIL_SAYS, APRIL_FIELD } = D;
   const CARDS = { april: APRIL_CARDS, studio: STUDIO_CARDS };
   const DECK_NAME = { april: 'April-Karte', studio: 'Studio-Karte' };
   const MAX_HOUSES = 32, MAX_HOTELS = 12;
@@ -42,10 +42,16 @@
     if (S.log.length > 80) S.log.splice(0, S.log.length - 80);
   }
   const money = (n) => 'Ð' + n;
-  function quip(S, kind, chance) {
-    const list = APRIL_SAYS[kind];
-    if (list && rng() < chance) log(S, list[Math.floor(rng() * list.length)]);
+  function say(S, list, chance) {
+    if (!list || rng() >= chance) return;
+    if (S.lastQuipAt != null && S.logSeq - S.lastQuipAt < 4) return;
+    let line = list[Math.floor(rng() * list.length)];
+    if (line === S.lastQuip && list.length > 1) line = list[(list.indexOf(line) + 1) % list.length];
+    S.lastQuip = line;
+    log(S, line.startsWith('April:') ? line : line.startsWith('„') ? `April: ${line}` : `April: „${line}“`);
+    S.lastQuipAt = S.logSeq;
   }
+  function quip(S, kind, chance) { say(S, APRIL_SAYS[kind], chance); }
 
   function groupIdx(g) { return SPACES.map((s, i) => (s.group === g ? i : -1)).filter(i => i >= 0); }
   function ownsGroup(S, pid, g) { return groupIdx(g).every(i => S.props[i].owner === pid); }
@@ -230,6 +236,7 @@
     S.lastLand = p.pos;
     const sp = SPACES[p.pos];
     log(S, `${p.name} landet auf ${sp.name}.`);
+    say(S, APRIL_FIELD[p.pos], 0.6);
     if (BUYABLE.includes(sp.type)) {
       const st = S.props[p.pos];
       if (st.owner == null) { S.sub = 'buy'; return; }

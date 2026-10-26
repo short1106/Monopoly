@@ -556,6 +556,15 @@ button, input, select { font: inherit; color: inherit; }
 .chat-form input { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-size: 15px; }
 .chat-form input:focus { border-color: var(--magenta); outline: none; }
 .bubble.is-chat { white-space: normal; max-width: min(70%, 340px); border-radius: 18px; animation-duration: 4.5s; }
+.bubble.is-april { bottom: auto; top: 18%; background: linear-gradient(150deg, rgba(218, 41, 207, .35), var(--surface-2)); }
+.bubble.is-april { animation-name: aprilPop; }
+@keyframes aprilPop {
+  0% { transform: scale(.5) rotate(-6deg); opacity: 0; }
+  10% { transform: scale(1.06) rotate(1deg); opacity: 1; }
+  16% { transform: scale(1) rotate(0); }
+  85% { opacity: 1; }
+  100% { transform: translateY(-30px); opacity: 0; }
+}
 .bubble.is-chat .msg { font-weight: 600; font-size: 14px; line-height: 1.3; }
 .chat-log li strong { color: var(--fg); }
 .awards { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; text-align: left; }

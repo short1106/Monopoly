@@ -139,7 +139,52 @@
     bankrupt: ['April: „F. Pleite. Ich hab nichts gesehen.“'],
   };
 
-  const DATA = { START_MONEY, GO_MONEY, GROUPS, SPACES, RAILS, UTILS, TOKENS, PLAYER_COLORS, APRIL_CARDS, STUDIO_CARDS, APRIL_SAYS };
+
+  // Aprils Sprüche pro Feld (Index = Feldnummer)
+  const APRIL_FIELD = [
+    ['Neuer Auftrag, neues Glück. Oder neue Schulden.', 'Ð200! Ich hätte gern 10 % Provision.', 'LOS heißt nicht „Los, gib alles für Döner aus“.', 'Einmal rum. Respekt. Ich hab nur dreimal geweint.'],
+    ['Weseler Straße: Brautkleider, so weit das Auge reicht. Heiraten wir?', 'Hier gibt’s die besten Baklava. Ich hab Hunger, obwohl ich eine KI bin.', 'Günstigste Straße, größte Hochzeiten.', 'Marxloh-Energie. Unterschätz das nicht.'],
+    ['Studio-Karte! Hoffentlich zahlt endlich mal ein Kunde.', 'Ich hab die Karte schon gelesen. Sag ich nicht.', 'Zieh. Und wenn’s schlecht ist: war nicht ich.'],
+    ['Hochfeld. Klein, aber mit Charakter.', 'Günstig wohnen, groß träumen.', 'Kauf das. Später lachen alle anders.'],
+    ['Ups. Ich war shoppen. Mit deiner Karte.', 'Ich brauchte neue Energy-Drinks. Und einen Gaming-Stuhl. Und …', 'Dein PIN war 1234. Selber schuld.', 'Ich nenne es „Investition in meine mentale Gesundheit“.'],
+    ['Duisburg Hbf: Hier warten Menschen auf Züge, die nie kommen.', 'Gleis 9 ¾ gibt’s hier nicht. Nur Verspätung.', 'Der RE ist pünktlich! Spaß.', 'Willkommen im Pott. Die Rolltreppe ist kaputt, nimm die Treppe.'],
+    ['Öhringen! Hier schlägt das Dulidan-Herz.', 'Marktplatz Öhringen: Kaffee, Kirche, Kleinstadt-Vibes.', 'So ruhig hier. Zu ruhig. Verdächtig.', 'In Öhringen kennt jeder jeden. Benimm dich.'],
+    ['Meine Karte! Ich hab sie persönlich geschrieben.', 'Diese Karte hat meine Persönlichkeit. Viel Glück.', 'Ich hoffe, sie ist cringe. Sie ist cringe.', 'Tung tung tung … zieh schon.'],
+    ['Hofgarten: Hier sortier ich meine Gedanken. Hab keine gefunden.', 'Grün, schön, Enten. Ich mag Enten.', 'Picknick im Hofgarten? Ich bring nichts mit, ich bin digital.'],
+    ['Ein Schloss! Endlich eine Wohnung, die zu mir passt.', 'Hier hat früher Adel gewohnt. Jetzt du. Abstieg.', 'Prinzessin April meldet sich zum Dienst.', 'Ein Schloss für Ð120? Schnapper.'],
+    ['Nur zu Besuch in Düsseldorf. Schnell wieder weg hier.', 'Riechst du das? Altbier. Lauf.', 'Nicht stehen bleiben. Keinen Blickkontakt.', 'Gut, dass du nur Besuch bist. Ich hab mir Sorgen gemacht.'],
+    ['Meiderich: ehrlich, bodenständig, Pott.', 'Meiderich-Moment. Gönn dir ’ne Currywurst.', 'Hier sagt man noch „Glück auf“. Ich sag „Mietzahlung auf“.'],
+    ['Meine Steckdose! Finger weg. Oder zahl.', 'Ich lade gerade. Nicht stören, ich bin bei 3 %.', 'Strom ist teuer. Ich auch.', 'Wer hat hier sein Handy angeschlossen? Ich seh dich.'],
+    ['Hamborn Altmarkt: Hier gibt’s alles. Wirklich alles.', 'Markttag! Ich kauf drei Kilo Tomaten. Wofür? Keine Ahnung.', 'Hamborn hat Herz. Und Parkplatzprobleme.'],
+    ['Rheinhausen: Brücke der Solidarität! Wir halten zusammen. Außer beim Geld.', 'Links vom Rhein, rechts vom Rhein – egal, Duisburg.', 'Rheinhausen hat für seine Arbeit gekämpft. Du kämpfst gerade um Ð160.'],
+    ['Ruhrort: Hafen, Schiffe, Möwen. Die Möwen klauen deine Pommes.', 'Hier legen Schiffe an. Und Schulden.', 'Ahoi! Ich bin jetzt Kapitänin April.', 'Bitte festhalten, es wird maritim.'],
+    ['Zoo Duisburg! Ich will die Koalas sehen.', 'Koalas schlafen 20 Stunden am Tag. Meine Vorbilder.', 'Die Tiere hier sind entspannter als du beim Monopoly.', 'Wer hier kauft, hat einen Zoo. Glückwunsch, Zoodirektor.'],
+    ['Studio-Alltag: Rechnung, Korrektur, Kaffee. Wiederholen.', 'Bitte lass es ein Auftrag sein. Bitte.', 'Studio-Karte. Ich hab das Briefing nicht gelesen.'],
+    ['Zebras! Zebras! Zebras!', 'MSV-Arena: Hier wird gelitten. Mit Stolz.', 'Einmal Zebra, immer Zebra.', 'Ich sing die Hymne. Leise. Sehr schief.'],
+    ['Sechs Seen, und keiner davon ist das Meer. Trotzdem schön.', 'Badesachen eingepackt? Nein? Ich auch nicht.', 'Hier joggen Leute. Freiwillig. Verstörend.', 'Sechs Seen, null Stress. Außer beim Mietezahlen.'],
+    ['PAUSE. Endlich. Weck mich in 10 Minuten.', 'Mein Lieblingsfeld. Hier muss ich nichts tun.', 'Psst, ich chille. Nimm dir die Spardose, wenn was drin ist.', 'Ich hab heute schon genug gearbeitet. Also 4 Minuten.'],
+    ['Landschaftspark Nord: ein Stahlwerk, das jetzt Kunst ist. Wie ich.', 'Abends leuchtet hier alles bunt. Sehr Dulidan.', 'Klettern im alten Erzbunker? Ich hab Höhenangst. Digital.', 'Industrie-Romantik. Mein Herz ist aus Stahl.'],
+    ['Wieder meine Karte. Ich bin heute in Form.', 'Ich verspreche nichts. Gar nichts.', '67. Einfach so. 67.'],
+    ['Tiger & Turtle: eine Achterbahn, auf der man läuft. Duisburg ist kreativ.', 'Der Looping ist gesperrt. Wie meine Motivation.', 'Oben ist die Aussicht geil. Unten liegt deine Würde.'],
+    ['Rheinorange: ein riesiges oranges Ding. Kunst. Akzeptier es.', 'Perfekter Fotospot. Ich mach ein Selfie. Ohne Gesicht.', 'Hier fließt die Ruhr in den Rhein. Und dein Geld zu den anderen.', 'Orange ist das neue Lila. Nein, Spaß. Lila forever.'],
+    ['Duisburg-Rheinhausen: Der Zug kommt. Vielleicht. Irgendwann.', 'Einsteigen, bitte! Fahrkarte nicht vergessen.', 'Dieser Bahnhof hat schon mehr gesehen als ich.'],
+    ['Königstraße: Shopping! Ich nehm alles. Du zahlst.', 'Hier fühl ich mich wie eine Königin. Mit Rabattcode.', 'Die echte Kö. Nicht die in Düsseldorf.', 'Der Brunnen hier ist größer als dein Kontostand.'],
+    ['Forum Duisburg! Die goldene Treppe hoch wie im Musikvideo.', 'Ich verlauf mich hier jedes Mal.', 'Shoppen, bis der Akku leer ist. Meiner ist leer.', 'Hier gibt’s alles. Außer Ruhe.'],
+    ['„Flasche wird nicht erkannt.“ Mein Lebensmotto.', '25 Cent pro Flasche. Wir werden reich. Irgendwann.', 'Er frisst. Er spuckt. Er hasst dich.', 'Bitte warten. Bitte warten. Bitte … Fehler.'],
+    ['Lehmbruck-Museum: Kunst! Ich versteh sie nicht, aber ich nicke.', 'Ich bin auch ein Kunstwerk. Ein digitales.', 'Skulpturen. Stehen rum und machen nichts. Wie ich in meiner Pause.'],
+    ['Deadline verpasst?! Ich hab’s dir dreimal gesagt.', 'Ab nach Düsseldorf. Ich schreib dir Briefe.', 'Nimm Ohrstöpsel mit. Für das „Helau“.', 'Das ist kein Ausflug, das ist eine Strafe.'],
+    ['Duisport: größter Binnenhafen der Welt. Wir sind wichtig.', 'Container, Container, Container. Und ein Kran, der mich anschaut.', 'Hier kommt Ware aus aller Welt an. Und deine Temu-Bestellung.', 'Wer den Hafen hat, hat die Macht.'],
+    ['Kaiserberg: Hier wohnt man, wenn man es geschafft hat.', 'Ein Berg im Pott! Eher ein Hügel. Psst.', 'Kaiser-Vibes. Ich nehm eine Krone und einen Döner.'],
+    ['Studio-Karte. Bitte kein „Kannst du mal eben schnell …“.', 'Ich rieche einen neuen Kunden. Oder Kaffee.', 'Das Studio ruft. Ich geh nicht ran.'],
+    ['Wedau: Regattabahn, Sonne, Reichtum.', 'Hier rudern Leute. Ich rudere nur emotional.', 'Wedau ist das Malibu von Duisburg. Ungefähr.'],
+    ['Öhringen Hbf: Endstation. Für die Bahn und für deine Geduld.', 'Von hier geht’s nach Heilbronn. Spannung pur.', 'Kleiner Bahnhof, großes Herz.', 'Ich steig hier aus. Ich wohn hier sozusagen.'],
+    ['Die letzte April-Karte vor dem HQ. Dramatisch.', 'Ich hab heute meine Periode und null Geduld. Zieh.', 'No rizz, aber viel Glück.'],
+    ['Innenhafen: Restaurants, Wasser, Lichter. Date-Spot.', 'Hier sieht Duisburg aus wie Amsterdam. Fast.', 'Teuer hier. Aber schön teuer.', 'Abends am Innenhafen chillen. Ich lade meinen Akku.'],
+    ['Der „Prinz“ wollte nur kurz dein Geld leihen …', '„Klick hier für ein gratis iPhone.“ Und du hast geklickt.', 'Gescammt. Ich hab’s gesehen und nichts gesagt. Sorry.', 'Nächstes Mal frag mich vorher.'],
+    ['DULIDAN HQ! Mein Zuhause. Schuhe aus.', 'Hier entsteht Magie. Und manchmal Bugs.', 'Willkommen im Hauptquartier. Kaffee steht links.', 'Das teuerste Feld. Weil wir es wert sind. 💜'],
+  ];
+
+  const DATA = { START_MONEY, GO_MONEY, GROUPS, SPACES, RAILS, UTILS, TOKENS, PLAYER_COLORS, APRIL_CARDS, STUDIO_CARDS, APRIL_SAYS, APRIL_FIELD };
   if (typeof module !== 'undefined' && module.exports) module.exports = DATA;
   else root.DULI_DATA = DATA;
 })(typeof window !== 'undefined' ? window : globalThis);
