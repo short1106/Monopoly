@@ -80,6 +80,7 @@
       <span id="room-chip" class="chip"></span>
       <span id="net-chip" class="chip chip-net"></span>
       <span class="spacer"></span>
+      <button id="btn-sound" class="btn btn-small btn-ghost" title="Sound an/aus">🔊</button>
       <button id="btn-zoom" class="btn btn-small btn-ghost" title="Brett vergrößern">Zoom</button>
       <button id="btn-rules" class="btn btn-small btn-ghost">Regeln</button>
       <button id="btn-menu" class="btn btn-small btn-ghost">Menü</button>
@@ -98,6 +99,8 @@
             <div class="center-card" id="center-card" hidden></div>
           </div>
         </div>
+        <div class="bubbles" id="bubbles" aria-live="polite"></div>
+        <div class="reactions" id="reactions" aria-label="Reaktionen"></div>
       </div>
       <aside class="side">
         <section class="panel panel-action" id="panel-action"></section>
@@ -124,11 +127,13 @@
     </div>
   </div>
   <div class="toast" id="toast" hidden></div>
+  <canvas class="confetti" id="confetti" hidden></canvas>
 
   <script src="vendor/peerjs.min.js"></script>
   <script src="js/data.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/net.js"></script>
+  <script src="js/fx.js"></script>
   <script src="js/ui.js"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 // Dulidanopoly – Oberfläche: Startseite, Lobby, Brett, Aktionen
 (function () {
-  const D = window.DULI_DATA, E = window.DULI_ENGINE, Net = window.DULI_NET;
+  const D = window.DULI_DATA, E = window.DULI_ENGINE, Net = window.DULI_NET, FX = window.DULI_FX;
   const { SPACES, GROUPS, TOKENS, RAILS, UTILS } = D;
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -15,7 +15,9 @@
   let myId = store.get('duli-id');
   if (!myId) { myId = 'u' + Math.random().toString(36).slice(2, 10); store.set('duli-id', myId); }
 
-  const App = { mode: null, S: null, code: null, lastRoll: 0, lastPhase: null, localSel: null, confirmBankrupt: false, trade: null, conn: 'off' };
+  const App = { mode: null, S: null, code: null, lastRoll: 0, lastPhase: null, localSel: null, confirmBankrupt: false, trade: null, conn: 'off', seenSeq: null, lastCurId: null };
+  const REACTIONS = ['😂', '🔥', '💀', '🤡', '😭', '🫡', '🙏', '🥙', 'DIGGA', '67', 'WALLAH', 'NO RIZZ', 'TUNG TUNG'];
+  const reactLimit = new Map();
 
   // ---------- Logo ----------
   let logoUid = 0;
@@ -115,6 +117,8 @@
       render();
     } else if (msg.type === 'error') {
       toast(msg.msg);
+    } else if (msg.type === 'react') {
+      showBubble(msg.pid, msg.r);
     }
   };
   Net.handlers.peerLeft = (id) => {
@@ -143,6 +147,12 @@
       }
       commit();
       if (conn.open) conn.send({ type: 'state', S: App.S });
+    } else if (msg.type === 'react') {
+      if (!conn.clientId || !REACTIONS.includes(msg.r)) return;
+      const now = Date.now();
+      if (now - (reactLimit.get(conn.clientId) || 0) < 700) return;
+      reactLimit.set(conn.clientId, now);
+      sendReaction(conn.clientId, msg.r);
     } else if (msg.type === 'act') {
       if (!conn.clientId) return;
       const err = E.act(S, conn.clientId, msg.action || {});
@@ -360,7 +370,7 @@
     if (i <= 30) return { r: 1, c: i - 19, side: 'top' };
     return { r: i - 29, c: 11, side: 'right' };
   }
-  const CORNER_ICON = { go: '⟵', jail: '😱', parking: '☕', gotojail: '👉' };
+  const CORNER_ICON = { go: '⟵', jail: '😱', parking: '🐷', gotojail: '👉' };
   const TYPE_ICON = { april: '🤖', studio: '💜' };
 
   function buildBoard() {
@@ -421,8 +431,17 @@
         if (band) band.innerHTML = st.houses === 5 ? '<span class="hotel"></span>' : '<span class="house"></span>'.repeat(st.houses);
       }
       const here = S.players.filter((p) => !p.bankrupt && p.pos === i);
-      el.querySelector('.cell-tokens').innerHTML = here.map((p) => tokHTML(p.token, p.color)).join('');
-      el.classList.toggle('is-last', S.lastLand === i && App.lastPulse !== S.v && S.rollId === App.pulseRoll);
+      const tokKey = here.map((p) => p.id).join(',');
+      const tokEl = el.querySelector('.cell-tokens');
+      if (tokEl.dataset.key !== tokKey) {
+        tokEl.dataset.key = tokKey;
+        tokEl.innerHTML = here.map((p) => tokHTML(p.token, p.color)).join('');
+      }
+      el.classList.toggle('is-last', S.lastLand === i);
+      if (i === 20) {
+        el.classList.toggle('has-pot', S.pot > 0);
+        el.querySelector('.csub').textContent = S.pot > 0 ? `🐷 Spardose: ${M(S.pot)}` : 'Spardose leer';
+      }
     });
 
     // Würfel
@@ -483,7 +502,7 @@
     const desc = {
       go: 'Jedes Mal, wenn du hier vorbeiziehst, bekommst du Ð200 (das Zebra Ð250).',
       jail: 'Wer hierher geschickt wird, sitzt fest. Raus kommst du mit einem Pasch, mit Ð50 oder mit einer Freikarte. Wer nur draufkommt, ist nur zu Besuch.',
-      parking: 'Aprils Pause. Hier passiert nichts. Einfach chillen.',
+      parking: 'Aprils Pause mit Aprils Spardose: Alle Steuern und Strafen an die Bank sammeln sich hier. Wer draufkommt, bekommt alles.',
       gotojail: 'Deadline verpasst! Du gehst direkt nach Düsseldorf, ohne über LOS zu ziehen.',
       tax: `Zahle ${M(sp.amount || 0)} an die Bank.`,
       april: 'Zieh eine April-Karte. April ist launisch, cringe und manchmal großzügig.',
@@ -678,7 +697,7 @@
   }
 
   function renderLog() {
-    $('#log').innerHTML = App.S.log.slice(-40).reverse().map((m) => `<li>${esc(m)}</li>`).join('');
+    $('#log').innerHTML = App.S.log.slice(-40).reverse().map((m) => `<li class="${m.startsWith('April:') ? 'is-april' : ''}">${esc(m)}</li>`).join('');
   }
 
   // ---------- Handel ----------
@@ -745,6 +764,58 @@
     if (kind === 'leave') return leaveRoom();
   }
 
+  // ---------- Reaktionen ----------
+  $('#reactions').innerHTML = REACTIONS.map((r) => `<button data-react="${esc(r)}" class="${/^[A-Z0-9 ]+$/.test(r) ? 'txt' : ''}">${esc(r)}</button>`).join('');
+  $('#reactions').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-react]');
+    if (!b) return;
+    const r = b.dataset.react;
+    if (App.mode === 'client') Net.send({ type: 'react', r });
+    else sendReaction(App.mode === 'local' ? curP().id : myId, r);
+  });
+  function sendReaction(pid, r) {
+    if (App.mode === 'host') Net.broadcast({ type: 'react', pid, r });
+    showBubble(pid, r);
+  }
+  function showBubble(pid, r) {
+    const p = P(pid);
+    if (!p || !REACTIONS.includes(r)) return;
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    b.style.setProperty('--pc', p.color);
+    b.style.left = (8 + Math.random() * 55) + '%';
+    b.innerHTML = `${tokHTML(p.token, p.color)}<span>${esc(p.name)}</span><span class="r ${/^[A-Z0-9 ]+$/.test(r) ? 'txt' : ''}">${esc(r)}</span>`;
+    $('#bubbles').appendChild(b);
+    FX.play('pop');
+    setTimeout(() => b.remove(), 2900);
+  }
+
+  // ---------- Sounds aus dem Verlauf ----------
+  const SOUND_RULES = [
+    ['win', /gewinnt/], ['pot', /Spardose/], ['jail', /nach Düsseldorf/], ['pay', /zahlt|fehlen/],
+    ['cash', /kassiert|Erhalte|ersteigert|kauft/], ['build', /baut/], ['card', /zieht eine/], ['roll', /würfelt/],
+  ];
+  function playSounds() {
+    const S = App.S;
+    const seq = S.logSeq || 0;
+    if (App.seenSeq == null) { App.seenSeq = seq; return; }
+    const n = Math.min(seq - App.seenSeq, S.log.length);
+    App.seenSeq = seq;
+    if (n <= 0) return;
+    const fresh = S.log.slice(-n).join('\n');
+    const hit = SOUND_RULES.find(([, re]) => re.test(fresh));
+    if (hit) FX.play(hit[0]);
+    const cur = curP();
+    if (S.phase === 'play' && App.mode !== 'local' && cur.id === myId && App.lastCurId !== myId) {
+      setTimeout(() => FX.play('turn'), 450);
+      try { navigator.vibrate && navigator.vibrate(120); } catch (e) { /* egal */ }
+    }
+    App.lastCurId = cur.id;
+  }
+  document.addEventListener('pointerdown', () => FX.unlock(), { once: true });
+  $('#btn-sound').textContent = FX.muted ? '🔇' : '🔊';
+  $('#btn-sound').onclick = () => { $('#btn-sound').textContent = FX.toggle() ? '🔇' : '🔊'; };
+
   // ---------- Topbar ----------
   $('#btn-zoom').onclick = () => {
     const w = $('#board-wrap');
@@ -756,7 +827,8 @@
     <h3>Dein Zug</h3><ul>
       <li>Würfeln und ziehen. Bei einem Pasch darfst du nochmal. Drei Pasch hintereinander: ab nach Düsseldorf.</li>
       <li>Freies Feld: kaufen oder versteigern lassen. Fremdes Feld: Miete zahlen.</li>
-      <li>Über LOS gibt es ${M(D.GO_MONEY)}.</li></ul>
+      <li>Über LOS gibt es ${M(D.GO_MONEY)}.</li>
+      <li>🐷 Aprils Spardose: Alle Steuern und Strafen an die Bank landen im Topf. Wer auf „Aprils Pause“ kommt, bekommt alles.</li></ul>
     <h3>Bauen</h3><ul>
       <li>Häuser baust du, wenn dir die ganze Farbgruppe gehört. Gleichmäßig bauen, nach 4 Häusern kommt das Hotel.</li>
       <li>Eine ganze Farbgruppe ohne Häuser bringt doppelte Miete.</li></ul>
@@ -788,14 +860,15 @@
     if ($('#screen-game').hidden) { show('screen-game'); buildBoard(); }
     $('#room-chip').textContent = App.mode === 'local' ? 'Ein Gerät' : `Raum ${App.code}`;
     renderNet();
-    if (S.rollId !== App.pulseRoll) { App.pulseRoll = S.rollId; }
     if (S.sub !== 'debt') App.confirmBankrupt = false;
     renderBoard();
     renderAction();
     renderPlayers();
     renderProps();
     renderLog();
+    playSounds();
     if (S.phase === 'over' && App.lastPhase !== 'over') {
+      FX.confetti();
       const w = P(S.winner);
       openModal(`<div class="winner">${tokHTML(w.token, w.color)}<h2>${esc(w.name)} gewinnt!</h2><p>Herzlichen Glückwunsch zum Dulidanopoly-Sieg. 💜</p></div>`);
     }

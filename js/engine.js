@@ -1,7 +1,7 @@
 // Dulidanopoly – Spielregeln. Läuft nur beim Host; Clients bekommen den Zustand geschickt.
 (function (root) {
   const D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.DULI_DATA;
-  const { SPACES, GROUPS, RAILS, UTILS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, GO_MONEY, PLAYER_COLORS } = D;
+  const { SPACES, GROUPS, RAILS, UTILS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, GO_MONEY, PLAYER_COLORS, APRIL_SAYS } = D;
   const CARDS = { april: APRIL_CARDS, studio: STUDIO_CARDS };
   const DECK_NAME = { april: 'April-Karte', studio: 'Studio-Karte' };
   const MAX_HOUSES = 32, MAX_HOTELS = 12;
@@ -23,7 +23,7 @@
       v: 0, phase: 'lobby', players: [], cur: 0, sub: 'roll', turnNo: 0,
       dice: [1, 1], rollId: 0, doublesCount: 0, rolledDouble: false,
       props: {}, decks: { april: [], studio: [] }, card: null, auction: null,
-      debt: null, trade: null, log: [], winner: null, ranking: null,
+      debt: null, trade: null, log: [], logSeq: 0, pot: 0, winner: null, ranking: null,
       berlingoArmed: false, pendingMove: null, cardMult: 0, utilCard: false, lastLand: null,
     };
   }
@@ -33,15 +33,20 @@
   const curP = (S) => S.players[S.cur];
   const active = (S) => S.players.filter(p => !p.bankrupt);
   function log(S, m) {
+    S.logSeq = (S.logSeq || 0) + 1;
     S.log.push(m);
     if (S.log.length > 80) S.log.splice(0, S.log.length - 80);
   }
   const money = (n) => 'Ð' + n;
+  function quip(S, kind, chance) {
+    const list = APRIL_SAYS[kind];
+    if (list && rng() < chance) log(S, list[Math.floor(rng() * list.length)]);
+  }
 
   function groupIdx(g) { return SPACES.map((s, i) => (s.group === g ? i : -1)).filter(i => i >= 0); }
   function ownsGroup(S, pid, g) { return groupIdx(g).every(i => S.props[i].owner === pid); }
   function groupHasHouses(S, g) { return groupIdx(g).some(i => S.props[i].houses > 0); }
-  function houseCost(p, g) { return GROUPS[g].house - (p.token === 'pen' ? 10 : 0); }
+  function houseCost(p, g) { return GROUPS[g].house - (p.token === 'pen' ? 25 : 0); }
   function buyPrice(p, idx) {
     const base = SPACES[idx].price;
     return p.token === 'dulidan' ? Math.round(base * 0.9) : base;
@@ -123,7 +128,7 @@
     S.props = {};
     SPACES.forEach((s, i) => { if (BUYABLE.includes(s.type)) S.props[i] = { owner: null, houses: 0, mort: false }; });
     S.decks = { april: shuffle(APRIL_CARDS.map((_, i) => i)), studio: shuffle(STUDIO_CARDS.map((_, i) => i)) };
-    S.phase = 'play'; S.cur = 0; S.sub = 'roll'; S.turnNo = 1;
+    S.phase = 'play'; S.cur = 0; S.sub = 'roll'; S.turnNo = 1; S.pot = 0;
     S.log = [];
     log(S, `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
     return null;
@@ -134,6 +139,7 @@
     const amt = GO_MONEY + (p.token === 'zebra' ? 50 : 0);
     p.money += amt;
     log(S, `${p.name} zieht über LOS und kassiert ${money(amt)}.`);
+    quip(S, 'go', 0.2);
   }
   function moveBy(S, p, n) {
     const old = p.pos;
@@ -149,6 +155,7 @@
     p.pos = 10; p.inJail = true; p.jailTries = 0;
     S.rolledDouble = false; S.doublesCount = 0;
     log(S, `${p.name} muss nach Düsseldorf. 😱`);
+    quip(S, 'jail', 0.6);
   }
 
   function proceed(S) {
@@ -169,6 +176,7 @@
       for (const it of items) {
         p.money -= it.amt;
         if (it.to) P(S, it.to).money += it.amt;
+        else S.pot = (S.pot || 0) + it.amt;
       }
       return true;
     }
@@ -190,6 +198,7 @@
       const owner = P(S, st.owner);
       const rent = calcRent(S, p.pos, p);
       log(S, `${p.name} zahlt ${money(rent)} Miete an ${owner.name}.`);
+      if (rent >= 200) quip(S, 'bigRent', 0.8);
       if (charge(S, p, [{ to: owner.id, amt: rent }])) proceed(S);
       return;
     }
@@ -203,6 +212,13 @@
         return drawCard(S, sp.type);
       case 'gotojail':
         sendJail(S, p);
+        return proceed(S);
+      case 'parking':
+        if (S.pot > 0) {
+          log(S, `${p.name} knackt Aprils Spardose: ${money(S.pot)}! 🐷`);
+          p.money += S.pot; S.pot = 0;
+          quip(S, 'pot', 0.7);
+        }
         return proceed(S);
       default:
         return proceed(S);
@@ -250,6 +266,7 @@
       if (p.token === 'doener') { p.money += 20; log(S, `Döner-Pasch: ${p.name} bekommt ${money(20)}. Mit allem, scharf! 🥙`); }
       if (S.doublesCount >= 3) {
         log(S, `Drei Pasch hintereinander!`);
+        quip(S, 'triple', 1);
         sendJail(S, p);
         S.sub = 'end';
         return;
@@ -329,6 +346,16 @@
         }
         return proceed(S);
       case 'back': moveBy(S, p, -c.n); return land(S, p);
+      case 'forward': moveBy(S, p, c.n); return land(S, p);
+      case 'fromRichest': {
+        const rich = others.slice().sort((a, b) => b.money - a.money)[0];
+        if (rich) {
+          const x = Math.min(rich.money, c.amt);
+          rich.money -= x; p.money += x;
+          log(S, `${rich.name} ist am reichsten und zahlt ${money(x)} an ${p.name}.`);
+        }
+        return proceed(S);
+      }
       case 'nearestRail': {
         const t = RAILS.find(i => i > p.pos) ?? RAILS[0];
         moveTo(S, p, t); S.cardMult = 2;
@@ -368,6 +395,7 @@
     p.money -= price;
     S.props[idx].owner = p.id;
     log(S, `${p.name} kauft ${SPACES[idx].name} für ${money(price)}.`);
+    quip(S, 'buy', 0.15);
     proceed(S);
     return null;
   }
@@ -489,6 +517,7 @@
     for (const it of d.items) {
       p.money -= it.amt;
       if (it.to) P(S, it.to).money += it.amt;
+      else S.pot = (S.pot || 0) + it.amt;
     }
     S.debt = null;
     log(S, `${p.name} hat die Schulden bezahlt.`);
@@ -522,6 +551,7 @@
       for (const deck of p.jailFree) S.decks[deck].push(CARDS[deck].findIndex(c => c.t === 'jailfree'));
       log(S, `${p.name} ist pleite! Alles geht zurück an die Bank.`);
     }
+    quip(S, 'bankrupt', 1);
     p.jailFree = [];
     p.money = 0; p.bankrupt = true; p.inJail = false;
     if (d) S.debt = null;
@@ -623,7 +653,7 @@
       case 'payJail':
         if (needCur() || S.sub !== 'roll' || !p.inJail) return 'Geht gerade nicht.';
         if (p.money < 50) return 'Nicht genug Dulis.';
-        p.money -= 50; p.inJail = false; p.jailTries = 0;
+        p.money -= 50; S.pot = (S.pot || 0) + 50; p.inJail = false; p.jailTries = 0;
         log(S, `${p.name} zahlt ${money(50)} und verlässt Düsseldorf.`);
         return null;
       case 'useJailCard': {

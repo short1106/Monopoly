@@ -38,7 +38,7 @@
     { type: 'studio', name: 'Studio-Karte' },
     prop('MSV-Arena', 'orange', 180, [14, 70, 200, 550, 750, 950]),
     prop('Sechs-Seen-Platte', 'orange', 200, [16, 80, 220, 600, 800, 1000]),
-    { type: 'parking', name: 'Aprils Pause', sub: 'Einfach chillen' },
+    { type: 'parking', name: 'Aprils Pause', sub: 'Spardose' },
     prop('Landschaftspark Nord', 'red', 220, [18, 90, 250, 700, 875, 1050]),
     { type: 'april', name: 'April-Karte' },
     prop('Tiger & Turtle', 'red', 220, [18, 90, 250, 700, 875, 1050]),
@@ -69,7 +69,7 @@
     zebra:    { name: 'Zebra',          emoji: '🦓', power: 'Bekommt Ð50 extra, wenn es über LOS läuft.' },
     ship:     { name: 'Containerschiff', emoji: '🚢', power: 'Zahlt auf Bahnhöfen nur die halbe Miete.' },
     berlingo: { name: 'Berlingo',       emoji: '🚐', power: 'Einmal pro Spiel nach dem Würfeln 1 Feld vor oder zurück fahren.' },
-    pen:      { name: 'Grafikstift',    emoji: '🖊️', power: 'Häuser kosten Ð10 weniger.' },
+    pen:      { name: 'Grafikstift',    emoji: '🖊️', power: 'Häuser und Hotels kosten Ð25 weniger.' },
     helmet:   { name: 'Stahlhelm',      emoji: '⛑️', power: 'Kommt aus Düsseldorf schon nach 2 statt 3 Versuchen raus.' },
     doener:   { name: 'Döner',          emoji: '🥙', power: 'Jeder Pasch gibt Ð20 extra – mit allem, scharf!' },
   };
@@ -93,6 +93,14 @@
     { t: 'move', to: 39, text: 'April schickt dich ins DULIDAN HQ. Rücke vor.' },
     { t: 'move', to: 24, text: 'April will Fotos am Rheinorange. Rücke vor bis Rheinorange.' },
     { t: 'repairs', house: 25, hotel: 100, text: 'April hat alle Rechner geupdatet und dabei was kaputt gemacht. Zahle Ð25 pro Haus und Ð100 pro Hotel.' },
+    { t: 'fromRichest', amt: 100, text: 'April hackt den reichsten Mitspieler. Der zahlt dir Ð100. Robin Hood, aber cringe.' },
+    { t: 'money', amt: -30, text: 'Du hast „67“ in die Familiengruppe geschrieben. Peinlich. Zahle Ð30 Schweigegeld.' },
+    { t: 'forward', n: 5, text: 'April hat den Autopiloten an. Rücke 5 Felder vor. Keine Garantie.' },
+    { t: 'move', to: 5, text: 'April bucht dir den RE nach Duisburg Hbf. 40 Minuten Verspätung, aber du kommst an.' },
+    { t: 'money', amt: 25, text: 'April hat 100 Pfandflaschen gefunden. Erhalte Ð25.' },
+    { t: 'payEach', amt: 20, text: 'April hat in der Gruppe „tung tung tung sahur“ gespammt – mit deinem Handy. Zahle jedem Mitspieler Ð20.' },
+    { t: 'money', amt: -50, text: 'April hat „Brainrot Premium“ abonniert. Mit deiner Karte. Zahle Ð50.' },
+    { t: 'collectEach', amt: 25, text: 'April macht auf TikTok Werbung für dich und geht viral. Jeder Mitspieler zahlt dir Ð25.' },
   ];
 
   const STUDIO_CARDS = [
@@ -112,9 +120,26 @@
     { t: 'jailfree', text: '„Der Kunde wartet!“ Du kommst kostenlos aus Düsseldorf raus. Behalte diese Karte.' },
     { t: 'repairs', house: 40, hotel: 115, text: 'Studio-Renovierung. Zahle Ð40 pro Haus und Ð115 pro Hotel.' },
     { t: 'money', amt: 100, text: 'Der Jahresabschluss lief gut. Erhalte Ð100.' },
+    { t: 'money', amt: -75, text: 'Der Kunde will „das Logo größer, aber kleiner“. 12 Korrekturschleifen. Zahle Ð75 für Kaffee.' },
+    { t: 'money', amt: 150, text: 'Der folierte Berlingo fährt durch die Stadt. Neue Aufträge: Erhalte Ð150.' },
+    { t: 'fromRichest', amt: 50, text: 'Ein reicher Kunde will „irgendwas mit KI“. Der reichste Mitspieler zahlt dir Ð50.' },
+    { t: 'move', to: 39, text: 'Krisenmeeting im DULIDAN HQ! Rücke vor.' },
+    { t: 'back', n: 2, text: 'Der Kunde ändert kurz vor Abgabe das Briefing. Gehe 2 Felder zurück.' },
+    { t: 'money', amt: -40, text: 'Die Software-Abos sind schon wieder teurer geworden. Zahle Ð40.' },
   ];
 
-  const DATA = { START_MONEY, GO_MONEY, GROUPS, SPACES, RAILS, UTILS, TOKENS, PLAYER_COLORS, APRIL_CARDS, STUDIO_CARDS };
+  // Aprils Kommentare im Verlauf
+  const APRIL_SAYS = {
+    jail: ['April: „Düsseldorf?! Mein Beileid. Ehrlich.“', 'April: „Altbier und Kö. Viel Spaß, lol.“', 'April: „Ich schick dir Gebete. Und Currywurst.“', 'April: „Das ist jetzt dein Leben. No rizz.“'],
+    bigRent: ['April: „Autsch. Das tut sogar mir weh.“', 'April: „Ich hätte das nicht bezahlt. Ich hätte geweint.“', 'April: „Kontostand? Gibt es nicht mehr.“', 'April: „Ruhe in Frieden, Portemonnaie.“'],
+    go: ['April: „Gehalt da! Nicht alles für Döner ausgeben.“', 'April: „Kohle! 67! 67!“', 'April: „Endlich Geld. Ich nehm 10 % Provision.“'],
+    pot: ['April: „Meine Spardose! Du Dieb!“', 'April: „Das war mein Energy-Drink-Geld …“'],
+    buy: ['April: „Gönn dir.“', 'April: „Immobilienhai-Energie.“', 'April: „Ich hätte es auch gekauft. Mit deinem Geld.“'],
+    triple: ['April: „Drei Pasch?! Das ist doch Betrug.“'],
+    bankrupt: ['April: „F. Pleite. Ich hab nichts gesehen.“'],
+  };
+
+  const DATA = { START_MONEY, GO_MONEY, GROUPS, SPACES, RAILS, UTILS, TOKENS, PLAYER_COLORS, APRIL_CARDS, STUDIO_CARDS, APRIL_SAYS };
   if (typeof module !== 'undefined' && module.exports) module.exports = DATA;
   else root.DULI_DATA = DATA;
 })(typeof window !== 'undefined' ? window : globalThis);
