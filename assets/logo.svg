@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 620">
+  <defs>
+    <linearGradient id="dm" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#4a1288"/><stop offset=".55" stop-color="#8a24cc"/><stop offset="1" stop-color="#a52fe6"/></linearGradient>
+    <linearGradient id="dt" x1="0" y1="0" x2="1" y2=".4"><stop offset="0" stop-color="#b42cf0"/><stop offset="1" stop-color="#e03cff"/></linearGradient>
+    <linearGradient id="db" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3d0f78"/><stop offset="1" stop-color="#7a22bd"/></linearGradient>
+    <linearGradient id="ds" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6c1cae"/><stop offset="1" stop-color="#7d22c4"/></linearGradient>
+    <clipPath id="dc"><path d="M200 0H380C562 0 690 135 690 310C690 485 562 620 380 620H0V606L272 440H420C478 440 512 380 512 305C512 222 466 155 372 155H200Z"/></clipPath>
+  </defs>
+  <path d="M0 0H150V190L0 268Z" fill="url(#ds)"/>
+  <path d="M0 325L188 218V425L0 540Z" fill="url(#ds)"/>
+  <g clip-path="url(#dc)">
+    <rect width="700" height="620" fill="url(#dm)"/>
+    <path d="M190 -10H710V190L512 296L498 250L480 207L448 177L408 167L372 166L190 166Z" fill="url(#dt)"/>
+    <path d="M-10 640V600L272 440H420L610 548V640Z" fill="url(#db)"/>
+    <path d="M512 296L700 188" stroke="#2a0a4a" stroke-opacity=".45" stroke-width="7"/>
+    <path d="M420 440L610 548" stroke="#2a0a4a" stroke-opacity=".45" stroke-width="7"/>
+  </g>
+</svg>

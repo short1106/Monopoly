@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Dulidanopoly</title>
+  <meta name="description" content="Dulidanopoly – das Monopoly von Dulidan Studios. Online mit Freunden spielen.">
+  <meta name="theme-color" content="#0e0b13">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Startseite -->
+  <section id="screen-home" class="screen">
+    <div class="home">
+      <div class="home-logo" data-logo></div>
+      <h1 class="wordmark">DULIDAN<span>OPOLY</span></h1>
+      <p class="tagline">Von Marxloh bis ins DULIDAN HQ.</p>
+
+      <div class="home-card">
+        <label class="field">
+          <span>Dein Name</span>
+          <input id="in-name" maxlength="16" autocomplete="nickname" placeholder="z. B. Shaquille">
+        </label>
+        <button id="btn-create" class="btn btn-primary">Raum erstellen</button>
+        <div class="divider"><span>oder</span></div>
+        <div class="join-row">
+          <label class="field">
+            <span>Raum-Code</span>
+            <input id="in-code" maxlength="4" autocomplete="off" placeholder="ABCD">
+          </label>
+          <button id="btn-join" class="btn">Beitreten</button>
+        </div>
+        <button id="btn-resume" class="btn btn-ghost" hidden></button>
+        <button id="btn-local" class="btn btn-ghost">Auf einem Gerät spielen</button>
+      </div>
+      <p class="home-foot">Ein Spiel von <strong>Dulidan Studios</strong></p>
+    </div>
+  </section>
+
+  <!-- Lobby -->
+  <section id="screen-lobby" class="screen" hidden>
+    <div class="lobby">
+      <header class="lobby-head">
+        <div class="mini-logo" data-logo></div>
+        <div>
+          <p class="eyebrow" id="lobby-eyebrow">Raum-Code</p>
+          <p class="room-code" id="lobby-code">----</p>
+        </div>
+        <button id="btn-copy" class="btn btn-small">Link kopieren</button>
+      </header>
+      <p class="lobby-hint" id="lobby-hint">Schick deinen Freunden den Link oder den Code. Jeder wählt eine Figur.</p>
+
+      <div id="local-add" class="local-add" hidden>
+        <label class="field"><span>Spielername</span><input id="in-local-name" maxlength="16" placeholder="Name"></label>
+        <button id="btn-local-add" class="btn">Spieler hinzufügen</button>
+      </div>
+
+      <h2 class="section-title">Spieler</h2>
+      <ul id="lobby-players" class="lobby-players"></ul>
+
+      <h2 class="section-title" id="token-title">Wähle deine Figur</h2>
+      <div id="token-grid" class="token-grid"></div>
+
+      <div class="lobby-actions">
+        <button id="btn-start" class="btn btn-primary">Spiel starten</button>
+        <button id="btn-leave" class="btn btn-ghost">Verlassen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Spiel -->
+  <section id="screen-game" class="screen" hidden>
+    <header class="topbar">
+      <div class="mini-logo" data-logo></div>
+      <span class="topbar-name">DULIDANOPOLY</span>
+      <span id="room-chip" class="chip"></span>
+      <span id="net-chip" class="chip chip-net"></span>
+      <span class="spacer"></span>
+      <button id="btn-zoom" class="btn btn-small btn-ghost" title="Brett vergrößern">Zoom</button>
+      <button id="btn-rules" class="btn btn-small btn-ghost">Regeln</button>
+      <button id="btn-menu" class="btn btn-small btn-ghost">Menü</button>
+    </header>
+    <main class="game">
+      <div class="board-wrap" id="board-wrap">
+        <div class="board" id="board">
+          <div class="center" id="center">
+            <div class="center-brand">
+              <div class="center-logo" data-logo></div>
+              <div class="center-word">DULIDAN<span>OPOLY</span></div>
+              <div class="center-sub">Duisburg · Öhringen</div>
+            </div>
+            <div class="dice" id="dice"><div class="die" id="die1"></div><div class="die" id="die2"></div></div>
+            <div class="center-turn" id="center-turn"></div>
+            <div class="center-card" id="center-card" hidden></div>
+          </div>
+        </div>
+      </div>
+      <aside class="side">
+        <section class="panel panel-action" id="panel-action"></section>
+        <section class="panel">
+          <h2 class="panel-title">Spieler</h2>
+          <ul class="players" id="players"></ul>
+        </section>
+        <section class="panel">
+          <h2 class="panel-title" id="props-title">Deine Felder</h2>
+          <div id="my-props" class="my-props"></div>
+        </section>
+        <section class="panel">
+          <h2 class="panel-title">Verlauf</h2>
+          <ol class="log" id="log"></ol>
+        </section>
+      </aside>
+    </main>
+  </section>
+
+  <div class="modal-back" id="modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-x" id="modal-x" aria-label="Schließen">×</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="vendor/peerjs.min.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
