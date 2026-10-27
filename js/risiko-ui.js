@@ -2,10 +2,7 @@
 // Würfeln, Karten, Spielern und Kontinenten.
 (function () {
   const R = window.DULI_RISIKO, D = window.DULI_RISIKO_DATA, FX = window.DULI_FX, VO = window.DULI_VOICE, esc = window.DULI_PARTY.esc;
-  const Lf = window.L;
   const $ = (s, r = document) => r.querySelector(s);
-  const TILES = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
-  const TILES_ATTR = '&copy; OpenStreetMap, &copy; CARTO';
   const PHASE = { reinforce: 'Verstärken', attack: 'Angreifen', move: 'Truppen nachziehen', fortify: 'Verschieben', over: 'Spielende' };
   const KIND = { inf: 'Infanterie', cav: 'Kavallerie', art: 'Artillerie', joker: 'Joker' };
   const put = (el, html) => { if (el && el._html !== html) { el.innerHTML = html; el._html = html; return true; } return false; };
@@ -23,51 +20,115 @@
     return false;
   }
 
-  // ---------- Gerüst mit Karte ----------
-  function hull(pts) {
-    const p = pts.slice().sort((a, b) => a[1] - b[1] || a[0] - b[0]);
-    if (p.length < 3) return p;
-    const cross = (o, a, b) => (a[1] - o[1]) * (b[0] - o[0]) - (a[0] - o[0]) * (b[1] - o[1]);
-    const lo = [], up = [];
-    p.forEach((q) => { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); });
-    p.slice().reverse().forEach((q) => { while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); });
-    return lo.slice(0, -1).concat(up.slice(0, -1));
-  }
+  // ---------- Gerüst: das Spielbrett als SVG (Formen aus js/risiko-shapes.js) ----------
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const SH = () => window.DULI_RISIKO_SHAPES;
   function ensureSkel(root, V) {
     if (skel && root.contains(skel.el) && skel.map === V.map) return;
-    if (skel) { try { skel.lmap.remove(); } catch (e) { /* weg */ } }
-    root.innerHTML = `<div class="rk"><div class="rk-mapwrap"><div id="rk-map" class="rk-map"></div><div id="rk-banner" class="rk-banner"></div><div id="rk-dice" class="rk-dicebox"></div></div>
-      <aside class="rk-side"><div id="rk-turn"></div><div id="rk-phase"></div><div id="rk-cards"></div><div id="rk-players"></div><div id="rk-conts"></div><div id="rk-log"></div></aside></div>`;
-    const M = mapOf(V);
-    const lmap = Lf.map($('#rk-map'), { worldCopyJump: false, zoomSnap: 0.25, minZoom: V.map === 'world' ? 1.5 : 8, maxZoom: V.map === 'world' ? 6 : 13 });
-    Lf.tileLayer(TILES, { subdomains: 'abcd', maxZoom: 19, attribution: TILES_ATTR }).addTo(lmap);
-    // Kontinente als Flächen
-    Object.values(M.conts).forEach((c) => {
-      const pts = c.terr.map((t) => [M.T[t].lat, M.T[t].lng]);
-      const cy = pts.reduce((s, q) => s + q[0], 0) / pts.length, cx = pts.reduce((s, q) => s + q[1], 0) / pts.length;
-      const k = V.map === 'world' ? 1 : 0.005;
-      const grown = pts.flatMap(([la, ln]) => [[la + 5 * k, ln], [la - 5 * k, ln], [la, ln + 7 * k], [la, ln - 7 * k]]).map(([la, ln]) => [cy + (la - cy) * 1.08, cx + (ln - cx) * 1.08]);
-      Lf.polygon(hull(grown), { color: c.color, weight: 1, opacity: 0.45, fillColor: c.color, fillOpacity: 0.07, dashArray: '4 6', interactive: false }).addTo(lmap);
-    });
-    // Verbindungen
+    const M = mapOf(V), B = SH()[V.map];
+    const world = V.map === 'world';
+    const r = world ? 15 : 17;
+    // Wasserwege (gestrichelt) zwischen den Plaketten; Alaska–Kamtschatka über den Kartenrand
+    let routes = '';
     const drawn = new Set();
     Object.values(M.T).forEach((t) => t.adj.forEach((o) => {
       const k2 = [t.id, o].sort().join('|');
-      if (drawn.has(k2)) return;
+      if (drawn.has(k2) || !t.sea[o]) return;
       drawn.add(k2);
-      const u = M.T[o], sea = !!t.sea[o];
-      const style = { color: sea ? '#3ad1ff' : '#ffffff', weight: sea ? 1.6 : 1.2, opacity: sea ? 0.5 : 0.25, dashArray: sea ? '5 6' : null, interactive: false };
-      if (Math.abs(t.lng - u.lng) > 180) {
-        const [w, e] = t.lng < u.lng ? [t, u] : [u, t];
-        Lf.polyline([[w.lat, w.lng], [e.lat, e.lng - 360]], style).addTo(lmap);
-        Lf.polyline([[e.lat, e.lng], [w.lat, w.lng + 360]], style).addTo(lmap);
-      } else Lf.polyline([[t.lat, t.lng], [u.lat, u.lng]], style).addTo(lmap);
+      const a = B.terr[t.id], c = B.terr[o];
+      if (Math.abs(a.x - c.x) > B.w / 2) {
+        const [l, rr] = a.x < c.x ? [a, c] : [c, a];
+        routes += `<line x1="${l.x}" y1="${l.y}" x2="0" y2="${l.y - 6}"/><line x1="${rr.x}" y1="${rr.y}" x2="${B.w}" y2="${rr.y - 6}"/>`;
+      } else routes += `<line x1="${a.x}" y1="${a.y}" x2="${c.x}" y2="${c.y}"/>`;
     }));
-    const layer = Lf.layerGroup().addTo(lmap);
-    const pts = Object.values(M.T).map((t) => [t.lat, t.lng]);
-    lmap.fitBounds(V.map === 'world' ? [[-45, -165], [76, 170]] : pts, { padding: [20, 20] });
-    skel = { el: root.querySelector('.rk'), map: V.map, lmap, layer };
-    setTimeout(() => lmap.invalidateSize(), 60);
+    const grid = (B.grid || []).map(([k, v]) => (k === 'h' ? `<line x1="0" y1="${v}" x2="${B.w}" y2="${v}"/>` : `<line x1="${v}" y1="0" x2="${v}" y2="${B.h}"/>`)).join('');
+    root.innerHTML = `<div class="rk"><div class="rk-mapwrap"><div id="rk-map" class="rk-map rk-board-${V.map}" style="aspect-ratio:${B.w} / ${B.h}">
+      <svg id="rk-svg" viewBox="0 0 ${B.w} ${B.h}" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <radialGradient id="rk-ocean" cx="50%" cy="45%" r="75%"><stop offset="0" stop-color="#16406b"/><stop offset=".6" stop-color="#0d2c4f"/><stop offset="1" stop-color="#071a31"/></radialGradient>
+          <filter id="rk-shadow" x="-5%" y="-5%" width="110%" height="110%"><feDropShadow dx="0" dy="${world ? 2 : 4}" stdDeviation="${world ? 2.5 : 5}" flood-color="#000" flood-opacity=".55"/></filter>
+          <filter id="rk-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <pattern id="rk-waves" width="40" height="20" patternUnits="userSpaceOnUse"><path d="M0 10 Q10 4 20 10 T40 10" fill="none" stroke="#ffffff" stroke-opacity=".035" stroke-width="1.2"/></pattern>
+        </defs>
+        <rect width="${B.w}" height="${B.h}" fill="url(#rk-ocean)"/><rect width="${B.w}" height="${B.h}" fill="url(#rk-waves)"/>
+        <g class="rk-grid">${grid}</g>
+        <g filter="url(#rk-shadow)"><path class="rk-land" d="${B.land || ''}"/>${Object.values(B.conts).map((d) => `<path class="rk-landbase" d="${d}"/>`).join('')}</g>
+        <g id="rk-terr">${M.ids.map((t) => `<path class="rk-tp" data-t="${t}" d="${B.terr[t].d}"/>`).join('')}</g>
+        ${(B.rivers || []).map((rv) => `<path class="rk-river" d="${rv.d}" stroke-width="${rv.w}"/>`).join('')}
+        <g class="rk-contlines">${Object.entries(B.conts).map(([c, d]) => `<path d="${d}" stroke="${M.conts[c].color}"/>`).join('')}</g>
+        <g class="rk-routes">${routes}</g>
+        <g id="rk-seas"></g>
+        <g id="rk-badges" style="--r:${r}px"></g>
+      </svg>
+      <div class="rk-zoom"><button type="button" data-z="1" title="Reinzoomen">+</button><button type="button" data-z="-1" title="Rauszoomen">−</button><button type="button" data-z="0" title="Ganze Karte">⟲</button></div>
+      <div class="rk-legend">${Object.values(M.conts).map((c) => `<span style="--cc:${c.color}">${esc(c.name)} <b>+${c.bonus}</b></span>`).join('')}</div>
+      </div><div id="rk-banner" class="rk-banner"></div><div id="rk-dice" class="rk-dicebox"></div></div>
+      <aside class="rk-side"><div id="rk-turn"></div><div id="rk-phase"></div><div id="rk-cards"></div><div id="rk-players"></div><div id="rk-conts"></div><div id="rk-log"></div></aside></div>`;
+    const svg = $('#rk-svg');
+    skel = { el: root.querySelector('.rk'), map: V.map, svg, vb: [0, 0, B.w, B.h], full: [0, 0, B.w, B.h], r, paths: {} };
+    svg.querySelectorAll('.rk-tp').forEach((p) => { skel.paths[p.dataset.t] = p; });
+    // Klicks auf Gebiete und Plaketten (ein Klick, kein Ziehen)
+    let down = null, moved = false;
+    svg.addEventListener('click', (e) => {
+      if (moved) return;
+      const el = e.target.closest('[data-t],[data-z-sea]');
+      if (!el) return;
+      if (el.dataset.t) clickTerr(el.dataset.t); else clickZone(el.dataset.zSea);
+    });
+    // Zoomen und Verschieben (Maus, Rad, Finger)
+    const setVB = () => svg.setAttribute('viewBox', skel.vb.map((n) => n.toFixed(1)).join(' '));
+    const clamp = () => {
+      const [, , w0, h0] = skel.full;
+      const ar = skel.ar || h0 / w0;
+      skel.vb[2] = Math.min(w0, h0 / ar, Math.max(w0 / 6, skel.vb[2])); skel.vb[3] = skel.vb[2] * ar;
+      skel.vb[0] = Math.max(-w0 * 0.05, Math.min(w0 * 1.05 - skel.vb[2], skel.vb[0])); skel.vb[1] = Math.max(-h0 * 0.05, Math.min(h0 * 1.05 - skel.vb[3], skel.vb[1]));
+    };
+    const toSvg = (cx, cy) => { const rc = svg.getBoundingClientRect(); const s = Math.max(skel.vb[2] / rc.width, skel.vb[3] / rc.height); const ox = (rc.width * s - skel.vb[2]) / 2, oy = (rc.height * s - skel.vb[3]) / 2; return [skel.vb[0] + (cx - rc.left) * s - ox, skel.vb[1] + (cy - rc.top) * s - oy, s]; };
+    const zoomAt = (f, cx, cy) => { const [x, y] = toSvg(cx, cy); skel.vb[0] = x - (x - skel.vb[0]) * f; skel.vb[1] = y - (y - skel.vb[1]) * f; skel.vb[2] *= f; skel.vb[3] *= f; clamp(); setVB(); };
+    svg.addEventListener('wheel', (e) => { e.preventDefault(); zoomAt(e.deltaY > 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY); }, { passive: false });
+    const ptrs = new Map();
+    svg.addEventListener('pointerdown', (e) => { ptrs.set(e.pointerId, [e.clientX, e.clientY]); down = [e.clientX, e.clientY, skel.vb[0], skel.vb[1]]; moved = false; });
+    svg.addEventListener('pointermove', (e) => {
+      if (!ptrs.has(e.pointerId)) return;
+      const prev = ptrs.get(e.pointerId);
+      ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+      if (ptrs.size === 2) {
+        const [p1, p2] = [...ptrs.values()];
+        const d1 = Math.hypot(p1[0] - p2[0], p1[1] - p2[1]);
+        const other = [...ptrs.entries()].find(([k]) => k !== e.pointerId)[1];
+        const d0 = Math.hypot(prev[0] - other[0], prev[1] - other[1]);
+        if (d0 > 0) zoomAt(d0 / d1, (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2);
+        moved = true;
+        return;
+      }
+      if (!down) return;
+      const dx = e.clientX - down[0], dy = e.clientY - down[1];
+      if (Math.abs(dx) + Math.abs(dy) > 6) moved = true;
+      if (!moved) return;
+      const [, , s] = toSvg(e.clientX, e.clientY);
+      skel.vb[0] = down[2] - dx * s; skel.vb[1] = down[3] - dy * s; clamp(); setVB();
+    });
+    const up = (e) => { ptrs.delete(e.pointerId); if (!ptrs.size) down = null; };
+    svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up); svg.addEventListener('pointerleave', up);
+    // Hochkant (Handy): Ausschnitt in der Form des Kartenfensters, damit die Karte die Höhe füllt
+    const fit = () => {
+      const rc = svg.getBoundingClientRect();
+      if (!rc.width || !rc.height) return;
+      const [, , w0, h0] = skel.full;
+      skel.ar = rc.height / rc.width;
+      const w = Math.min(w0, h0 / skel.ar);
+      skel.home = [(w0 - w) / 2, (h0 - w * skel.ar) / 2, w, w * skel.ar];
+      skel.vb = skel.home.slice(); clamp(); setVB();
+    };
+    setTimeout(fit, 30);
+    window.addEventListener('resize', () => { if (skel && skel.svg === svg) fit(); });
+    root.querySelectorAll('[data-z]').forEach((b) => {
+      b.onclick = () => {
+        const z = Number(b.dataset.z), rc = svg.getBoundingClientRect();
+        if (!z) { skel.vb = (skel.home || skel.full).slice(); setVB(); return; }
+        zoomAt(z > 0 ? 1 / 1.4 : 1.4, rc.left + rc.width / 2, rc.top + rc.height / 2);
+      };
+    });
   }
 
   // ---------- Darstellung ----------
@@ -114,32 +175,40 @@
     return out;
   }
   function drawMarkers(V, me, api, myTurn) {
-    const M = mapOf(V), layer = skel.layer;
-    layer.clearLayers();
+    const M = mapOf(V), B = SH()[V.map];
     const tg = targetsFor(V, me);
     const caps = Object.entries(V.capitals || {}).reduce((o, [pid, t]) => { o[t] = pid; return o; }, {});
     const pend = V.pending;
+    const r = skel.r;
+    // Flächen einfärben
     M.ids.forEach((t) => {
-      const T = M.T[t], own = V.owner[t];
-      const cls = ['rk-t', own === me ? 'mine' : '', sel === t ? 'sel' : '', target === t ? 'tgt' : '', tg.has(t) ? 'can' : '', pend && (pend.from === t || pend.to === t) ? 'pend' : ''].join(' ');
-      const units = V.real && (V.tank[t] || V.air[t]) ? `<i class="rk-units">${V.tank[t] ? `P${V.tank[t]}` : ''}${V.tank[t] && V.air[t] ? ' · ' : ''}${V.air[t] ? `F${V.air[t]}` : ''}</i>` : '';
-      const html = `<div class="${cls}" style="--pc:${color(V, own)};--cc:${M.conts[T.c].color}"><b>${ground(V, t)}</b>${caps[t] ? '<em class="rk-cap" title="Hauptstadt">★</em>' : ''}<span>${esc(T.name)}</span>${units}</div>`;
-      const mk = Lf.marker([T.lat, T.lng], { icon: Lf.divIcon({ className: 'rk-ic', html, iconSize: [40, 40], iconAnchor: [20, 20] }), riseOnHover: true });
-      mk.on('click', () => clickTerr(t));
-      mk.bindTooltip(`${esc(T.name)} · ${esc(M.conts[T.c].name)}<br>${esc(pname(V, own))}: ${V.real ? `${V.inf[t]} Inf · ${V.tank[t]} Panzer · ${V.air[t]} Flieger` : `${ground(V, t)} Truppen`}`, { direction: 'top', offset: [0, -18] });
-      mk.addTo(layer);
-      if (V.map === 'world' && T.lng > 150) Lf.marker([T.lat, T.lng - 360], { icon: Lf.divIcon({ className: 'rk-ic', html, iconSize: [40, 40], iconAnchor: [20, 20] }) }).on('click', () => clickTerr(t)).addTo(layer);
-      if (V.map === 'world' && T.lng < -140) Lf.marker([T.lat, T.lng + 360], { icon: Lf.divIcon({ className: 'rk-ic', html, iconSize: [40, 40], iconAnchor: [20, 20] }) }).on('click', () => clickTerr(t)).addTo(layer);
+      const p = skel.paths[t];
+      p.setAttribute('fill', color(V, V.owner[t]));
+      p.setAttribute('class', ['rk-tp', V.owner[t] === me ? 'mine' : '', sel === t ? 'sel' : '', target === t ? 'tgt' : '', tg.has(t) ? 'can' : '', pend && (pend.from === t || pend.to === t) ? 'pend' : ''].join(' '));
     });
-    if (V.real) {
-      Object.values(M.Z).forEach((z) => {
-        const f = V.fleet[z.id];
-        const canZ = zoneSel && M.Z[zoneSel].adj.includes(z.id);
-        const html = `<div class="rk-z ${f ? 'has' : ''} ${zoneSel === z.id ? 'sel' : ''} ${canZ ? 'can' : ''}" style="--pc:${f ? color(V, f.pid) : '#3ad1ff'}"><b>${f ? f.n : ''}</b><span>${esc(z.name)}</span></div>`;
-        Lf.marker([z.lat, z.lng], { icon: Lf.divIcon({ className: 'rk-ic', html, iconSize: [34, 34], iconAnchor: [17, 17] }) }).on('click', () => clickZone(z.id))
-          .bindTooltip(`${esc(z.name)}${f ? `<br>${esc(pname(V, f.pid))}: ${f.n} ${f.n === 1 ? 'Schiff' : 'Schiffe'}` : '<br>frei'}`, { direction: 'top' }).addTo(layer);
-      });
-    }
+    // Ausgewählte und Ziele nach oben, damit ihr Rand sichtbar ist
+    [...tg, sel, target].filter(Boolean).forEach((t) => skel.paths[t].parentNode.appendChild(skel.paths[t]));
+    // Plaketten mit Truppenzahl und Namen
+    const badges = M.ids.map((t) => {
+      const T = M.T[t], P = B.terr[t], own = V.owner[t];
+      const units = V.real && (V.tank[t] || V.air[t]) ? `<text class="rk-bu" x="${P.x}" y="${P.y - r - 4}">${V.tank[t] ? `P${V.tank[t]}` : ''}${V.tank[t] && V.air[t] ? ' ' : ''}${V.air[t] ? `F${V.air[t]}` : ''}</text>` : '';
+      return `<g class="rk-b ${sel === t ? 'sel' : ''} ${target === t ? 'tgt' : ''} ${tg.has(t) ? 'can' : ''}" data-t="${t}">
+        <circle cx="${P.x}" cy="${P.y}" r="${r}" fill="#0e0b13" stroke="${color(V, own)}"/>
+        <text class="rk-bn" x="${P.x}" y="${P.y}">${ground(V, t)}</text>
+        <text class="rk-bl" x="${P.x}" y="${P.y + r + 9}">${esc(T.name)}</text>${units}
+        ${caps[t] ? `<text class="rk-bc" x="${P.x + r * 0.9}" y="${P.y - r * 0.7}">★</text>` : ''}<title>${esc(T.name)} · ${esc(M.conts[T.c].name)} · ${esc(pname(V, own))}: ${V.real ? `${V.inf[t]} Inf, ${V.tank[t]} Panzer, ${V.air[t]} Flieger` : `${ground(V, t)} Truppen`}</title></g>`;
+    }).join('');
+    $('#rk-badges').innerHTML = badges;
+    // Seezonen (Realistic)
+    $('#rk-seas').innerHTML = V.real ? Object.values(M.Z).map((z) => {
+      const P = B.seas[z.id], f = V.fleet[z.id];
+      const canZ = zoneSel && M.Z[zoneSel].adj.includes(z.id);
+      const s = r * 1.05;
+      return `<g class="rk-zb ${f ? 'has' : ''} ${zoneSel === z.id ? 'sel' : ''} ${canZ ? 'can' : ''}" data-z-sea="${z.id}">
+        <rect x="${P.x - s}" y="${P.y - s}" width="${s * 2}" height="${s * 2}" rx="5" transform="rotate(45 ${P.x} ${P.y})" fill="${f ? color(V, f.pid) : 'rgba(10,30,60,.8)'}"/>
+        <text class="rk-bn" x="${P.x}" y="${P.y}">${f ? f.n : '~'}</text><text class="rk-zl" x="${P.x}" y="${P.y + s + 11}">${esc(z.name)}</text>
+        <title>${esc(z.name)}${f ? ` · ${esc(pname(V, f.pid))}: ${f.n} Schiffe` : ' · frei'}</title></g>`;
+    }).join('') : '';
   }
 
   function clickTerr(t) {
@@ -188,7 +257,7 @@
       else api.toast('Wähl zuerst eine eigene Flotte.');
     }
   }
-  const render2 = () => { if (last) render(skel.el.parentElement, last.V, last.me, last.api); };
+  const render2 = () => { if (last && skel) render(skel.el.parentElement, last.V, last.me, last.api); };
 
   function renderTurn(V, me, myTurn) {
     const p = V.players[V.cur];
