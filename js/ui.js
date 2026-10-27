@@ -5,7 +5,9 @@
   const MOOD = window.DULI_MOOD, CZ = window.DULI_CASINO, RL = window.DULI_RULES, CAMP = window.DULI_CAMPAIGN;
   const isWorld = () => !!(App.S && W.MODES.includes(App.S.mode));
   const GB = () => W.board(App.S.mode);
-  const ENG = () => (isWorld() ? W : E);
+  const R = window.DULI_REAL;
+  const isReal = () => !!(App.S && App.S.isReal);
+  const ENG = () => (isWorld() ? W : isReal() ? R : E);
   const { GROUPS, TOKENS } = D;
   // Normales Brett oder MEGA-Brett (wird bei jedem Rendern zum Spielstand passend gesetzt)
   let BRD = D.BOARDS.normal, SPACES = BRD.SPACES, RAILS = BRD.RAILS, UTILS = BRD.UTILS;
@@ -16,7 +18,9 @@
   }
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const M = (n) => 'Ð' + n;
+  const M = (n) => (n < 0 ? '−' : '') + 'Ð' + (Math.abs(n) >= (App.S && App.S.isReal ? 1000 : 10000) ? Math.round(Math.abs(n)).toLocaleString('de-DE') : Math.round(Math.abs(n)));
+  // Kompakt fürs Brett: Ð450k, Ð1,25 Mio
+  const MK = (n) => (Math.abs(n) >= 1e6 ? `Ð${(n / 1e6).toFixed(2).replace('.', ',')} Mio` : Math.abs(n) >= 10000 ? `Ð${Math.round(n / 1000)}k` : M(n));
 
   // ---------- Speicher ----------
   const store = {
@@ -83,11 +87,12 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
   }
-  function openModal(html) {
+  function openModal(html, refresh) {
+    App.reModal = refresh || null;
     $('#modal-body').innerHTML = html;
     $('#modal').hidden = false;
   }
-  function closeModal() { $('#modal').hidden = true; App.trade = null; }
+  function closeModal() { $('#modal').hidden = true; App.trade = null; App.reModal = null; }
   $('#modal-x').onclick = closeModal;
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
 
@@ -587,6 +592,7 @@
     if (t.id === 'set-rounds') o.maxRounds = Number(t.value);
     if (t.id === 'set-mood') o.mood = t.checked;
     if (t.id === 'set-size') o.size = t.value;
+    if (t.id === 'set-years') o.years = Number(t.value);
     E.setSettings(App.S, o);
     commit();
   });
@@ -600,12 +606,13 @@
 
   const VARIANTS = RL.VARIANTS;
   const varIcon = (v) => (v.icon === 'april' ? aprilIcon('v-april') : v.icon);
-  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['40 Fragen', 'Joker', 'NEU'], bomb: ['Heiße Kartoffel', 'NEU'] };
+  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['40 Fragen', 'Joker'], bomb: ['Heiße Kartoffel'], realistic: ['Quartale', 'Steuern', 'NEU'] };
   function modeList() {
     return [
       { id: 'classic', icon: '🎲', name: 'Klassisch', text: 'Das Brett mit Duisburg und Öhringen. Als MINI, Normal oder MEGA-Weltreise.' },
       { id: 'casino', icon: '🎰', name: 'DULIDAN CASINO', text: 'Jede Straße ist ein Casino. Wer bei dir landet, zockt gegen deine Bank.' },
       ...W.MODES.map((id) => { const b = W.board(id); return { id, icon: b.icon || '🌍', name: b.title, text: b.tagline }; }),
+      { id: 'realistic', icon: '🏢', name: 'REALISTIC', text: 'Echte Immobilien: Quartale, Kredite, SCHUFA, Mieter, Hotels, Steuererklärung und Anwälte.' },
     ].map((m) => Object.assign(m, { tags: MODE_TAGS[m.id] || [] }));
   }
   function modeCardHTML(m, i, on, attrs = '') {
@@ -646,6 +653,7 @@
   });
 
   function startByMode(S) {
+    if (S.settings && S.settings.mode === 'realistic') return R.start(S);
     return S.settings && W.MODES.includes(S.settings.mode) ? W.start(S) : E.startGame(S);
   }
 
@@ -673,6 +681,8 @@
     const mode = st.mode || 'classic';
     const world = W.MODES.includes(mode);
     const curVar = st.variant || 'normal';
+    const real = mode === 'realistic';
+    ['#lbl-variant', '#variant-box', '#lbl-rules', '#rule-grid'].forEach((sel) => { $(sel).hidden = real; });
     $('#mode-grid').innerHTML = modeList().map((m, i) => modeCardHTML(m, i, m.id === mode, ro)).join('');
     const vText = (v) => (world && v.boardText ? v.boardText : v.text);
     const cv = VARIANTS.find((v) => v.id === curVar) || VARIANTS[0];
@@ -682,18 +692,20 @@
     $('#rule-grid').innerHTML = rules.map((r) => `<button type="button" class="rule-card ${r.on ? 'is-on' : ''}" data-rule="${r.id}" ${r.setting ? `data-setting="${r.setting}"` : ''} aria-pressed="${r.on}" ${ro}>
       <span class="rc-ic">${r.icon}</span><strong>${r.name}</strong><small>${esc(r.text)}</small><i class="rc-check" aria-hidden="true"></i></button>`).join('');
     $('#rule-count').textContent = `${rules.filter((r) => r.on).length} aktiv`;
+    const yrs = [3, 5, 10, 0].includes(st.years) ? st.years : 5;
     $('#fine-settings').innerHTML = `
-      <label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
-        <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
-      ${!world && mode !== 'casino' ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
+      ${real ? `<label class="row"><span>Spieldauer<small>Eine Runde ist ein Quartal. Am Ende gewinnt das höchste Nettovermögen. Alle starten mit Ð250.000 und einem Job.</small></span>
+        <select id="set-years" ${ro}>${[[3, '3 Jahre (12 Quartale)'], [5, '5 Jahre (20 Quartale)'], [10, '10 Jahre (40 Quartale)'], [0, 'Bis zur Insolvenz']].map(([v, l]) => `<option value="${v}" ${yrs === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : `<label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
+        <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>`}
+      ${!world && !real && mode !== 'casino' ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
         <select id="set-size" ${ro}>${[['mini', '⚡ MINI (24 Felder)'], ['normal', 'Normal (40 Felder)'], ['mega', '🚀 MEGA (120 Felder)']].map(([v, l]) => `<option value="${v}" ${(st.size || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
-      ${!world && (st.size || 'normal') === 'normal' ? `<label class="row"><span>🛠️ Straßennamen<small>${st.names && Object.keys(st.names).length ? `Eigenes Brett „${esc(st.boardName || 'Eigenes Brett')}“ mit ${Object.keys(st.names).length} neuen Namen` : 'Originalnamen. Eigene Namen baust du im Brett-Editor.'}</small></span>
+      ${!world && !real && (st.size || 'normal') === 'normal' ? `<label class="row"><span>🛠️ Straßennamen<small>${st.names && Object.keys(st.names).length ? `Eigenes Brett „${esc(st.boardName || 'Eigenes Brett')}“ mit ${Object.keys(st.names).length} neuen Namen` : 'Originalnamen. Eigene Namen baust du im Brett-Editor.'}</small></span>
         <span class="row-ctl"><select id="set-board" ${ro}><option value="orig">Original</option>${(st.names && Object.keys(st.names).length) || Object.keys(myBoard().names).length ? `<option value="custom" ${st.names && Object.keys(st.names).length ? 'selected' : ''}>🛠️ ${esc(st.names && Object.keys(st.names).length ? st.boardName || 'Eigenes Brett' : myBoard().name)}</option>` : ''}</select>
         ${ro ? '' : uiBtn('Editor', 'editor', 'btn-small btn-ghost')}</span></label>` : ''}
       <label class="row"><span>🎨 Brett-Skin<small>Nur auf deinem Gerät</small></span>
         <select id="set-skin">${SKINS.map(([id, n, ic]) => `<option value="${id}" ${document.documentElement.dataset.skin === id ? 'selected' : ''}>${ic} ${n}</option>`).join('')}</select></label>
-      <label class="row"><span>💖 Aprils Laune<small>April mag jede Person anders, lässt sich bestechen, macht Geschenke – und rächt sich, wenn sie dich hasst</small></span>
-        <input type="checkbox" class="switch" id="set-mood" ${st.mood !== false ? 'checked' : ''} ${ro}></label>
+      ${real ? '' : `<label class="row"><span>💖 Aprils Laune<small>April mag jede Person anders, lässt sich bestechen, macht Geschenke – und rächt sich, wenn sie dich hasst</small></span>
+        <input type="checkbox" class="switch" id="set-mood" ${st.mood !== false ? 'checked' : ''} ${ro}></label>`}
       ${world ? `<p class="row"><span>Spielende<small>${endText(W.board(mode))}</small></span></p>` : ''}`;
 
     $('#lobby-players').innerHTML = S.players.map((p, i) => `
@@ -713,7 +725,7 @@
         ${tokHTML(k, mine ? 'var(--magenta)' : 'var(--line)')}
         <strong>${esc(t.name)}</strong>
         ${taken ? `<span class="taken-by">${esc(holder.name)}</span>` : '<span></span>'}
-        <small>${esc(world ? W.board(st.mode).POWERS[k] : t.power)}</small></button>`;
+        <small>${esc(real ? 'Keine Superkraft. Ist ja realistisch.' : world ? W.board(st.mode).POWERS[k] : t.power)}</small></button>`;
     }).join('');
   }
 
@@ -742,7 +754,7 @@
     const act = e.target.closest('[data-act]');
     if (act) {
       const a = JSON.parse(act.dataset.act);
-      if (act.closest('#modal')) closeModal();
+      if (act.closest('#modal') && !act.dataset.keep) closeModal();
       if (a.type === 'bidCustom') {
         const v = Number($('#in-bid').value);
         return doAct({ type: 'bid', amt: v }, act.dataset.pid);
@@ -765,6 +777,7 @@
   }
   const CORNER_ICON = { go: '⟵', jail: '😱', parking: '🐷', gotojail: '👉' };
   const TYPE_ICON = { april: '💖', studio: '💜' };
+  const REAL_ICON = { april: '✉️', studio: '📬', parking: '🏦', jail: '⚖️', gotojail: '📜', go: null };
 
   function buildBoard() {
     if (!$('#die1')) $('#dice').innerHTML = cubeHTML('die1') + cubeHTML('die2');
@@ -777,13 +790,14 @@
     board.classList.toggle('is-casino', casino);
     const mega = BRD.id === 'mega', L = BRD.N / 4;
     board.classList.toggle('is-mega', mega);
-    const custom = BRD.id !== 'normal';
+    const custom = !['normal', 'real'].includes(BRD.id);
+    const real = BRD.id === 'real';
     board.classList.toggle('is-mini', BRD.id === 'mini');
     board.style.gridTemplateColumns = board.style.gridTemplateRows = custom ? `1.55fr repeat(${L - 1}, 1fr) 1.55fr` : '';
     $('#center').style.gridArea = custom ? `2 / 2 / ${L + 1} / ${L + 1}` : '';
     // Das MEGA-Brett startet gezoomt, die Kamera folgt der Figur
     if (mega && !App.megaZoomInit) { App.megaZoomInit = true; $('#board-wrap').classList.add('is-zoomed'); $('#btn-zoom').textContent = 'Übersicht'; }
-    $('.center-sub').textContent = casino ? 'Casino Night · Duisburg' : 'Duisburg · Öhringen';
+    $('.center-sub').textContent = casino ? 'Casino Night · Duisburg' : real ? 'Realistic · Immobilien' : 'Duisburg · Öhringen';
     SPACES.forEach((sp, i) => {
       const { r, c, side } = cellPos(i);
       const el = document.createElement('div');
@@ -798,15 +812,15 @@
       if (corner) {
         body = sp.type === 'go'
           ? `<div class="cname">LOS</div><div class="cicon">${CORNER_ICON.go}</div><div class="csub">${esc(sp.sub)}</div>`
-          : `<div class="cicon">${CORNER_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>${sp.sub ? `<div class="csub">${esc(sp.sub)}</div>` : ''}`;
+          : `<div class="cicon">${(real && REAL_ICON[sp.type]) || CORNER_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>${sp.sub ? `<div class="csub">${esc(sp.sub)}</div>` : ''}`;
       } else if (sp.type === 'prop') {
-        body = `${casino ? `<div class="cgame">${CZ.INFO[CZ.GAMES[sp.group]].icon}</div>` : ''}<div class="cname">${esc(sp.name)}</div><div class="cprice">${M(sp.price)}</div>`;
+        body = `${casino ? `<div class="cgame">${CZ.INFO[CZ.GAMES[sp.group]].icon}</div>` : ''}<div class="cname">${esc(sp.name)}</div><div class="cprice">${real ? MK(sp.price) : M(sp.price)}</div>`;
       } else if (sp.type === 'rail' || sp.type === 'util') {
-        body = `<div class="cicon">${sp.icon}</div><div class="cname">${esc(sp.name)}</div><div class="cprice">${M(sp.price)}</div>`;
+        body = `<div class="cicon">${sp.icon}</div><div class="cname">${esc(sp.name)}</div><div class="cprice">${real ? MK(sp.price) : M(sp.price)}</div>`;
       } else if (sp.type === 'tax') {
-        body = `<div class="cicon">${sp.icon}</div><div class="cname">${esc(sp.name)}</div><div class="cprice">${M(sp.amount)}</div>`;
+        body = `<div class="cicon">${sp.icon}</div><div class="cname">${esc(sp.name)}</div>${real ? '' : `<div class="cprice">${M(sp.amount)}</div>`}`;
       } else {
-        body = `<div class="cicon">${sp.type === 'april' ? aprilIcon() : TYPE_ICON[sp.type] || sp.icon || ''}</div><div class="cname">${esc(sp.name)}</div>`;
+        body = `<div class="cicon">${real && REAL_ICON[sp.type] ? REAL_ICON[sp.type] : sp.type === 'april' ? aprilIcon() : TYPE_ICON[sp.type] || sp.icon || ''}</div><div class="cname">${esc(sp.name)}</div>`;
       }
       el.innerHTML = (sp.type === 'prop' ? `<div class="band" style="--g:${GROUPS[sp.group].color}"></div>` : '')
         + `<div class="cell-body">${body}</div>${['prop', 'rail', 'util'].includes(sp.type) ? '<div class="owner-flag"></div>' : ''}<div class="cell-tokens"></div>`;
@@ -839,7 +853,7 @@
         if (owner) el.style.setProperty('--oc', owner.color);
         const band = el.querySelector('.band');
         if (band) {
-          band.innerHTML = !S.isCasino ? (st.houses === 5 ? '<span class="hotel"></span>' : '<span class="house"></span>'.repeat(st.houses))
+          band.innerHTML = S.isReal ? realBand(st) : !S.isCasino ? (st.houses === 5 ? '<span class="hotel"></span>' : '<span class="house"></span>'.repeat(st.houses))
             : st.houses ? `<span class="corr">${st.houses === 5 ? '💀' : '😈'.repeat(st.houses)}</span>` : '';
         }
         const fl = el.querySelector('.owner-flag');
@@ -857,7 +871,7 @@
       }
       tokEl.querySelectorAll('.tok').forEach((t) => t.classList.toggle('is-cur-tok', S.phase === 'play' && t.dataset.tokpid === curP().id));
       el.classList.toggle('is-last', !isBusy() && S.lastLand === i);
-      if (SPACES[i].type === 'parking') {
+      if (SPACES[i].type === 'parking' && !S.isReal) {
         el.classList.toggle('has-pot', S.pot > 0);
         el.querySelector('.csub').textContent = S.pot > 0 ? `🐷 Spardose: ${M(S.pot)}` : 'Spardose leer';
       }
@@ -870,12 +884,18 @@
     setCube($('#die1'), a, fresh);
     setCube($('#die2'), b, fresh);
     const cur = curP();
-    $('#center-turn').innerHTML = S.phase === 'over'
+    $('#center-turn').innerHTML = S.isReal && S.phase !== 'over' ? `<strong>${esc(cur.name)}</strong> ist dran · ${R.qName(S.q)}` : S.phase === 'over'
       ? `🏆 <strong>${esc(P(S.winner).name)}</strong> gewinnt!`
       : `<strong>${esc(cur.name)}</strong> ist dran · Runde ${Math.ceil(S.turnNo / Math.max(1, S.players.filter((p) => !p.bankrupt).length))}`;
 
     const cc = $('#center-card');
-    if (S.card && S.phase === 'play' && !isBusy()) {
+    if (S.isReal && S.card && S.phase === 'play' && !isBusy()) {
+      const c = R.cardText(S);
+      cc.className = `center-card deck-${c.deck === 'amt' ? 'april' : 'studio'} is-real`;
+      cc.innerHTML = `<div class="card-icon">${{ amt: '✉️', mieter: '🏠', case: '⚖️' }[c.deck]}</div><div class="card-kind">${{ amt: 'Post vom Amt', mieter: 'Mieter-Post', case: 'Entscheidung' }[c.deck]}</div><div class="card-text"><strong>${esc(c.title)}</strong><br>${esc(c.text)}</div>`;
+      cc.hidden = false;
+    } else if (S.isReal) cc.hidden = true;
+    else if (S.card && S.phase === 'play' && !isBusy()) {
       const c = E.CARDS[S.card.deck][S.card.id];
       cc.className = `center-card deck-${S.card.deck}`;
       cc.innerHTML = `<div class="card-icon">${S.card.deck === 'april' ? aprilIcon('card-april') : TYPE_ICON[S.card.deck]}</div><div class="card-kind">${S.card.deck === 'april' ? 'April-Karte' : 'Studio-Karte'}</div><div class="card-text">${esc(c.text)}</div>`;
@@ -948,6 +968,7 @@
 
   function openDeed(i) {
     if (!App.S) return;
+    if (App.S.isReal) return openRealProp(i);
     openModal(deedHTML(i, true));
   }
 
@@ -1117,7 +1138,7 @@
   function chartHTML() {
     const S = App.S, h = (S.hist || []).slice();
     if (h.length < 2) return '';
-    h.push(S.players.map((p) => (p.bankrupt ? 0 : Math.round((isWorld() ? W : E).netWorth(S, p)))));
+    h.push(S.players.map((p) => (p.bankrupt ? 0 : Math.round(ENG().netWorth(S, p)))));
     const CW = 520, CH = 190, pad = 6;
     const max = Math.max(100, ...h.flat());
     const x = (i) => pad + (i / (h.length - 1)) * (CW - pad * 2);
@@ -1152,6 +1173,8 @@
     { id: 'king', icon: '👑', name: 'Lang lebe der König', text: 'Sei am Spielende König in DULIDAN THRON.' },
     { id: 'quizmaster', icon: '🧠', name: 'Quizmaster', text: 'Beantworte in einem Spiel 5 Quizfragen richtig.' },
     { id: 'bombproof', icon: '💣', name: 'Bombensicher', text: 'Gewinne ein Spiel DULIDAN BOMBE.' },
+    { id: 'realist', icon: '🏢', name: 'Immobilienprofi', text: 'Spiele ein REALISTIC-Spiel zu Ende.' },
+    { id: 'taxpro', icon: '🧮', name: 'Steuerfuchs', text: 'Mach in REALISTIC eine fehlerfreie Steuererklärung selbst.' },
   ];
   const achStore = () => Object.assign({ got: {}, wins: 0, modes: [] }, store.get('duli-ach') || {});
   function checkAchievements() {
@@ -1168,13 +1191,14 @@
     const any = (fn) => mine.some((p) => fn(p, p.stats || {}));
     const ok = {
       win: won, win5: st.wins >= 5,
-      rentKing: any((p, x) => x.rentGot >= 3000), bigPay: any((p, x) => x.maxRent >= 1000),
+      rentKing: !S.isReal && any((p, x) => x.rentGot >= 3000), bigPay: !S.isReal && any((p, x) => x.maxRent >= 1000),
+      realist: !!S.isReal, taxpro: !!S.isReal && any((p, x) => (x.taxPerfect || 0) >= 1),
       jail3: any((p, x) => (x.jail || 0) >= 3), builder: any((p, x) => (x.built || 0) >= 10), doubles5: any((p, x) => (x.doubles || 0) >= 5),
       mega: S.size === 'mega', casino: !!S.isCasino, newMode: ['islands', 'festival'].includes(S.mode), allModes: st.modes.length >= 4,
       aprilLove: MOOD.on(S) && any((p) => p.like >= 70), aprilHate: MOOD.on(S) && any((p) => p.like < 15),
       briber: any((p) => (p.bribes || 0) >= 3),
       rules5: Object.values((S.settings && S.settings.rules) || {}).filter(Boolean).length >= 5,
-      speedrun: won && (S.round || 99) <= 15,
+      speedrun: won && !S.isReal && (S.round || 99) <= 15,
       racer: won && S.mode === 'race', king: S.mode === 'throne' && mine.some((p) => p.id === S.king),
       quizmaster: any((p, x) => (x.quiz || 0) >= 5), bombproof: won && S.mode === 'bomb',
     };
@@ -1342,6 +1366,10 @@
       return App.S && App.S.phase !== 'lobby' ? render() : null;
     }
     if (kind === 'cityInfo') return openCity(data.id);
+    if (kind === 'rxProp') return openRealProp(Number(data.i));
+    if (kind === 'rxBank') return openModal(realBankHTML(), realBankHTML);
+    if (kind === 'rxStmt') return openModal(stmtHTML(), stmtHTML);
+    if (kind === 'rxTax') return openTaxGame();
     if (kind === 'bribe') return bribeModal();
     if (kind === 'achievements') return openModal(achModalHTML());
     if (kind === 'skin') { setSkin(data.skin); toast('Brett-Skin gewechselt.'); return $('#modal').hidden ? null : openModal(menuHTML()); }
@@ -1588,7 +1616,7 @@
     $('#btn-zoom').textContent = w.classList.contains('is-zoomed') ? (mega ? 'Übersicht' : 'Normal') : 'Zoom';
     followCam();
   };
-  $('#btn-rules').onclick = () => (isWorld() ? openModal(worldRulesHTML()) : openModal(`<h2>Regeln</h2><div class="rules">
+  $('#btn-rules').onclick = () => (isReal() ? openModal(realRulesHTML()) : isWorld() ? openModal(worldRulesHTML()) : openModal(`<h2>Regeln</h2><div class="rules">
     <p>Alle starten mit ${M(Math.round(((App.S && App.S.settings && App.S.settings.startMoney) || D.START_MONEY) * BRD.moneyMult))}. Wer zuletzt nicht pleite ist, gewinnt. Bezahlt wird in Dulis (Ð).</p>
     ${BRD.id === 'mega' ? '<h3>🚀 MEGA-Brett</h3><ul><li>Einmal um die Welt: 120 Felder, von Duisburg und Öhringen über Afrika, Südamerika, Asien und Europa bis New York – und ganz am Ende das DULIDAN HQ.</li><li>Du läufst doppelt so weit, wie du würfelst. Startgeld ×1,5, über LOS gibt es Ð300.</li><li>Gebaut wird erst, wenn dir die ganze Gruppe gehört – meistens 4 Straßen. Handeln lohnt sich!</li><li>„Übersicht“ zeigt das ganze Brett, im Zoom folgt die Kamera der Figur.</li></ul>' : BRD.id === 'mini' ? '<h3>⚡ MINI-Brett</h3><ul><li>24 Felder mit den wichtigsten Straßen, jede Farbgruppe hat nur 2 Felder.</li><li>Weniger Startgeld, über LOS gibt es Ð100. Schnelle Runde für zwischendurch.</li></ul>' : ''}
     <h3>Dein Zug</h3><ul>
@@ -2541,7 +2569,7 @@
         setTimeout(() => popMoney(p, d), i * 120);
         if (d > 0) gain = true; else loss = true;
       });
-      const big = diffs.some(({ d }) => Math.abs(d) >= 500);
+      const big = diffs.some(({ d }) => Math.abs(d) >= (isReal() ? 25000 : 500));
       if (loss) FX.play(big ? 'bigLoss' : 'coinDown');
       if (gain) setTimeout(() => FX.play(big ? 'bigGain' : 'coinUp'), loss ? 180 : 0);
     }, delay);
@@ -2549,7 +2577,7 @@
 
   function popMoney(p, d) {
     const txt = hideMoney(p) ? (d > 0 ? '+Ð???' : '−Ð???') : `${d > 0 ? '+' : '−'}Ð${Math.abs(d).toLocaleString('de-DE')}`;
-    const big = Math.abs(d) >= 500;
+    const big = Math.abs(d) >= (isReal() ? 25000 : 500);
     const spawn = (el, cls) => {
       if (!el) return;
       const r = el.getBoundingClientRect();
@@ -2658,6 +2686,442 @@
   runBoot();
   applyTempo();
 
+  // ================= REALISTIC: Immobilien wie im echten Leben =================
+  const pctTxt = (x, d = 1) => (x * 100).toFixed(d).replace('.', ',') + ' %';
+  const signM = (n) => (n > 0 ? '+' : '') + M(n);
+  const signPct = (x) => (x >= 0 ? '+' : '−') + pctTxt(Math.abs(x));
+  const grpColor = (i) => (SPACES[i].group ? GROUPS[SPACES[i].group].color : '#cfc3e6');
+  const kbtn = (...a) => btn(...a).replace('<button ', '<button data-keep="1" ');
+  const REAL_DESC = {
+    go: 'Über LOS passiert nichts. Geld gibt es am Quartalsende: Gehalt, Mieten, Hotelumsätze.',
+    jail: 'Amtsgericht Düsseldorf. Wer nur draufkommt, schaut zu.',
+    gotojail: 'Du wirst verklagt. Ohne Fachanwalt sitzt du bis zu 2 Züge im Gericht fest.',
+    parking: 'KfW-Förderbank: 15 % Zuschuss aufs nächste Bauprojekt.',
+    tax: 'Das Finanzamt schaut sich deine Steuererklärung an. Wer geschummelt (oder sich verrechnet) hat, zahlt nach – mit Zinsen.',
+    april: 'Post vom Amt: Bescheide, Zinsen, Gesetze, Förderungen.',
+    studio: 'Mieter-Post: Rohrbrüche, Mietnomaden, Schimmel, Hotelgäste.',
+  };
+  function realBand(st) {
+    return st.units.map((u) => `<span class="slot s-${u.ready > App.S.q ? 'bau' : u.k}${u.nomad ? ' s-bad' : ''}"></span>`).join('');
+  }
+  function realTicker(S) {
+    const m = S.mk;
+    const shock = m.shock === 'pandemic' ? '<b class="bad">🦠 Pandemie</b>' : m.shock === 'crash' ? '<b class="bad">📉 Immobilienkrise</b>' : '';
+    const left = S.settings.years ? S.settings.years * 4 - S.q + 1 : 0;
+    return `<div class="re-ticker"><span>📅 <strong>${R.qName(S.q)}</strong> · ${R.SEASON_NAME[(S.q - 1) % 4]}</span><span>🏠 Preise ${signPct(m.idx - 1)}</span><span>🏦 Bauzins ${m.zins.toFixed(2).replace('.', ',')} %</span><span>🏨 Hotels ${Math.round(m.hotel * 100)} %</span>${left ? `<span>⏳ noch ${left} Quartal${left > 1 ? 'e' : ''}</span>` : ''}${shock}</div>`;
+  }
+  function expSub(i) {
+    const S = App.S, sp = SPACES[i];
+    if (sp.type === 'rail') return 'Bahnhof-Gewerbe · Gewerbemiete ca. 6,4 % im Jahr, mehr Bahnhöfe = mehr Pendler';
+    if (sp.type === 'util') return 'Stadtwerke-Anteil · Dividende wächst mit allen Wohnungen und Hotels auf dem Brett';
+    return `${R.LAGE[sp.group].lage} · Mietspiegel ${M(R.mietspiegel(S, i))}/Monat · ${R.SLOTS} Bau-Slots`;
+  }
+  function unitsLine(S, st) {
+    const apts = st.units.filter((u) => u.k === 'apt').length, hotels = st.units.filter((u) => u.k === 'hotel').length;
+    const bau = st.units.filter((u) => u.ready > S.q).length;
+    const parts = [];
+    if (apts) parts.push(`${apts} Wohnung${apts > 1 ? 'en' : ''}`);
+    if (hotels) parts.push(`${hotels} Hotel${hotels > 1 ? 's' : ''}`);
+    if (bau) parts.push(`${bau} im Bau`);
+    return parts.join(' · ');
+  }
+
+  function exposeHTML(S, p, i, me) {
+    const sp = SPACES[i], st = S.props[i], price = R.propValue(S, i), nk = R.buyCosts(S, i, price);
+    const rows = [['Kaufpreis (Marktwert)', price], [`Grunderwerbsteuer ${pctTxt(nk.rate)}${nk.rate < 0.06 ? ' (BW)' : ' (NRW)'}`, nk.grest], ['Notar (1,5 %)', nk.notar], ['Grundbuchamt (0,5 %)', nk.grundbuch]];
+    const room = R.loanRoom(S, p, price), rate = R.rateFor(S, p);
+    const fins = [[0.8, '80 % finanzieren'], [0.5, '50 % finanzieren'], [0, 'Bar zahlen']].map(([f, l], k) => {
+      const loan = Math.floor((price * f) / 1000) * 1000, cash = price + nk.total - loan;
+      const bankNo = loan > room, noCash = p.money < cash;
+      return btn(`${l}<small>${M(cash)} bar${loan ? ` · ${M(loan)} Kredit zu ${String(rate).replace('.', ',')} % · Rate ${M((loan * (rate + 1.5)) / 400)}/Q` : ''}</small>`, { type: 'buy', fin: f }, p.id, k === 0 ? 'btn-primary' : '', bankNo || noCash, bankNo ? 'Die Bank sagt nein: zu wenig Sicherheiten oder Einkommen' : noCash ? 'Zu wenig Eigenkapital' : '');
+    });
+    const units = st.units.length ? `Mit Bestand: ${unitsLine(S, st)}.` : sp.type === 'prop' ? 'Unbebautes Grundstück: kostet Grundsteuer und bringt erst mit Wohnungen oder Hotel Geld.' : '';
+    return `<div class="expose"><div class="ex-head" style="--g:${grpColor(i)}"><strong>${esc(sp.name)}</strong><small>${esc(expSub(i))}</small></div>
+      <table>${rows.map((r) => `<tr><td>${r[0]}</td><td>${M(r[1])}</td></tr>`).join('')}<tr class="sum"><td>Gesamt</td><td>${M(price + nk.total)}</td></tr></table>
+      ${units ? `<p class="ex-note">${units}</p>` : ''}
+      ${me ? `<div class="btn-col">${fins.join('')}${btn('Nicht kaufen', { type: 'pass' }, p.id, 'btn-ghost')}</div>` : `<p class="action-note">${esc(p.name)} überlegt …</p>`}</div>`;
+  }
+  function realCardHTML(S) {
+    const c = R.cardText(S), opts = R.cardOpts(S), pid = S.card.pid;
+    const kind = { amt: '✉️ Post vom Amt', mieter: '📬 Mieter-Post', case: '⚖️ Entscheidung' }[c.deck];
+    return `<div class="re-card deck-${c.deck}"><span class="rc-kind">${kind}</span><strong>${esc(c.title)}</strong><p>${esc(c.text)}</p>
+      ${canControl(pid) ? `<div class="btn-col">${opts.map((o, k) => btn(esc(o.label), { type: 'card', k: o.k }, pid, k === 0 ? 'btn-primary' : '', !!o.disabled, o.why || '')).join('')}</div>` : `<p class="action-note">${esc(P(pid).name)} entscheidet …</p>`}</div>`;
+  }
+  function taxDueHTML(S, p, me) {
+    const t = p.taxDue, fee = R.advisorFee(t), n = R.taxTasks(t.lvl);
+    const rows = [
+      ['Vermietung & Verpachtung', t.vv], ['Gewerbe (Hotels, Bahnhöfe, Stadtwerke)', t.gew], ['Spekulationsgewinne', t.gain],
+      ['… darin AfA (Abschreibung)', -t.afa], ['… darin Kreditzinsen', -t.int], ...(t.carryUsed ? [['Verlustvortrag genutzt', -t.carryUsed]] : []),
+      ['Zu versteuern', t.taxable, 'sum'], ['Einkommensteuer (zusätzlich)', t.est], ['Solidaritätszuschlag', t.soli], ['Gewerbesteuer', t.gewSt], ['Anrechnung § 35 EStG', -t.anr],
+      ['Steuer gesamt', t.total, 'sum'], ['Schon vorausgezahlt', -t.pre], [t.total - t.pre >= 0 ? 'Nachzahlung' : 'Erstattung', t.total - t.pre, 'sum'],
+    ];
+    return `<div class="re-tax"><span class="rc-kind">🧾 Steuererklärung ${t.year}</span>
+      <table>${rows.map(([l, v, c]) => `<tr class="${c || ''}"><td>${l}</td><td>${M(v)}</td></tr>`).join('')}</table>
+      ${me ? `<div class="btn-col">${btn(`👩‍💼 Steuerberaterin beauftragen: ${M(fee)}<small>Macht alles fehlerfrei und findet ca. ${M(t.total * 0.07)} Ersparnis</small>`, { type: 'taxAdvisor' }, p.id, 'btn-primary')}
+        ${uiBtn(`🧮 Selbst machen: STEUER-RUSH<small>Stufe ${t.lvl}/6 · ${n} Belege · Fehler kosten Geld oder fliegen bei einer Prüfung auf</small>`, 'rxTax')}</div>`
+        : `<p class="action-note">${esc(p.name)} macht die Steuererklärung …</p>`}</div>`;
+  }
+  function debtHTML(S, p, me) {
+    const lim = R.dispoLimit(p), over = -p.money - lim, room = R.loanRoom(S, p);
+    const need = Math.ceil((over + 5000) / 1000) * 1000;
+    let h = `<div class="re-warn"><strong>⚠️ Dispo-Limit überschritten</strong><p>Konto ${M(p.money)}, Dispo-Limit ${M(-lim)}. Die Bank will ${M(Math.max(0, over))} sehen. Verkaufe eine Immobilie (Portfolio → Objekt-Akte), nimm einen Kredit auf oder melde Privatinsolvenz an.</p></div>`;
+    if (!me) return h + `<p class="action-note">${esc(p.name)} verhandelt mit der Bank …</p>`;
+    h += '<div class="btn-col">';
+    if (over > 0 && room >= need) h += btn(`🏦 Kredit über ${M(need)} aufnehmen`, { type: 'loan', amt: need }, p.id, 'btn-primary');
+    else if (over > 0) h += `<p class="action-note">Die Bank gibt dir höchstens ${M(room)}. Das reicht nicht.</p>`;
+    h += btn('Weiter', { type: 'debtDone' }, p.id, over > 0 ? '' : 'btn-primary', over > 0);
+    h += App.confirmBankrupt
+      ? `<p class="action-note">Wirklich? Alle Immobilien gehen in die Zwangsversteigerung.</p>${btn('Ja, Privatinsolvenz', { type: 'insolvency' }, p.id, 'btn-danger')}${uiBtn('Abbrechen', 'cancelBankrupt', 'btn-ghost')}`
+      : btn('Privatinsolvenz …', { type: 'bankruptAsk' }, p.id, 'btn-ghost');
+    return h + '</div>';
+  }
+
+  function renderRealAction() {
+    const S = App.S, el = $('#panel-action'), cur = curP();
+    const head = `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${esc(cur.name)} ist dran</h3><small>Konto ${M(cur.money)} · Netto ${MK(R.netWorth(S, cur))}</small></div></div>`;
+    if (isBusy()) {
+      el.innerHTML = realTicker(S) + head + `<p class="action-note rolling">${Date.now() < (App.walkAfter || 0) ? '🎲 Die Würfel rollen …' : '🚶 unterwegs …'}</p>`;
+      return;
+    }
+    let h = realTicker(S) + head;
+    const me = canControl(cur.id);
+    const wait = (t) => `<p class="action-note">${t}</p>`;
+    switch (S.sub) {
+      case 'roll': h += me ? `<div class="btn-row">${btn('🎲 Würfeln', { type: 'roll' }, cur.id, 'btn-primary btn-big')}</div>` : wait(`${esc(cur.name)} würfelt gleich …`); break;
+      case 'buy': h += exposeHTML(S, cur, cur.pos, me); break;
+      case 'card': h += realCardHTML(S); break;
+      case 'tax': h += taxDueHTML(S, cur, me); break;
+      case 'debt': h += debtHTML(S, cur, me); break;
+      case 'offer': {
+        const o = S.offer, from = P(o.from), to = P(o.to);
+        h += `<div class="offer"><strong>✉️ Kaufangebot</strong><p>${esc(from.name)} bietet ${esc(to.name)} <strong>${M(o.price)}</strong> für ${esc(SPACES[o.idx].name)} (Marktwert ${M(R.propValue(S, o.idx))}).</p>
+          ${canControl(to.id) ? `<div class="btn-row">${btn(App.mode === 'local' ? `${esc(to.name)}: Verkaufen` : 'Verkaufen', { type: 'offerAccept' }, to.id, 'btn-primary')}${btn('Ablehnen', { type: 'offerDecline' }, to.id)}</div>` : wait(`Warte auf ${esc(to.name)} …`)}</div>`;
+        break;
+      }
+      case 'end': {
+        if (!me) { h += wait(`${esc(cur.name)} verwaltet das Portfolio …`); break; }
+        const st = S.props[cur.pos];
+        if (st && st.owner && st.owner !== cur.id && !cur.offered && st.units.every((u) => u.ready <= S.q)) {
+          const v = R.propValue(S, cur.pos);
+          h += `<div class="re-offer"><small>Kaufangebot an ${esc(P(st.owner).name)} für ${esc(SPACES[cur.pos].name)} (Marktwert ${MK(v)}):</small>
+            <div class="btn-row">${[1, 1.15, 1.3].map((x) => btn(`${Math.round(x * 100)} % · ${MK(v * x)}`, { type: 'offer', pct: x }, cur.id, 'btn-small')).join('')}</div></div>`;
+        }
+        h += `<div class="btn-row">${btn('Zug beenden', { type: 'endTurn' }, cur.id, 'btn-primary')}</div>`;
+        break;
+      }
+    }
+    if (me && ['roll', 'end', 'buy', 'debt'].includes(S.sub)) h += `<p class="action-note re-hint">Bauen, Mieten erhöhen, verkaufen: Immobilie im Portfolio oder auf dem Brett antippen.</p>`;
+    el.innerHTML = h;
+  }
+
+  function renderRealPlayers() {
+    const S = App.S;
+    $('#players').innerHTML = S.players.map((p, i) => {
+      const own = R.owned(S, p.id).sort((a, b) => a - b);
+      const meta = [];
+      if (p.bankrupt) meta.push('<span class="warn">insolvent</span>');
+      if (p.court) meta.push('<span class="warn">vor Gericht</span>');
+      if (p.money < 0 && !p.bankrupt) meta.push('<span class="warn">im Dispo</span>');
+      if (p.taxDue) meta.push('<span>Steuer offen</span>');
+      if (p.rs) meta.push('<span>⚖️ Rechtsschutz</span>');
+      if (p.kfw) meta.push('<span>🏦 KfW</span>');
+      if (App.mode !== 'local' && !p.connected && !p.bankrupt && !p.bot) meta.push('<span class="warn">offline</span>');
+      if (p.id === myId && App.mode !== 'local') meta.push('<span>du</span>');
+      const sc = p.schufa >= 90 ? 'good' : p.schufa >= 75 ? 'mid' : 'bad';
+      return `<li class="player ${i === S.cur && S.phase === 'play' ? 'is-cur' : ''} ${p.bankrupt ? 'is-out' : ''}" data-pid="${esc(p.id)}" style="--pc:${p.color}">
+        ${tokHTML(p.token, p.color)}
+        <div style="min-width:0"><div class="pname">${esc(p.name)} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</div>
+          <div class="swatches">${own.map((k) => `<i style="--g:${grpColor(k)}" title="${esc(SPACES[k].name)}"></i>`).join('')}</div>
+          ${p.bankrupt ? '' : `<div class="re-pstats"><span title="Nettovermögen">💎 ${MK(R.netWorth(S, p))}</span><span title="Kredite">🏦 ${MK(R.debt(p))}</span><span class="schufa is-${sc}" title="SCHUFA-Score">SCHUFA ${Math.round(p.schufa)}</span></div>`}
+          <div class="pmeta">${meta.join('')}</div></div>
+        <div class="pmoney">${M(p.money)}</div></li>`;
+    }).join('');
+  }
+
+  function renderRealProps() {
+    const S = App.S, v = viewer(), wrap = $('#my-props');
+    if (!v) { $('#props-title').textContent = 'Portfolio'; wrap.innerHTML = '<p class="empty">Du schaust zu.</p>'; return; }
+    $('#props-title').textContent = App.mode === 'local' || v.id !== myId ? `Portfolio von ${v.name}` : 'Dein Portfolio';
+    const own = R.owned(S, v.id).sort((a, b) => a - b);
+    const st = v.stmt;
+    let h = `<div class="re-fin">
+      <div><small>Konto</small><strong class="${v.money < 0 ? 'neg' : ''}">${M(v.money)}</strong></div>
+      <div><small>Nettovermögen</small><strong>${MK(R.netWorth(S, v))}</strong></div>
+      <div><small>Kredite</small><strong>${MK(R.debt(v))}</strong></div>
+      <div><small>Letztes Quartal</small><strong class="${st && st.total < 0 ? 'neg' : 'pos'}">${st ? signM(st.total) : '–'}</strong></div></div>
+      <div class="btn-row">${uiBtn('📄 Kontoauszug', 'rxStmt', 'btn-small btn-ghost')}${uiBtn('🏦 Bank & Versicherungen', 'rxBank', 'btn-small btn-ghost')}</div>`;
+    if (!own.length) h += '<p class="empty">Noch keine Immobilien. Lande auf einem freien Feld und kauf es.</p>';
+    h += own.map((k) => {
+      const sp = SPACES[k], ps = S.props[k];
+      let info = sp.type === 'rail' ? 'Bahnhof · Gewerbemiete' : sp.type === 'util' ? 'Stadtwerke-Anteil' : `${R.usedSlots(ps)}/${R.SLOTS} Slots${ps.units.length ? ' · ' + unitsLine(S, ps) : ' · unbebaut'}`;
+      const warn = [];
+      if (ps.units.some((u) => u.nomad)) warn.push('Mietnomade!');
+      const empty = ps.units.filter((u) => u.k === 'apt' && u.ready <= S.q && !u.tenant).length;
+      if (empty) warn.push(`${empty} leer`);
+      if (ps.units.some((u) => u.mold)) warn.push('Schimmel');
+      return `<button type="button" class="prop-row re-prow" data-ui="rxProp" data-i="${k}" style="--g:${grpColor(k)}"><span class="bar"></span>
+        <div class="pr-name">${esc(sp.name)}<small>${info}${warn.length ? ` · <b class="warn">${warn.join(' · ')}</b>` : ''}</small></div>
+        <div class="pr-val">${MK(R.propValue(S, k))}<span class="band re-band">${realBand(ps)}</span></div></button>`;
+    }).join('');
+    wrap.innerHTML = h;
+  }
+
+  function unitCardHTML(S, i, u, k, manage, owner) {
+    const ready = u.ready <= S.q;
+    let h = `<div class="slot-card is-${u.k}${u.k === 'hotel' ? ' w2' : ''}${ready ? '' : ' is-bau'}${u.nomad ? ' is-bad' : ''}">`;
+    if (!ready) return h + `<span>🚧 ${u.k === 'apt' ? 'Wohnung' : 'Hotel'} im Bau</span><small>fertig ${R.qName(u.ready)} · ${MK(u.cost)}</small></div>`;
+    if (u.k === 'apt') {
+      const ms = R.mietspiegel(S, i);
+      h += `<span>🏠 ${u.tenant ? esc(u.tenant) : 'Leerstand'}</span>`;
+      h += u.tenant ? `<small>${M(u.rent)}/Monat (Spiegel ${M(ms)})${u.nomad ? ' · <b class="warn">zahlt nicht!</b>' : ''}${u.mold ? ' · <b class="warn">Schimmel −20 %</b>' : ''}</small>` : '<small>Neue Mieter kommen zum Quartalsende</small>';
+      return h + `<small>Wert ${MK(R.unitValue(S, u))}</small></div>`;
+    }
+    const pacht = u.mode === 'pacht';
+    const qi = (S.q - 1) % 4;
+    const fc = pacht ? u.cost * 0.0125 : R.hotelNet(R.hotelQ(S, i, u, owner, qi));
+    h += `<span>🏨 Hotel · ${R.ROOMS} Zimmer · ${pacht ? 'verpachtet' : 'selbst betrieben'}</span>`;
+    h += `<small>${pacht ? `Feste Pacht ${M(fc)}/Q` : `${u.occ ? `Auslastung zuletzt ${Math.round(u.occ * 100)} % · ` : ''}Prognose ${R.SEASON_NAME[qi]}: ${signM(fc)}`} · Wert ${MK(R.unitValue(S, u))}</small>`;
+    if (manage) {
+      h += '<div class="btn-row">';
+      if (!pacht) h += Object.entries(R.PRICE_LVL).map(([id, l]) => kbtn(l.name, { type: 'hotelPrice', idx: i, u: k, lvl: id }, owner.id, `btn-small ${u.lvl === id ? 'is-on' : 'btn-ghost'}`)).join('');
+      h += kbtn(pacht ? 'Selbst betreiben (Ð10.000)' : 'Verpachten', { type: 'hotelMode', idx: i, u: k, mode: pacht ? 'self' : 'pacht' }, owner.id, 'btn-small btn-ghost');
+      h += '</div>';
+    }
+    return h + '</div>';
+  }
+
+  function realPropHTML(i) {
+    const S = App.S, sp = SPACES[i], st = S.props[i];
+    if (!st) return `<div class="deed"><div class="deed-head light-text" style="--g:#2a2140">${REAL_ICON[sp.type] || sp.icon || ''} ${esc(sp.name)}</div><div class="deed-foot" style="border:0;font-size:14px;color:var(--fg)">${esc(REAL_DESC[sp.type] || '')}</div></div>`;
+    const owner = P(st.owner), v = viewer();
+    const mine = owner && v && owner.id === v.id;
+    const manage = mine && S.phase === 'play' && curP().id === v.id && canControl(v.id) && ['roll', 'end', 'debt', 'buy'].includes(S.sub);
+    const val = R.propValue(S, i), land = R.landValue(S, i);
+    let h = `<div class="re-file"><div class="ex-head" style="--g:${grpColor(i)}"><strong>${esc(sp.name)}</strong><small>${esc(expSub(i))}</small></div>
+      <div class="re-kpis"><div><small>Marktwert</small><strong>${M(val)}</strong></div><div><small>davon Boden</small><strong>${M(land)}</strong></div>
+      <div><small>Eigentümer</small><strong>${owner ? esc(owner.name) : 'zu verkaufen'}</strong></div>
+      ${owner ? `<div><small>Gekauft</small><strong>${R.qName(st.bought)} · ${MK(st.paid)}</strong></div>` : ''}</div>`;
+    if (sp.type === 'prop') {
+      const ms = R.mietspiegel(S, i), used = R.usedSlots(st);
+      h += `<p class="re-sub">Mietspiegel ${M(ms)}/Monat für 75 m² · Grundsteuer ${M(land * 0.0009)}/Quartal · Ganze Farbgruppe: Quartier +8 % Miete, +5 % Hotelgäste</p>`;
+      h += '<div class="slots">';
+      st.units.forEach((u, k) => { h += unitCardHTML(S, i, u, k, manage, owner); });
+      for (let k = used; k < R.SLOTS; k++) h += `<div class="slot-card is-free"><span>Slot ${k + 1}</span><small>frei</small></div>`;
+      h += '</div>';
+      if (manage) {
+        const free = R.SLOTS - used;
+        if (st.blocked === S.q) h += '<p class="re-warn-line">📋 Das Bauamt hat gerade abgelehnt. Neuer Antrag im nächsten Quartal.</p>';
+        else if (free) {
+          h += '<div class="build-opts">';
+          ['apt', 'hotel'].forEach((kind) => {
+            if (kind === 'hotel' && free < 2) return;
+            const cost = R.unitCost(S, i, kind), fee = R.permitFee(kind), kfw = v.kfw ? Math.round(cost * 0.15) : 0;
+            const yr = kind === 'hotel' ? [0, 1, 2, 3].reduce((a, q) => a + R.hotelNet(R.hotelQ(S, i, { cost, lvl: 'normal' }, v, q)), 0) : ms * 12 - 1500;
+            const room = R.loanRoom(S, v, cost);
+            const fins = [0, 0.5, 0.8].map((f) => {
+              const loan = Math.floor((cost * f) / 1000) * 1000, cash = cost + fee - loan - kfw;
+              const no = loan > room, poor = v.money < cash;
+              return kbtn(f ? `${f * 100} % Kredit · ${MK(cash)} bar` : `Bar · ${MK(cash)}`, { type: 'build', idx: i, k: kind, fin: f }, v.id, 'btn-small', no || poor, no ? 'Bank sagt nein' : poor ? 'Zu wenig Geld' : '');
+            }).join('');
+            h += `<div class="build-opt"><div><strong>${kind === 'apt' ? '🏠 Wohnung bauen' : '🏨 Hotel bauen'}</strong>
+              <small>${kind === 'apt' ? `75 m² · 1 Slot · Bauzeit 1 Quartal · Miete ca. ${M(ms)}/Monat` : `${R.ROOMS} Zimmer · 2 Slots · Bauzeit 2 Quartale · Gewinn ca. ${M(yr)}/Jahr (schwankt mit Saison und Krisen)`}</small>
+              <small>Baukosten ${M(cost)} + Baugenehmigung ${M(fee)}${kfw ? ` − KfW-Zuschuss ${M(kfw)}` : ''} · Rendite ca. ${pctTxt(yr / cost)}</small></div>
+              <div class="btn-row">${fins}</div></div>`;
+          });
+          h += '</div>';
+        }
+        const can = st.units.some((u) => u.k === 'apt' && u.tenant && !u.nomad && S.q - u.raised >= 5 && u.rent < ms);
+        const nomad = st.units.some((u) => u.nomad);
+        h += '<div class="btn-row re-acts">';
+        if (st.units.some((u) => u.k === 'apt' && u.tenant)) h += btn('📈 Mieterhöhung verlangen', { type: 'raise', idx: i }, v.id, 'btn-small', !can, can ? 'Bis zum Mietspiegel, höchstens +15 %' : 'Sperrfrist 15 Monate oder schon am Mietspiegel');
+        if (nomad) h += btn('🚪 Räumungsklage', { type: 'evict', idx: i }, v.id, 'btn-small btn-danger');
+        h += '</div>';
+      }
+    }
+    if (manage && !st.units.some((u) => u.ready > S.q)) {
+      const fast = S.sub === 'debt' ? 0.85 : 0.95, gross = Math.round(val * fast), mak = Math.round(gross * 0.0357);
+      h += `<div class="re-sell"><small>${S.sub === 'debt' ? 'Notverkauf: 85 % vom Marktwert' : 'Verkauf: 95 % vom Marktwert'}, Makler 3,57 %${S.q - st.bought < 40 ? ' · Gewinn innerhalb von 10 Jahren ist steuerpflichtig' : ''}</small>
+        ${btn(`🤝 Verkaufen für ${M(gross - mak)}`, { type: 'sell', idx: i }, v.id, 'btn-small btn-ghost')}</div>`;
+    }
+    return h + '</div>';
+  }
+  function openRealProp(i) { openModal(realPropHTML(i), () => realPropHTML(i)); }
+
+  function realBankHTML() {
+    const S = App.S, v = viewer();
+    if (!v || !S.isReal) return '';
+    const manage = S.phase === 'play' && curP().id === v.id && canControl(v.id) && ['roll', 'end', 'debt', 'buy'].includes(S.sub);
+    const room = R.loanRoom(S, v), rate = R.rateFor(S, v);
+    const loans = v.loans.map((L) => `<tr><td>${esc(L.why)}<small>${R.qName(L.q)}</small></td><td>${M(L.rest)}</td><td>${String(L.rate).replace('.', ',')} %</td><td>${M(R.annuity(L))}</td>
+      <td>${manage ? kbtn('Ablösen', { type: 'repay', id: L.id }, v.id, 'btn-small btn-ghost', v.money < L.rest * 1.015, `${M(L.rest * 1.015)} inkl. 1,5 % Vorfälligkeitsentschädigung`) : ''}</td></tr>`).join('');
+    const amounts = [10000, 50000, 100000, 250000].filter((a) => a < room).concat(room >= 5000 ? [room] : []);
+    const elemCost = Math.round(R.owned(S, v.id).reduce((a, k) => a + S.props[k].units.reduce((b, u) => b + (u.ready <= S.q ? R.unitValue(S, u) : 0), 0), 0) * 0.00015);
+    return `<h2>🏦 Bank & Versicherungen</h2>
+      <div class="re-kpis"><div><small>SCHUFA-Score</small><strong>${Math.round(v.schufa)}</strong></div><div><small>Dein Zins</small><strong>${String(rate).replace('.', ',')} %</strong></div>
+      <div><small>Kreditrahmen</small><strong>${M(room)}</strong></div><div><small>Dispo-Limit</small><strong>${M(R.dispoLimit(v))}</strong></div></div>
+      <p class="re-sub">Die Bank leiht bis 80 % vom Wert deiner Immobilien – und nur, wenn die Raten zu Gehalt und Mieten passen. Zins = Bauzins ${S.mk.zins.toFixed(2).replace('.', ',')} % + Aufschlag nach SCHUFA. Tilgung 1,5 % im Jahr. Dispo kostet 11,5 %.</p>
+      <h3>Kredite</h3>${v.loans.length ? `<table class="re-loans"><tr><th>Zweck</th><th>Rest</th><th>Zins</th><th>Rate/Q</th><th></th></tr>${loans}</table>` : '<p class="empty">Keine Kredite. Schuldenfrei!</p>'}
+      ${manage && amounts.length ? `<h3>Neuer Kredit (Grundschuld auf den Bestand)</h3><div class="btn-row">${amounts.map((a) => kbtn(M(a), { type: 'loan', amt: a }, v.id, 'btn-small')).join('')}</div>` : ''}
+      <h3>Versicherungen</h3>
+      <div class="re-ins"><div><strong>⚖️ Vermieter-Rechtsschutz</strong><small>Ð390 im Quartal. Anwälte kosten dich dann nur Ð250 Selbstbeteiligung.</small></div>${manage ? kbtn(v.rs ? 'Kündigen' : 'Abschließen', { type: 'toggle', what: 'rs' }, v.id, `btn-small ${v.rs ? 'btn-ghost' : ''}`) : `<span>${v.rs ? 'aktiv' : 'keine'}</span>`}</div>
+      <div class="re-ins"><div><strong>🌊 Elementarversicherung</strong><small>ca. ${M(elemCost)} im Quartal. Zahlt bei Hochwasser bis auf Ð2.500.</small></div>${manage ? kbtn(v.elem ? 'Kündigen' : 'Abschließen', { type: 'toggle', what: 'elem' }, v.id, `btn-small ${v.elem ? 'btn-ghost' : ''}`) : `<span>${v.elem ? 'aktiv' : 'keine'}</span>`}</div>
+      <p class="re-sub">🏠 Gebäudeversicherung gegen Feuer und Leitungswasser ist bei allen Gebäuden automatisch dabei.</p>`;
+  }
+  function stmtHTML() {
+    const v = viewer(), st = v && v.stmt;
+    if (!v) return '';
+    if (!st) return '<h2>📄 Kontoauszug</h2><p class="empty">Das erste Quartal läuft noch. Am Quartalsende kommt hier die Abrechnung.</p>';
+    const row = ([l, a]) => `<div class="stmt-row"><span>${esc(l)}</span><strong class="${a < 0 ? 'neg' : 'pos'}">${signM(a)}</strong></div>`;
+    return `<h2>📄 Quartalsabrechnung ${R.qName(st.q)}</h2><p class="action-note">${esc(v.name)} · Konto jetzt ${M(v.money)}</p>
+      <div class="stmt"><h4>Einnahmen</h4>${st.lines.filter(([, a]) => a > 0).map(row).join('')}<h4>Ausgaben</h4>${st.lines.filter(([, a]) => a < 0).map(row).join('')}
+      <div class="stmt-sum"><span>Saldo</span><strong class="${st.total < 0 ? 'neg' : 'pos'}">${signM(st.total)}</strong></div></div>
+      <p class="re-sub">Steuer-Vorauszahlung ${M(v.taxPre)} im Quartal${v.lossCarry ? ` · Verlustvortrag ${M(v.lossCarry)}` : ''} · Nebenkosten der Mieter werden umgelegt, bei Leerstand zahlst du sie selbst.</p>`;
+  }
+  function realRulesHTML() {
+    return `<h2>🏢 DULIDANOPOLY REALISTIC</h2><div class="rules">
+      <p>Immobilien wie im echten Leben. Eine Runde ist ein Quartal. Alle starten mit Ð250.000 Eigenkapital und einem Job (Ð16.500 netto im Quartal, Ð8.400 Lebenshaltung). Am Ende zählt das Nettovermögen: Konto + Immobilien − Kredite.</p>
+      <h3>Kaufen</h3><ul><li>Auf freien Feldern kaufst du zum Marktwert. Dazu kommen Grunderwerbsteuer (6,5 % in NRW, 5 % in Öhringen/BW), Notar 1,5 % und Grundbuch 0,5 %.</li>
+        <li>Finanzieren geht mit 50 % oder 80 % Kredit. Die Bank prüft Sicherheiten (80 % Beleihung) und ob die Raten zu Gehalt und Mieten passen. Zins nach SCHUFA-Score.</li>
+        <li>Auf fremden Feldern zahlst du eine Leistung (Zwischenmiete, Hotel-Tagung, Pendler-Abo) und darfst ein Kaufangebot machen.</li></ul>
+      <h3>Bauen mit Slots</h3><ul><li>Jedes Grundstück hat 6 Slots. Eine Wohnung braucht 1 Slot, ein Hotel 2. Reihenfolge egal: 6 Wohnungen, 3 Hotels oder gemischt.</li>
+        <li>Erst kommt die Baugenehmigung (Gebühr, kann abgelehnt werden), dann die Bauzeit: Wohnung 1 Quartal, Hotel 2 Quartale. KfW-Förderung gibt 15 % Zuschuss.</li></ul>
+      <h3>Wohnungen</h3><ul><li>Mieter zahlen Kaltmiete nach Mietspiegel. Nebenkosten (Wasser, Müll, Hausstrom) werden umgelegt, bei Leerstand zahlst du sie.</li>
+        <li>Mieterhöhung höchstens bis zum Mietspiegel, max. +15 %, frühestens nach 15 Monaten. Mieter können widersprechen oder kündigen.</li>
+        <li>Mietnomaden zahlen nicht – dann hilft nur die Räumungsklage.</li></ul>
+      <h3>Hotels</h3><ul><li>Umsatz = Zimmer × Auslastung × Zimmerpreis. Sommer voll, Winter leer. Davon gehen ab: 15 % Booking-Provision, Personal, Wasser, Energie, Reinigung, Fixkosten.</li>
+        <li>Preisstrategie Budget/Standard/Premium ändert Preis und Auslastung. Oder verpachten: feste Pacht, kein Risiko, weniger Gewinn.</li>
+        <li>Pandemien leeren Hotels, Messen füllen sie.</li></ul>
+      <h3>Jedes Quartal</h3><ul><li>Abrechnung mit allem: Mieten, Hotelumsatz, Grundsteuer, Versicherung, Hausverwaltung, Instandhaltung, Zinsen, Tilgung, Steuer-Vorauszahlung. Steht im Kontoauszug.</li>
+        <li>Der Markt bewegt sich: Immobilienpreise, Bauzinsen, Baukosten, Mietspiegel. Krisen kommen ohne Vorwarnung.</li></ul>
+      <h3>Steuern</h3><ul><li>Nach jedem Q4 kommt die Steuererklärung: Vermietung (minus AfA und Zinsen), Gewerbe (Hotels, Bahnhöfe), Spekulationsgewinne. Einkommensteuer nach Tarif, Soli, Gewerbesteuer.</li>
+        <li>Entweder die Steuerberaterin machen lassen (kostet, spart aber Steuern), oder selbst rechnen im STEUER-RUSH. Je mehr du besitzt, desto schwerer. Fehler kosten Geld – oder fliegen bei einer Prüfung auf (Finanzamt-Felder, Betriebsprüfung).</li></ul>
+      <h3>Anwälte & Gericht</h3><ul><li>Bei Streit wählst du: Fachanwalt (teuer, gute Chancen), selbst vertreten (nur bis Ð10.000) oder Vergleich. Wer verliert, zahlt beide Anwälte.</li>
+        <li>Rechtsschutzversicherung macht Anwälte billig. „Klage! Ab vors Gericht“ hält dich bis zu 2 Züge fest – außer dein Anwalt holt dich raus.</li></ul>
+      <h3>Pleite</h3><ul><li>Das Konto darf bis zum Dispo-Limit ins Minus (11,5 % Zinsen). Darüber musst du verkaufen, umschulden oder Privatinsolvenz anmelden.</li></ul></div>`;
+  }
+
+  // ---------- STEUER-RUSH: die Steuererklärung als Rechen-Minigame ----------
+  function makeTaxTasks(S, p, lvl, n) {
+    const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+    const fmt = (x) => 'Ð' + x.toLocaleString('de-DE');
+    const mine = R.owned(S, p.id).filter((k) => SPACES[k].type === 'prop');
+    const nm = () => (mine.length ? SPACES[mine[ri(0, mine.length - 1)]].name : ['Weseler Straße', 'Hochfeld', 'Meiderich'][ri(0, 2)]);
+    const big = lvl >= 4 ? 3 : 1;
+    const T = [
+      [1, () => { const w = ri(1, 3), r = ri(55, 150) * 10; return { head: 'Mieteinnahmen', stamp: 'EINNAHME', q: `${esc(nm())}<br>${w} Wohnung${w > 1 ? 'en' : ''} × ${fmt(r)} × 3 Monate`, a: w * r * 3 }; }],
+      [1, () => { const a = ri(80, 240), b = ri(30, 90), c = ri(15, 60); return { head: 'Nebenkosten', stamp: 'UMLAGE', q: `Wasser ${fmt(a)}<br>+ Müll ${fmt(b)}<br>+ Hausstrom ${fmt(c)}`, a: a + b + c }; }],
+      [2, () => { const a = ri(40, 120) * 100 * big, b = ri(10, 35) * 100 * big; return { head: 'Überschuss', stamp: 'V+V', q: `Mieteinnahmen ${fmt(a)}<br>− Werbungskosten ${fmt(b)}`, a: a - b }; }],
+      [2, () => { const c = ri(150, 350) * 1000; return { head: 'Abschreibung', stamp: 'AfA', q: `AfA 3 % von<br>Baukosten ${fmt(c)}`, a: (c / 100) * 3 }; }],
+      [3, () => { const pr = ri(100, 900) * 1000; return { head: 'Grunderwerbsteuer', stamp: 'NOTAR', q: `6,5 % auf<br>Kaufpreis ${fmt(pr)}`, a: (pr / 1000) * 65 }; }],
+      [3, () => { const nights = ri(6, 25), adr = ri(7, 17) * 10; return { head: 'Hotelumsatz', stamp: 'GEWERBE', q: `${R.ROOMS} Zimmer × ${nights} Nächte<br>× ${fmt(adr)} pro Nacht`, a: R.ROOMS * nights * adr }; }],
+      [4, () => { const L = ri(50, 600) * 1000; return { head: 'Kreditzinsen', stamp: 'BANK', q: `Zinsen pro Quartal:<br>${fmt(L)} × 4 % ÷ 4`, a: L / 100 }; }],
+      [4, () => { const a = ri(300, 900) * 100, b = ri(50, 250) * 100; return { head: 'Steuer', stamp: 'ESt', q: `(${fmt(a)} − ${fmt(b)})<br>× 30 % Steuersatz`, a: ((a - b) / 10) * 3 }; }],
+      [5, () => { const x = ri(10, 200); return { head: 'Gewerbesteuer', stamp: 'GewSt', q: `(Gewinn ${fmt(24500 + x * 400)} − Freibetrag ${fmt(24500)})<br>× 3,5 % × Hebesatz 450 %`, a: x * 63 }; }],
+      [5, () => { const e = ri(20, 300) * 200; return { head: 'Solidaritätszuschlag', stamp: 'SOLI', q: `5,5 % von<br>Einkommensteuer ${fmt(e)}`, a: (e / 200) * 11 }; }],
+      [6, () => { const L = ri(25, 150) * 4000; return { head: 'Annuität', stamp: 'BANK', q: `Quartalsrate:<br>${fmt(L)} × (3,6 % + 1,5 %) ÷ 4`, a: (L / 4000) * 51 }; }],
+      [6, () => { const a = ri(20, 80) * 1000, b = ri(5, 30) * 1000, c = ri(2, 12) * 1000; return { head: 'Jahresergebnis', stamp: 'BILANZ', q: `Umsatz ${fmt(a * 4)}<br>− Personal ${fmt(b * 4)} − AfA ${fmt(c)}`, a: a * 4 - b * 4 - c }; }],
+    ];
+    const pool = T.filter(([m]) => m <= lvl);
+    const tasks = [];
+    for (let k = 0; k < n; k++) {
+      // erst leicht, dann die schweren Belege der eigenen Stufe
+      const hard = pool.filter(([m]) => m >= lvl - 1);
+      const from = k >= n / 2 && hard.length ? hard : pool;
+      tasks.push(from[ri(0, from.length - 1)][1]());
+    }
+    return tasks;
+  }
+  function openTaxGame() {
+    const S = App.S, p = curP();
+    if (!S || !S.isReal || S.sub !== 'tax' || !p.taxDue || !canControl(p.id) || $('#taxgame')) return;
+    const lvl = p.taxDue.lvl, n = R.taxTasks(lvl), pid = p.id;
+    const tasks = makeTaxTasks(S, p, lvl, n);
+    const secs = Math.max(8, 22 - 2 * lvl);
+    let k = 0, ok = 0, combo = 0, input = '', t0 = 0, timer = null, lock = true;
+    const ov = document.createElement('div');
+    ov.className = 'taxgame';
+    ov.id = 'taxgame';
+    ov.innerHTML = `<div class="tg-grid" aria-hidden="true"></div><div class="tg-box" role="dialog" aria-label="Steuer-Rush">
+      <div class="tg-top"><span class="tg-logo">ELSTER<b>3000</b></span><span class="tg-lvl">STEUER-RUSH · Stufe ${lvl}/6</span><span class="tg-prog" id="tg-prog">${n} Belege</span><button class="tg-x" id="tg-x" aria-label="Abbrechen">✕</button></div>
+      <div class="tg-time"><i id="tg-bar"></i></div>
+      <div class="tg-stage" id="tg-stage"></div>
+      <div class="tg-display" hidden><span id="tg-in">0</span></div>
+      <div class="tg-keys" hidden>${[7, 8, 9, 4, 5, 6, 1, 2, 3].map((d) => `<button data-k="${d}">${d}</button>`).join('')}<button data-k="del">⌫</button><button data-k="0">0</button><button data-k="ok" class="tg-ok">OK</button></div>
+      <div class="tg-foot"><span id="tg-score">Steuerjahr ${p.taxDue.year}</span><span id="tg-combo"></span></div></div>`;
+    document.body.appendChild(ov);
+    const q = (s) => ov.querySelector(s);
+    const close = () => { clearInterval(timer); ov.remove(); document.removeEventListener('keydown', onKey); };
+    const upd = () => { q('#tg-in').textContent = input ? Number(input).toLocaleString('de-DE') : '0'; };
+    function show() {
+      if (k >= n) return finish();
+      const t = tasks[k];
+      q('#tg-prog').textContent = `Beleg ${k + 1}/${n}`;
+      q('#tg-stage').innerHTML = `<div class="tg-receipt" style="--rot:${(Math.random() * 6 - 3).toFixed(1)}deg"><div class="tg-r-head">${esc(t.head)}<span>Nr. ${String(1000 + Math.floor(Math.random() * 9000))}</span></div><div class="tg-r-body">${t.q}</div><div class="tg-r-eq">= ?</div><div class="tg-stamp">${esc(t.stamp)}</div></div>`;
+      input = '';
+      upd();
+      t0 = Date.now();
+      lock = false;
+      clearInterval(timer);
+      timer = setInterval(() => {
+        const left = 1 - (Date.now() - t0) / (secs * 1000);
+        q('#tg-bar').style.width = Math.max(0, left * 100) + '%';
+        q('#tg-bar').classList.toggle('is-low', left < 0.3);
+        if (left <= 0) answer(true);
+      }, 60);
+    }
+    function answer(timeout) {
+      if (lock) return;
+      lock = true;
+      clearInterval(timer);
+      const t = tasks[k];
+      const right = !timeout && Number(input) === t.a;
+      if (right) { ok++; combo++; FX.play('coinUp'); } else { combo = 0; FX.play('coinDown'); }
+      const fb = document.createElement('div');
+      fb.className = 'tg-fb ' + (right ? 'is-ok' : 'is-bad');
+      fb.textContent = right ? `✔ KORREKT${combo >= 3 ? ` · COMBO ×${combo}` : ''}` : `${timeout ? '⏱ ZEIT UM' : '✘ FALSCH'} · richtig: Ð${t.a.toLocaleString('de-DE')}`;
+      q('#tg-stage').appendChild(fb);
+      ov.classList.remove('flash-ok', 'flash-bad');
+      void ov.offsetWidth;
+      ov.classList.add(right ? 'flash-ok' : 'flash-bad');
+      q('#tg-score').textContent = `${ok} von ${k + 1} richtig`;
+      q('#tg-combo').textContent = combo >= 2 ? `🔥 ${combo}er-Serie` : '';
+      k++;
+      setTimeout(show, right ? 750 : 1700);
+    }
+    function finish() {
+      lock = true;
+      clearInterval(timer);
+      q('.tg-keys').hidden = true; q('.tg-display').hidden = true; q('.tg-time').style.visibility = 'hidden';
+      const grade = ok === n ? 'A+' : ok >= n * 0.8 ? 'B' : ok >= n * 0.6 ? 'C' : ok >= n * 0.4 ? 'D' : 'F';
+      q('#tg-stage').innerHTML = `<div class="tg-end"><div class="tg-grade g-${grade[0]}">${grade}</div><h3>${ok}/${n} Belege richtig</h3>
+        <p>${ok === n ? 'Fehlerfrei! Das Finanzamt ist beeindruckt.' : n - ok > n / 2 ? 'Oha. Das wird entweder teuer oder gefährlich.' : 'Ein paar Fehler. Mal sehen, ob das jemand merkt.'}</p>
+        <button class="btn btn-primary" id="tg-send">📨 Erklärung abschicken</button></div>`;
+      q('#tg-send').onclick = () => { close(); doAct({ type: 'taxSelf', ok, total: n }, pid); };
+      FX.play(ok === n ? 'win' : 'pop');
+    }
+    function press(key) {
+      if (lock) return;
+      if (key === 'del') input = input.slice(0, -1);
+      else if (key === 'ok') { if (input) answer(false); return; }
+      else if (input.length < 9) input = (input + key).replace(/^0+(?=\d)/, '');
+      upd();
+    }
+    const onKey = (e) => {
+      if (k >= n && e.key === 'Enter' && q('#tg-send')) { e.preventDefault(); return q('#tg-send').click(); }
+      if (e.key === 'Escape') return close();
+      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); press(e.key); }
+      else if (e.key === 'Backspace') { e.preventDefault(); press('del'); }
+      else if (e.key === 'Enter') { e.preventDefault(); press('ok'); }
+    };
+    document.addEventListener('keydown', onKey);
+    ov.addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) press(b.dataset.k); });
+    q('#tg-x').onclick = close;
+    q('#tg-stage').innerHTML = `<div class="tg-end"><div class="tg-grade">§</div><h3>Steuererklärung ${p.taxDue.year}</h3>
+      <p>${n} Belege, je ${secs} Sekunden. Rechne das Ergebnis aus, tipp es ein, drück OK. Jeder Fehler heißt: Entweder zahlst du zu viel – oder zu wenig, und das Finanzamt kann es später finden. Mit Zinsen.</p>
+      <button class="btn btn-primary" id="tg-go">▶ Los geht's</button></div>`;
+    q('#tg-go').onclick = () => { q('.tg-keys').hidden = false; q('.tg-display').hidden = false; show(); };
+  }
+
   // ---------- Render ----------
   function render() {
     const S = App.S;
@@ -2688,13 +3152,20 @@
       planClassicMove();
       if (!App.animT) animateTokens(); else renderBoard();
       renderCasino();
-      renderAction();
-      renderPlayers();
-      renderProps();
+      if (isReal()) {
+        if (S.phase === 'over') renderAction(); else renderRealAction();
+        renderRealPlayers();
+        renderRealProps();
+      } else {
+        renderAction();
+        renderPlayers();
+        renderProps();
+      }
     }
     renderLog();
     playSounds();
     castBanner();
+    if (App.reModal && !$('#modal').hidden) $('#modal-body').innerHTML = App.reModal();
     moneyPops();
     if (S.phase === 'over' && App.lastPhase !== 'over') {
       FX.confetti();

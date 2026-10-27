@@ -5,6 +5,7 @@
   const MOOD = isNode ? require('./mood.js') : root.DULI_MOOD;
   const CASINO = isNode ? require('./casino.js') : root.DULI_CASINO;
   const RL = isNode ? require('./rules.js') : root.DULI_RULES;
+  const LG = isNode ? require('./logistics.js') : root.DULI_LOGI;
   const { GROUPS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, PLAYER_COLORS, APRIL_SAYS, BOARDS } = D;
   // Normales Brett oder MEGA-Brett: wird vor jeder Aktion passend zum Spielstand gesetzt
   let BD, SPACES, RAILS, UTILS, APRIL_FIELD, N, JAIL, RS = null;
@@ -28,7 +29,7 @@
   useBoard(null);
   const CARDS = { april: APRIL_CARDS, studio: STUDIO_CARDS };
   const DECK_NAME = { april: 'April-Karte', studio: 'Studio-Karte' };
-    const BUYABLE = ['prop', 'rail', 'util'];
+  const BUYABLE = ['prop', 'rail', 'util', 'station'];
 
   let rng = Math.random;
   const d6 = () => 1 + Math.floor(rng() * 6);
@@ -143,6 +144,11 @@
       if (payer && payer.token === 'ship') r = Math.floor(r / 2);
       return r;
     }
+    if (sp.type === 'station') return LG.stationRent(S, idx);
+    if (sp.type === 'util' && S.isLogi) {
+      const n = UTILS.filter(i => S.props[i].owner === owner).length;
+      return LG.portRent(n) * (S.utilCard ? 2 : 1);
+    }
     if (sp.type === 'util') {
       const n = UTILS.filter(i => S.props[i].owner === owner).length;
       const sum = S.dice[0] + S.dice[1];
@@ -160,6 +166,7 @@
       w += st.mort ? sp.price / 2 : sp.price;
       if (sp.type === 'prop') w += st.houses * GROUPS[sp.group].house;
     }
+    (S.tracks || []).forEach(t => { if (t.owner === p.id) w += t.cost; });
     return w;
   }
 
@@ -203,7 +210,8 @@
     if ([1000, 1500, 2000, 3000].includes(sm)) S.settings.startMoney = sm;
     if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
-    if (['classic', 'casino', 'world', 'royale', 'metro', 'tower', 'islands', 'festival', 'race', 'throne', 'quiz', 'bomb'].includes(o.mode)) S.settings.mode = o.mode;
+    if (['classic', 'casino', 'world', 'royale', 'metro', 'tower', 'islands', 'festival', 'race', 'throne', 'quiz', 'bomb', 'realistic', 'logistics'].includes(o.mode)) S.settings.mode = o.mode;
+    if ([3, 5, 10, 0].includes(Number(o.years)) && o.years !== '' && o.years != null) S.settings.years = Number(o.years);
     if (['mini', 'normal', 'mega'].includes(o.size)) S.settings.size = o.size;
     if (o.names && typeof o.names === 'object') {
       const clean = {};
@@ -235,6 +243,9 @@
     if (S.players.some(p => !p.token)) return 'Jeder muss zuerst eine Figur wählen.';
     if (!S.settings) S.settings = { startMoney: START_MONEY, pot: true, goDouble: false };
     S.size = (S.settings.mode || 'classic') === 'classic' && ['mini', 'mega'].includes(S.settings.size) ? S.settings.size : 'normal';
+    S.isLogi = S.settings.mode === 'logistics';
+    if (S.isLogi) S.size = 'logi';
+    S.tracks = [];
     useBoard(S);
     S.players.forEach((p, i) => {
       p.stats = newStats();
@@ -263,7 +274,7 @@
     }
     S.hist = [];
     S.log = [];
-    log(S, S.isCasino ? `🎰 DULIDAN CASINO öffnet! ${S.players[0].name} beginnt.` : S.size === 'mega' ? `🚀 MEGA-Dulidanopoly startet! 120 Felder, doppelte Schritte. ${S.players[0].name} beginnt.` : S.size === 'mini' ? `⚡ MINI-Dulidanopoly startet! 24 Felder, nur das Wichtigste. ${S.players[0].name} beginnt.` : `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
+    log(S, S.isLogi ? `🚆 DULIDANOPOLY LOGISTICS startet! Bahnhöfe kaufen, Schienen legen, Netze bauen. ${S.players[0].name} beginnt.` : S.isCasino ? `🎰 DULIDAN CASINO öffnet! ${S.players[0].name} beginnt.` : S.size === 'mega' ? `🚀 MEGA-Dulidanopoly startet! 120 Felder, doppelte Schritte. ${S.players[0].name} beginnt.` : S.size === 'mini' ? `⚡ MINI-Dulidanopoly startet! 24 Felder, nur das Wichtigste. ${S.players[0].name} beginnt.` : `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
     recordHist(S);
     const intro = { blitz: '⚡ Blitz: Alle Felder sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: `💸 Millionär: Wer zuerst ${money(GOAL_WORTH)} Vermögen hat, gewinnt!`, chaos: '💖 April-Chaos: Jede Runde passiert irgendwas. Ihr wurdet gewarnt.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5. Viel Glück.' }[variant];
     if (intro) log(S, intro);
@@ -540,6 +551,13 @@
   function moodApi(S) {
     return {
       tearDown(p) {
+        if (S.isLogi) {
+          const mine = (S.tracks || []).filter(t => t.owner === p.id);
+          if (!mine.length) return null;
+          const t = mine[Math.floor(rng() * mine.length)];
+          S.tracks = S.tracks.filter(x => x !== t);
+          return `die Schiene ${SPACES[t.a].name} – ${SPACES[t.b].name}`;
+        }
         const k = Object.keys(S.props).filter(i => S.props[i].owner === p.id && S.props[i].houses > 0)
           .sort((a, b) => S.props[b].houses - S.props[a].houses)[0];
         if (k == null) return null;
@@ -998,8 +1016,43 @@
   // ---------- Aktionen ----------
   function act(S, pid, a) {
     const err = actInner(S, pid, a);
+    if (!err && S.isLogi) pruneTracks(S);
     if (!err) checkGoal(S);
     return err;
+  }
+
+  // ---------- LOGISTICS: Schienen ----------
+  function buildTrack(S, p, a, b) {
+    const l = LG.line(a, b);
+    if (!l) return 'Zwischen diesen Bahnhöfen gibt es keine Strecke.';
+    if ((S.tracks || []).some(t => LG.key(t.a, t.b) === LG.key(a, b))) return 'Die Schiene liegt schon.';
+    if (![a, b].every(i => S.props[i] && S.props[i].owner === p.id && !S.props[i].mort)) return 'Dir müssen beide Bahnhöfe gehören (ohne Hypothek).';
+    const cost = trackCost(S, a, b);
+    if (p.money < cost) return `Die Schiene kostet ${money(cost)}.`;
+    p.money -= cost;
+    S.tracks.push({ a, b, owner: p.id, cost });
+    if (p.stats) p.stats.built++;
+    const n = LG.network(S, a).length;
+    log(S, `🛤️ ${p.name} baut die Strecke ${SPACES[a].name} – ${SPACES[b].name} (${l.km} km) für ${money(cost)}. Netz: ${n} Bahnhöfe.`);
+    if (n >= 5) MOOD.built(S, p, `ein Netz mit ${n} Bahnhöfen`);
+    return null;
+  }
+  const trackCost = (S, a, b) => Math.max(10, Math.round(LG.trackCost(a, b) * RL.buildFactor(S) / 5) * 5);
+  function sellTrack(S, p, a, b) {
+    const t = (S.tracks || []).find(x => x.owner === p.id && LG.key(x.a, x.b) === LG.key(a, b));
+    if (!t) return 'Diese Schiene gehört dir nicht.';
+    S.tracks = S.tracks.filter(x => x !== t);
+    const back = Math.floor(t.cost / 2);
+    p.money += back;
+    log(S, `${p.name} baut die Schiene ${SPACES[a].name} – ${SPACES[b].name} zurück (+${money(back)}).`);
+    return null;
+  }
+  // Wechselt ein Bahnhof den Besitzer, werden fremde Schienen daran abgebaut
+  function pruneTracks(S) {
+    const gone = (S.tracks || []).filter(t => ![t.a, t.b].every(i => S.props[i] && S.props[i].owner === t.owner));
+    if (!gone.length) return;
+    S.tracks = S.tracks.filter(t => !gone.includes(t));
+    gone.forEach(t => log(S, `🚧 Die Schiene ${SPACES[t.a].name} – ${SPACES[t.b].name} wird abgebaut (Bahnhof hat den Besitzer gewechselt).`));
   }
 
   function actInner(S, pid, a) {
@@ -1095,6 +1148,8 @@
         if (S.trade) return 'Erst das offene Angebot klären.';
         nextTurn(S); return null;
       case 'build': return manageOk() || build(S, p, Number(a.idx));
+      case 'track': return manageOk() || (S.isLogi ? buildTrack(S, p, Number(a.a), Number(a.b)) : 'Nur in LOGISTICS.');
+      case 'untrack': return manageOk() || (S.isLogi ? sellTrack(S, p, Number(a.a), Number(a.b)) : 'Nur in LOGISTICS.');
       case 'sell': return manageOk() || sell(S, p, Number(a.idx));
       case 'mortgage': return manageOk() || mortgage(S, p, Number(a.idx));
       case 'unmortgage': return manageOk() || unmortgage(S, p, Number(a.idx));
@@ -1132,6 +1187,9 @@
       if (!others) v *= 1 + 0.4 * mine / g.length;
     } else if (sp.type === 'rail') {
       v *= 1 + 0.15 * RAILS.filter(i => S.props[i].owner === pid).length;
+    } else if (sp.type === 'station') {
+      const nb = LG.LINES.filter(l => l.a === idx || l.b === idx).map(l => (l.a === idx ? l.b : l.a));
+      v *= 1 + 0.35 * nb.filter(i => S.props[i].owner === pid).length;
     }
     return v;
   }
@@ -1140,6 +1198,16 @@
     const owned = Object.keys(S.props).map(Number).filter(k => S.props[k].owner === p.id);
     for (const k of owned) {
       if (S.props[k].mort && p.money - unmortgageCost(k) > 450) return { type: 'unmortgage', idx: k };
+    }
+    if (S.isLogi) {
+      // Strecke bauen, die das größte Netz ergibt
+      const opts = LG.buildable(S, p.id).map(l => {
+        const c = trackCost(S, l.a, l.b);
+        const n = new Set([...LG.network(S, l.a), ...LG.network(S, l.b)]).size;
+        return { l, c, gain: n / c };
+      }).filter(o => p.money - o.c >= RESERVE + 100).sort((x, y) => y.gain - x.gain);
+      if (opts.length) return { type: 'track', a: opts[0].l.a, b: opts[0].l.b };
+      return null;
     }
     const sup = bankSupply(S);
     const cands = owned
@@ -1175,6 +1243,22 @@
     if (S.trade || active(S).length < 2) return null;
     S.botTrades = S.botTrades || {};
     if (S.turnNo - (S.botTrades[p.id] ?? -99) < 4) return null;
+    if (S.isLogi) {
+      // Bahnhof abkaufen, der direkt an das eigene Netz grenzt
+      for (const l of LG.LINES) {
+        for (const [mine, want] of [[l.a, l.b], [l.b, l.a]]) {
+          const so = S.props[want];
+          if (S.props[mine].owner !== p.id || !so.owner || so.owner === p.id || so.mort) continue;
+          const o = P(S, so.owner);
+          if (!o || o.bankrupt || LG.tracksOf(S, want).length) continue;
+          const money = Math.min(p.money - RESERVE, Math.round(SPACES[want].price * (1.7 + rng() * 0.6)));
+          if (money < SPACES[want].price * 1.4) continue;
+          S.botTrades[p.id] = S.turnNo;
+          return { type: 'tradePropose', trade: { to: o.id, give: { props: [], money, jf: 0 }, get: { props: [want], money: 0, jf: 0 } } };
+        }
+      }
+      return null;
+    }
     const groups = [...new Set(SPACES.filter(x => x.type === 'prop').map(x => x.group))];
     for (const g of groups) {
       const idx = groupIdx(g);
@@ -1260,7 +1344,7 @@
     newGame, addPlayer, addBot, removePlayer, setSettings: withBoard(setSettings), botStep: withBoard(botStep), pickToken, startGame,
     act: withBoard(act), endGame: withBoard(endGame), bankrupt: withBoard(bankrupt), calcRent: withBoard(calcRent), netWorth: withBoard(netWorth), GOAL_WORTH,
     buyPrice, houseCost, unmortgageCost, ownsGroup: withBoard(ownsGroup), groupIdx, groupHasHouses: withBoard(groupHasHouses), bankSupply: withBoard(bankSupply), CARDS,
-    useBoard, board: boardFor,
+    useBoard, board: boardFor, trackCost: (S, a, b) => trackCost(S, a, b),
     setRng: (f) => { rng = f; MOOD.setRng(f); CASINO.setRng(f); },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = ENGINE;
