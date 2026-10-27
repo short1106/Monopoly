@@ -22,12 +22,16 @@ Das Monopoly von **Dulidan Studios**: von Marxloh bis ins DULIDAN HQ. Spielbar i
 
 Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo, Baulöwe, Neureich, Sudden Death, Konto-Roulette), 17 Hausregeln zum Anklicken, 16 Figuren mit eigenen Fähigkeiten, ein Geldverlauf am Spielende und Erfolge, die auf dem Gerät gespeichert bleiben.
 
+**📖 Kampagne „Aprils Story“:** 12 Level gegen Bots durch alle Modi, je 3 Sterne, Level schalten sich nacheinander frei.
+**🛠️ Brett-Editor:** eigene Straßennamen fürs klassische Brett, per Code teilbar, online sehen alle die Namen.
+**⭐ Profil:** XP und Level mit Titeln vom Praktikanten bis zur Dulidan-Legende. **🎨 Brett-Skins:** Neon, Retro-Papier, Gold, Matrix, Pastell. **🎵 Musik:** Synthwave-Loop im Browser erzeugt.
+
 **💖 Aprils Laune** (in der Lobby abschaltbar): April mag jede Person anders, lässt sich bestechen, macht ihrem Liebling Geschenke und rächt sich bei Hass (Haus abreißen, Straße in Hypothek). Dazu Tageslaune und Live-Kommentar über dem Brett.
 
 ## Technik
 - Reine statische Webseite (HTML/CSS/JS), keine Build-Schritte.
 - Online-Verbindung direkt zwischen den Geräten über [PeerJS](https://peerjs.com) (WebRTC, `vendor/peerjs.min.js`). Für den Verbindungsaufbau wird der kostenlose PeerJS-Cloud-Server genutzt.
-- `js/data.js` + `js/engine.js`: klassisches Brett und Regeln · `js/world-data.js` + `js/boards-data.js`: die Bretter World, Royale, Metro, Tower · `js/world.js`: gemeinsame Brett-Engine · `js/mood.js`: Aprils Laune · `js/casino.js`: Casino-Spiele · `js/rules.js`: Hausregeln und Varianten · `js/net.js`: Online-Verbindung · `js/ui.js` + `js/fx.js`: Oberfläche, Sounds, Würfel · `css/april.css`: Design wie dulidan-studios.com.
+- `js/data.js` + `js/engine.js`: klassisches Brett und Regeln · `js/world-data.js` + `js/boards-data.js`: die Bretter World, Royale, Metro, Tower · `js/world.js`: gemeinsame Brett-Engine · `js/mood.js`: Aprils Laune · `js/casino.js`: Casino-Spiele · `js/rules.js`: Hausregeln und Varianten · `js/campaign.js`: Kampagne · `js/net.js`: Online-Verbindung · `js/ui.js` + `js/fx.js`: Oberfläche, Sounds, Würfel · `css/april.css`: Design wie dulidan-studios.com.
 
 ## Live stellen (GitHub Pages)
 Settings → Pages → „Deploy from a branch“ → Branch wählen, Ordner `/ (root)` → Save.

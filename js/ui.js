@@ -2,7 +2,7 @@
 (function () {
   const D = window.DULI_DATA, E = window.DULI_ENGINE, Net = window.DULI_NET, FX = window.DULI_FX;
   const W = window.DULI_WORLD, WD = window.DULI_WORLD_DATA;
-  const MOOD = window.DULI_MOOD, CZ = window.DULI_CASINO, RL = window.DULI_RULES;
+  const MOOD = window.DULI_MOOD, CZ = window.DULI_CASINO, RL = window.DULI_RULES, CAMP = window.DULI_CAMPAIGN;
   const isWorld = () => !!(App.S && W.MODES.includes(App.S.mode));
   const GB = () => W.board(App.S.mode);
   const ENG = () => (isWorld() ? W : E);
@@ -305,6 +305,157 @@
     joinRoom(savedClient.code, savedClient.name);
   }
 
+  // ---------- Profil: XP, Level, Titel (bleibt auf diesem Gerät) ----------
+  const TITLES = [[1, 'Praktikant'], [3, 'Junior-Designer'], [6, 'Designer'], [10, 'Senior-Designer'], [15, 'Art Director'], [21, 'Creative Lead'], [28, 'Studio-Chef'], [36, 'Dulidan-Legende']];
+  const prof = () => Object.assign({ xp: 0, games: 0, wins: 0, token: 'april' }, store.get('duli-profile') || {});
+  const lvlOf = (xp) => Math.floor(Math.sqrt(xp / 40)) + 1;
+  const xpFor = (L) => 40 * (L - 1) * (L - 1);
+  const titleOf = (L) => TITLES.filter(([m]) => L >= m).pop()[1];
+  function profileHTML() {
+    const p = prof(), L = lvlOf(p.xp), a = xpFor(L), b = xpFor(L + 1);
+    const pct = Math.round(((p.xp - a) / (b - a)) * 100);
+    return `<div class="profile">${tokHTML(p.token, '#c020b8')}<div><strong>Level ${L} · ${titleOf(L)}</strong>
+      <div class="pf-bar"><i style="width:${pct}%"></i></div><small>${p.xp} XP · ${p.wins} ${p.wins === 1 ? 'Sieg' : 'Siege'} · ${p.games} Spiele</small></div></div>`;
+  }
+  function gainXP(amount, won) {
+    const p = prof(), before = lvlOf(p.xp);
+    p.xp += amount; p.games += 1; if (won) p.wins += 1;
+    store.set('duli-profile', p);
+    return { amount, level: lvlOf(p.xp), title: titleOf(lvlOf(p.xp)), up: lvlOf(p.xp) > before };
+  }
+
+  // ---------- Kampagne „Aprils Story“ ----------
+  const campDone = () => store.get('duli-camp') || {};
+  function buildCampaign() {
+    const done = campDone(), modes = modeList();
+    let open = true, total = 0;
+    $('#camp-grid').innerHTML = CAMP.LEVELS.map((lv, i) => {
+      const st = done[lv.id] || 0, isOpen = open, m = modes.find((x) => x.id === lv.mode);
+      total += st; open = open && st > 0;
+      const v = lv.variant && VARIANTS.find((x) => x.id === lv.variant);
+      return `<button type="button" class="camp-card spot ${isOpen ? '' : 'is-locked'} ${st ? 'is-done' : ''}" data-level="${lv.id}" ${isOpen ? '' : 'disabled'}>
+        <span class="mc-n">L/${String(i + 1).padStart(2, '0')}</span><span class="mc-ic">${isOpen ? m.icon : '🔒'}</span>
+        <strong>${esc(lv.title)}</strong><small>${isOpen ? esc(lv.story) : 'Hol im Level davor mindestens einen Stern.'}</small>
+        <span class="camp-stars">${'★'.repeat(st)}<i>${'☆'.repeat(3 - st)}</i></span>
+        <span class="mc-tags"><i>${esc(m.name.replace('DULIDAN ', ''))}</i>${lv.size ? `<i>${lv.size.toUpperCase()}</i>` : ''}${v ? `<i>${v.name}</i>` : ''}<i>${lv.bots} ${lv.bots === 1 ? 'Bot' : 'Bots'}</i></span></button>`;
+    }).join('');
+    const tok = prof().token;
+    $('#camp-top').innerHTML = `<div class="camp-progress"><strong>⭐ ${total} / ${CAMP.LEVELS.length * 3}</strong><span>Sterne gesammelt</span></div>
+      <div class="camp-tok"><span>Deine Figur:</span>${Object.keys(TOKENS).map((k) => `<button type="button" class="tok-pick ${k === tok ? 'is-on' : ''}" data-pf-token="${k}" title="${esc(TOKENS[k].name)}">${tokHTML(k, k === tok ? '#ff7ae6' : 'var(--line)')}</button>`).join('')}</div>`;
+  }
+  function resetView() {
+    App.disp = {}; App.wdisp = {}; App.czSeq = null; App.castKey = null; App.qrInit = false;
+    App.lastClassicRoll = null; App.lastMoveId = null; App.prevMoney = null; App.busyUntil = 0;
+  }
+  function startLevel(id) {
+    const lv = CAMP.LEVELS.find((x) => x.id === id);
+    if (!lv) return;
+    const name = (nameIn.value.trim() || store.get('duli-name') || 'Du').slice(0, 16);
+    const S = E.newGame();
+    E.addPlayer(S, 'me', name);
+    S.players[0].token = prof().token;
+    for (let i = 0; i < lv.bots; i++) E.addBot(S);
+    E.setSettings(S, { mode: lv.mode, variant: lv.variant || 'normal', size: lv.size || 'normal' });
+    (lv.rules || []).forEach((r) => E.setSettings(S, { rule: r, on: true }));
+    S.campaign = lv.id;
+    const err = startByMode(S);
+    if (err) return toast(err);
+    closeModal();
+    App.mode = 'local'; App.code = null; App.localSel = null;
+    resetView();
+    App.S = S;
+    commit();
+    enterRoom();
+    setTimeout(() => aprilSay(lv.story, 8000), 600);
+  }
+  $('#camp-grid').addEventListener('click', (e) => {
+    const c = e.target.closest('[data-level]');
+    if (c && !c.disabled) startLevel(c.dataset.level);
+  });
+  $('#camp-top').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pf-token]');
+    if (!b) return;
+    const p = prof(); p.token = b.dataset.pfToken; store.set('duli-profile', p);
+    FX.play('pop');
+    buildHome();
+  });
+  // Sterne am Ende eines Kampagnen-Levels
+  function campResult(save) {
+    const S = App.S;
+    const lv = S.campaign && CAMP.LEVELS.find((x) => x.id === S.campaign);
+    const me = S.players.find((p) => !p.bot);
+    if (!lv || !me) return null;
+    const ctx = {
+      S, me, won: S.winner === me.id, rounds: S.round || 1,
+      props: S.props ? Object.values(S.props).filter((st) => st.owner === me.id) : [],
+      cities: S.cities ? Object.values(S.cities).filter((st) => st.owner === me.id) : [],
+      zones: isWorld() ? W.completeZones(S, me.id).length : 0,
+      ownsHQ: !!S.props && Object.keys(S.props).some((k) => SPACES[k] && SPACES[k].name === 'DULIDAN HQ' && S.props[k].owner === me.id),
+    };
+    const res = lv.stars.map(([, f]) => { try { return !!f(ctx); } catch (e) { return false; } });
+    const count = res.filter(Boolean).length;
+    const done = campDone();
+    if (save && count > (done[lv.id] || 0)) { done[lv.id] = count; store.set('duli-camp', done); }
+    const idx = CAMP.LEVELS.indexOf(lv);
+    return { lv, idx, res, count, next: CAMP.LEVELS[idx + 1] || null };
+  }
+  function campEndHTML(c) {
+    return `<div class="camp-end"><p class="sec-label"><span class="n">L/${String(c.idx + 1).padStart(2, '0')}</span>${esc(c.lv.title)}</p>
+      <h3>${c.count ? 'Level geschafft!' : 'Leider verloren'}</h3>
+      <div class="stars-big">${'★'.repeat(c.count)}<i>${'☆'.repeat(3 - c.count)}</i></div>
+      <ul class="camp-goals">${c.lv.stars.map(([t], i) => `<li class="${c.res[i] ? 'ok' : ''}">${c.res[i] ? '★' : '☆'} ${esc(t)}</li>`).join('')}</ul>
+      <div class="btn-row">${uiBtn('↻ Nochmal', 'campRetry')}${c.next && c.count ? uiBtn('Nächstes Level →', 'campNext', 'btn-primary') : ''}${uiBtn('Zur Startseite', 'leave', 'btn-ghost')}</div></div>`;
+  }
+  // Belohnungen am Spielende: Erfolge, Kampagnen-Sterne, XP (pro Spiel nur einmal)
+  function gameOverRewards() {
+    const S = App.S;
+    const gid = `${S.players.map((p) => p.id).join('|')}:${S.turnNo}:${S.logSeq}`;
+    const mine = App.mode === 'local' ? S.players.filter((p) => !p.bot) : S.players.filter((p) => p.id === myId);
+    if (store.get('duli-lastgame') === gid || !mine.length) return { fresh: [], xp: null, camp: campResult(false) };
+    store.set('duli-lastgame', gid);
+    const fresh = checkAchievements();
+    const camp = campResult(true);
+    const won = mine.some((p) => p.id === S.winner);
+    const xp = gainXP(40 + (won ? 120 : 0) + fresh.length * 30 + (camp ? camp.count * 25 : 0) + S.players.filter((p) => p.bot).length * 5, won);
+    return { fresh, xp, camp };
+  }
+
+  // ---------- Brett-Skins (nur auf diesem Gerät) ----------
+  const SKINS = [['neon', 'Neon', '💜'], ['retro', 'Retro-Papier', '📜'], ['gold', 'Gold', '🏆'], ['matrix', 'Matrix', '🟩'], ['pastell', 'Pastell', '🌸']];
+  function setSkin(k) {
+    if (!SKINS.some(([id]) => id === k)) k = 'neon';
+    document.documentElement.dataset.skin = k;
+    store.set('duli-skin', k);
+  }
+  setSkin(store.get('duli-skin'));
+  const skinPickerHTML = () => `<div class="skin-row">${SKINS.map(([id, n, ic]) => `<button type="button" class="skin-btn ${document.documentElement.dataset.skin === id ? 'is-on' : ''}" data-ui="skin" data-skin="${id}"><span class="sk-prev sk-${id}"></span>${ic} ${n}</button>`).join('')}</div>`;
+
+  // ---------- Brett-Editor ----------
+  const EDIT_TYPES = ['prop', 'rail', 'util', 'tax'];
+  const myBoard = () => Object.assign({ name: 'Mein Brett', names: {} }, store.get('duli-board') || {});
+  function editorHTML(b = myBoard()) {
+    const base = D.BOARDS.normal.SPACES;
+    const rows = base.map((sp, i) => (EDIT_TYPES.includes(sp.type) ? `<label class="ed-row"><i style="--g:${sp.group ? GROUPS[sp.group].color : sp.type === 'tax' ? '#ff3348' : '#cfc3e6'}"></i>
+      <span class="ed-orig">${esc(sp.name)}</span><input data-ed="${i}" maxlength="26" value="${esc(b.names[i] || '')}" placeholder="${esc(sp.name)}"></label>` : '')).join('');
+    return `<h2>🛠️ Brett-Editor</h2>
+      <p class="action-note">Gib den Feldern vom klassischen Brett eigene Namen. Leer lassen heißt Originalname. In der Lobby wählst du dein Brett unter „Feinschliff“ aus. Online sehen alle deine Namen.</p>
+      <label class="field"><span>Name deines Bretts</span><input id="ed-name" maxlength="24" value="${esc(b.name)}"></label>
+      <div class="ed-grid">${rows}</div>
+      <div class="btn-row ed-actions">${uiBtn('💾 Speichern', 'edSave', 'btn-primary')}${uiBtn('📋 Code kopieren', 'edCopy')}${uiBtn('Alles leeren', 'edReset', 'btn-ghost')}</div>
+      <div class="join-row"><label class="field"><span>Brett-Code von jemand anderem</span><input id="ed-code" placeholder="DULI-…"></label>${uiBtn('Laden', 'edLoad')}</div>`;
+  }
+  function editorCollect() {
+    const names = {};
+    document.querySelectorAll('[data-ed]').forEach((inp) => { const v = inp.value.trim(); if (v) names[inp.dataset.ed] = v.slice(0, 26); });
+    return { name: (($('#ed-name') && $('#ed-name').value.trim()) || 'Mein Brett').slice(0, 24), names };
+  }
+  const boardCode = (b) => 'DULI-' + btoa(unescape(encodeURIComponent(JSON.stringify({ n: b.name, s: b.names }))));
+  function applyBoardToLobby(b) {
+    const S = App.S;
+    if (!S || S.phase !== 'lobby' || App.mode === 'client') return;
+    if (S.settings.names && Object.keys(S.settings.names).length) { E.setSettings(S, { names: b.names, boardName: b.name }); commit(); }
+  }
+
   // ---------- Startseite: Laufband, Modi, Features ----------
   const FEATS = [
     ['💖', 'Aprils Laune', 'April mag jede Person anders. Bestich sie – oder sie reißt dir ein Haus ab.'],
@@ -320,6 +471,8 @@
     $('#marquee').innerHTML = names + names;
     $('#home-modes').innerHTML = modes.map((m, i) => modeCardHTML(m, i, m.id === App.prefMode)).join('');
     $('#home-feats').innerHTML = FEATS.map(([ic, t, d], i) => `<article class="feat spot"><span class="mc-n">F/${String(i + 1).padStart(2, '0')}</span><span class="mc-ic">${ic}</span><strong>${t}</strong><small>${d}</small></article>`).join('');
+    $('#home-profile').innerHTML = profileHTML();
+    buildCampaign();
     const pick = $('#home-pick');
     const m = modes.find((x) => x.id === App.prefMode);
     pick.hidden = !m;
@@ -385,9 +538,11 @@
     commit();
   };
   $('#settings').addEventListener('change', (e) => {
+    if (e.target.id === 'set-skin') { setSkin(e.target.value); return toast('Brett-Skin gewechselt.'); }
     if (App.mode === 'client' || !App.S) return;
     const t = e.target;
     const o = {};
+    if (t.id === 'set-board') { const b = myBoard(); Object.assign(o, t.value === 'custom' ? { names: b.names, boardName: b.name } : { names: {} }); }
     if (t.id === 'set-money') o.startMoney = Number(t.value);
     if (t.id === 'set-pot') o.pot = t.checked;
     if (t.id === 'set-go') o.goDouble = t.checked;
@@ -495,6 +650,11 @@
         <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
       ${!world && mode !== 'casino' ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
         <select id="set-size" ${ro}>${[['mini', '⚡ MINI (24 Felder)'], ['normal', 'Normal (40 Felder)'], ['mega', '🚀 MEGA (120 Felder)']].map(([v, l]) => `<option value="${v}" ${(st.size || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
+      ${!world && (st.size || 'normal') === 'normal' ? `<label class="row"><span>🛠️ Straßennamen<small>${st.names && Object.keys(st.names).length ? `Eigenes Brett „${esc(st.boardName || 'Eigenes Brett')}“ mit ${Object.keys(st.names).length} neuen Namen` : 'Originalnamen. Eigene Namen baust du im Brett-Editor.'}</small></span>
+        <span class="row-ctl"><select id="set-board" ${ro}><option value="orig">Original</option>${(st.names && Object.keys(st.names).length) || Object.keys(myBoard().names).length ? `<option value="custom" ${st.names && Object.keys(st.names).length ? 'selected' : ''}>🛠️ ${esc(st.names && Object.keys(st.names).length ? st.boardName || 'Eigenes Brett' : myBoard().name)}</option>` : ''}</select>
+        ${ro ? '' : uiBtn('Editor', 'editor', 'btn-small btn-ghost')}</span></label>` : ''}
+      <label class="row"><span>🎨 Brett-Skin<small>Nur auf deinem Gerät</small></span>
+        <select id="set-skin">${SKINS.map(([id, n, ic]) => `<option value="${id}" ${document.documentElement.dataset.skin === id ? 'selected' : ''}>${ic} ${n}</option>`).join('')}</select></label>
       <label class="row"><span>💖 Aprils Laune<small>April mag jede Person anders, lässt sich bestechen, macht Geschenke – und rächt sich, wenn sie dich hasst</small></span>
         <input type="checkbox" class="switch" id="set-mood" ${st.mood !== false ? 'checked' : ''} ${ro}></label>
       ${world ? `<p class="row"><span>Spielende<small>${endText(W.board(mode))}</small></span></p>` : ''}`;
@@ -1147,6 +1307,37 @@
     if (kind === 'cityInfo') return openCity(data.id);
     if (kind === 'bribe') return bribeModal();
     if (kind === 'achievements') return openModal(achModalHTML());
+    if (kind === 'skin') { setSkin(data.skin); toast('Brett-Skin gewechselt.'); return $('#modal').hidden ? null : openModal(menuHTML()); }
+    if (kind === 'editor') return openModal(editorHTML());
+    if (kind === 'edSave') {
+      const b = editorCollect();
+      store.set('duli-board', b);
+      applyBoardToLobby(b);
+      toast(`„${b.name}“ gespeichert (${Object.keys(b.names).length} eigene Namen).`);
+      closeModal();
+      return App.S && App.S.phase === 'lobby' ? render() : null;
+    }
+    if (kind === 'edCopy') {
+      const code = boardCode(editorCollect());
+      try { navigator.clipboard.writeText(code); toast('Brett-Code kopiert. Schick ihn rum!'); } catch (e) { toast(code); }
+      return null;
+    }
+    if (kind === 'edReset') { document.querySelectorAll('[data-ed]').forEach((inp) => { inp.value = ''; }); return null; }
+    if (kind === 'edLoad') {
+      try {
+        const raw = $('#ed-code').value.trim().replace(/^DULI-/, '');
+        const j = JSON.parse(decodeURIComponent(escape(atob(raw))));
+        const names = {};
+        for (const k of Object.keys(j.s || {})) if (D.BOARDS.normal.SPACES[k] && EDIT_TYPES.includes(D.BOARDS.normal.SPACES[k].type)) names[k] = String(j.s[k]).slice(0, 26);
+        return openModal(editorHTML({ name: String(j.n || 'Geteiltes Brett').slice(0, 24), names }));
+      } catch (e) { return toast('Der Code ist kaputt. Nochmal kopieren?'); }
+    }
+    if (kind === 'campRetry' || kind === 'campNext') {
+      const c = campResult(false);
+      if (!c) return null;
+      return startLevel(kind === 'campNext' && c.next ? c.next.id : c.lv.id);
+    }
+    if (kind === 'music') return toggleMusic();
     if (kind === 'tradeTo') { App.trade = { to: data.id }; return tradeModal(); }
     if (kind === 'tradeSend') {
       const vals = (name) => [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((x) => (isWorld() ? x.value : Number(x.value)));
@@ -1392,16 +1583,26 @@
     return `<h3>Hausregeln in diesem Spiel</h3><ul>${active.length ? active.map((r) => `<li>${r.icon} <strong>${r.name}:</strong> ${esc(r.text)}</li>`).join('') : '<li>Keine Extra-Regeln aktiv.</li>'}</ul>
       <h3>Spielvarianten</h3><ul>${VARIANTS.map((v) => `<li>${varIcon(v)} <strong>${v.name}${v.id === cur ? ' (läuft gerade)' : ''}:</strong> ${esc(isWorld() && v.boardText ? v.boardText : v.text)}</li>`).join('')}</ul>`;
   }
-  $('#btn-menu').onclick = () => {
+  function toggleMusic() {
+    const on = FX.music(!FX.musicOn);
+    $('#btn-music').classList.toggle('is-on', on);
+    toast(on ? '🎵 Musik an. April legt auf.' : '🎵 Musik aus.');
+    if (!$('#modal').hidden && $('#modal-body h2') && $('#modal-body h2').textContent === 'Menü') openModal(menuHTML());
+  }
+  $('#btn-music').onclick = toggleMusic;
+  $('#btn-music').classList.toggle('is-on', FX.musicOn);
+  const menuHTML = () => {
     const host = App.mode !== 'client';
-    openModal(`<h2>Menü</h2><div class="btn-row" style="flex-direction:column">
+    return `<h2>Menü</h2><h3 class="ach-title">🎨 Brett-Skin</h3>${skinPickerHTML()}<div class="btn-row" style="flex-direction:column;margin-top:14px">
+      ${uiBtn(FX.musicOn ? '🎵 Musik ausschalten' : '🎵 Musik einschalten', 'music')}
       ${App.mode !== 'local' ? uiBtn(`Einladungslink kopieren (Raum ${esc(App.code)})`, 'copy') : ''}
       ${uiBtn('🏅 Erfolge ansehen', 'achievements')}
       ${host && App.S.phase === 'play' ? uiBtn('Spiel jetzt beenden – Reichster gewinnt', 'endGame') : ''}
       ${uiBtn(App.mode === 'host' ? 'Raum verlassen (Spiel bleibt gespeichert)' : 'Zur Startseite', 'leave', 'btn-ghost')}
     </div>
-    ${App.mode === 'host' ? '<p class="action-note" style="margin-top:12px">Du bist der Host. Wenn du die Seite schließt, pausiert das Spiel für alle. Über die Startseite kannst du den Raum später fortsetzen.</p>' : ''}`);
+    ${App.mode === 'host' ? '<p class="action-note" style="margin-top:12px">Du bist der Host. Wenn du die Seite schließt, pausiert das Spiel für alle. Über die Startseite kannst du den Raum später fortsetzen.</p>' : ''}`;
   };
+  $('#btn-menu').onclick = () => openModal(menuHTML());
 
 
   // ================= DULIDAN WORLD =================
@@ -2461,8 +2662,9 @@
     if (S.phase === 'over' && App.lastPhase !== 'over') {
       FX.confetti();
       const w = P(S.winner);
-      const fresh = checkAchievements();
-      openModal(`<div class="winner">${tokHTML(w.token, w.color)}<h2>${esc(w.name)} gewinnt!</h2><p>${world ? 'Die Welt gehört jetzt Dulidan. 🌍💜' : 'Herzlichen Glückwunsch zum Dulidanopoly-Sieg. 💜'}</p>
+      const { fresh, xp, camp } = gameOverRewards();
+      openModal(`<div class="winner">${camp ? campEndHTML(camp) : ''}${tokHTML(w.token, w.color)}<h2>${esc(w.name)} gewinnt!</h2><p>${world ? 'Die Welt gehört jetzt Dulidan. 🌍💜' : 'Herzlichen Glückwunsch zum Dulidanopoly-Sieg. 💜'}</p>
+        ${xp ? `<p class="xp-line">+${xp.amount} XP · Level ${xp.level} · ${xp.title}${xp.up ? ' · <strong>LEVEL UP!</strong>' : ''}</p>` : ''}
         ${chartHTML()}
         ${fresh.length ? `<h3 class="ach-title">🏅 Neue Erfolge</h3><div class="ach-grid">${fresh.map((a) => `<div class="ach is-got is-new"><span class="ach-ic">${a.icon}</span><strong>${a.name}</strong><small>${a.text}</small></div>`).join('')}</div>` : ''}
         ${awardsHTML()}</div>`);

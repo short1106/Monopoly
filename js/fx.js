@@ -61,6 +61,31 @@
     bigLoss() { tone(300, 0, 0.7, 'sawtooth', 0.09, 70); tone(150, 0.05, 0.7, 'square', 0.05, 50); noise(0, 0.18, 0.2); },
   };
 
+  // ---------- Musik: kleiner Synthwave-Loop, Ton für Ton erzeugt ----------
+  const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
+  const BARS = [[45, 0, 3, 7], [41, 0, 4, 7], [48, 0, 4, 7], [43, 0, 4, 7]]; // Am · F · C · G
+  const ARP = [0, 1, 2, 3, 2, 1, 2, 3];
+  let musicOn = false, musicT = null, beat = 0;
+  try { musicOn = localStorage.getItem('duli-music') === '1'; } catch (e) { /* privat */ }
+  function musicTick() {
+    if (!musicOn || muted) return;
+    const c = ac();
+    if (!c) return;
+    const bar = BARS[Math.floor(beat / 8) % BARS.length], root = bar[0];
+    if (beat % 8 === 0) { tone(midi(root - 12), 0, 1.4, 'triangle', 0.06); tone(midi(root + 12), 0, 1.4, 'sawtooth', 0.012); }
+    if (beat % 4 === 0) tone(60, 0, 0.18, 'sine', 0.09, 40);
+    if (beat % 2 === 1) noise(0, 0.025, 0.035);
+    tone(midi(root + 24 + bar[1 + (ARP[beat % 8] % 3)] + (ARP[beat % 8] === 3 ? 12 : 0)), 0, 0.14, 'square', 0.016);
+    beat++;
+  }
+  function music(on) {
+    musicOn = on;
+    try { localStorage.setItem('duli-music', on ? '1' : '0'); } catch (e) { /* privat */ }
+    clearInterval(musicT);
+    if (on) { ac(); musicT = setInterval(musicTick, 200); }
+    return musicOn;
+  }
+
   function confetti() {
     const cv = document.getElementById('confetti');
     if (!cv || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -96,7 +121,9 @@
       if (!muted) ac();
       return muted;
     },
-    unlock() { if (!muted) ac(); },
+    unlock() { if (!muted) ac(); if (musicOn && !musicT) music(true); },
+    music,
+    get musicOn() { return musicOn; },
     confetti,
   };
 })(window);

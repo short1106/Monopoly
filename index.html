@@ -68,6 +68,7 @@
         <div class="home-card term">
           <div class="term-bar"><i></i><i></i><i></i><span>dulidanopoly://start</span></div>
           <div class="term-body">
+            <div id="home-profile"></div>
             <label class="field">
               <span>Dein Name</span>
               <input id="in-name" maxlength="16" autocomplete="nickname" placeholder="z. B. Shaquille">
@@ -84,9 +85,13 @@
             </div>
             <button id="btn-resume" class="btn btn-ghost" hidden></button>
             <button id="btn-local" class="btn btn-ghost">Auf einem Gerät spielen</button>
-            <button class="link-btn home-ach" data-ui="achievements" type="button">🏅 Erfolge ansehen</button>
+            <div class="home-links">
+              <button class="link-btn" data-ui="achievements" type="button">🏅 Erfolge</button>
+              <button class="link-btn" data-ui="editor" type="button">🛠️ Brett-Editor</button>
+              <a class="link-btn" href="#story">📖 Kampagne</a>
+            </div>
           </div>
-          <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+          <span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
         </div>
       </div>
       <div class="hero2-meta">
@@ -103,8 +108,15 @@
       <p class="lead">Tipp einen Modus an, dann ist er in deiner Lobby schon ausgewählt.</p>
       <div class="mode-grid home-modes" id="home-modes"></div>
     </section>
+    <section class="home-sec" id="story">
+      <p class="sec-label"><span class="n">02</span>Kampagne</p>
+      <h2 class="h2">Aprils Story. <em>12 Level.</em></h2>
+      <p class="lead">Allein gegen Aprils Bots, quer durch alle Modi. Jedes Level hat drei Sterne zu holen – und schaltet das nächste frei.</p>
+      <div class="camp-top" id="camp-top"></div>
+      <div class="camp-grid" id="camp-grid"></div>
+    </section>
     <section class="home-sec">
-      <p class="sec-label"><span class="n">02</span>Features</p>
+      <p class="sec-label"><span class="n">03</span>Features</p>
       <h2 class="h2">Mehr als <em>nur würfeln.</em></h2>
       <div class="feat-grid" id="home-feats"></div>
     </section>
@@ -166,6 +178,7 @@
       <span id="net-chip" class="chip chip-net"></span>
       <span class="spacer"></span>
       <button class="btn btn-small btn-ghost btn-tempo" data-ui="tempo" type="button" title="Schnelle Animationen an/aus">⚡ Blitzmodus: aus</button>
+      <button id="btn-music" class="btn btn-small btn-ghost" title="Musik an/aus">🎵</button>
       <button id="btn-sound" class="btn btn-small btn-ghost" title="Sound an/aus">🔊</button>
       <button id="btn-mine" class="btn btn-small btn-ghost" title="Nur deine Felder hervorheben">🏠 Meine Felder</button>
       <button id="btn-zoom" class="btn btn-small btn-ghost" title="Brett vergrößern">Zoom</button>
@@ -234,6 +247,7 @@
   <script src="js/mood.js"></script>
   <script src="js/casino.js"></script>
   <script src="js/rules.js"></script>
+  <script src="js/campaign.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/world-data.js"></script>
   <script src="js/boards-data.js"></script>

@@ -8,9 +8,21 @@
   const { GROUPS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, PLAYER_COLORS, APRIL_SAYS, BOARDS } = D;
   // Normales Brett oder MEGA-Brett: wird vor jeder Aktion passend zum Spielstand gesetzt
   let BD, SPACES, RAILS, UTILS, APRIL_FIELD, N, JAIL, RS = null;
+  // Brett-Editor: eigene Namen fürs normale Brett (Kopie wird zwischengespeichert)
+  let customCache = { key: null, b: null };
+  function boardFor(S) {
+    const base = BOARDS[(S && S.size) || 'normal'] || BOARDS.normal;
+    const names = S && S.settings && S.settings.names;
+    if (base.id !== 'normal' || !names || !Object.keys(names).length) return base;
+    const key = JSON.stringify(names);
+    if (customCache.key !== key) {
+      customCache = { key, b: Object.assign({}, base, { id: 'custom', SPACES: base.SPACES.map((sp, i) => (names[i] ? Object.assign({}, sp, { name: names[i] }) : sp)) }) };
+    }
+    return customCache.b;
+  }
   function useBoard(S) {
     RS = S;
-    BD = BOARDS[(S && S.size) || 'normal'] || BOARDS.normal;
+    BD = boardFor(S);
     ({ SPACES, RAILS, UTILS, APRIL_FIELD, N, JAIL } = BD);
   }
   useBoard(null);
@@ -193,6 +205,15 @@
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
     if (['classic', 'casino', 'world', 'royale', 'metro', 'tower', 'islands', 'festival', 'race', 'throne', 'quiz', 'bomb'].includes(o.mode)) S.settings.mode = o.mode;
     if (['mini', 'normal', 'mega'].includes(o.size)) S.settings.size = o.size;
+    if (o.names && typeof o.names === 'object') {
+      const clean = {};
+      for (const k of Object.keys(o.names)) {
+        const i = Number(k), v = String(o.names[k] || '').replace(/\s+/g, ' ').trim().slice(0, 26);
+        if (BOARDS.normal.SPACES[i] && ['prop', 'rail', 'util', 'tax'].includes(BOARDS.normal.SPACES[i].type) && v) clean[i] = v;
+      }
+      S.settings.names = clean;
+      S.settings.boardName = String(o.boardName || 'Eigenes Brett').trim().slice(0, 24);
+    }
     if (typeof o.mood === 'boolean') S.settings.mood = o.mood;
     if (VARIANTS.includes(o.variant)) S.settings.variant = o.variant;
     if ([0, 15, 20, 30, 50].includes(Number(o.maxRounds))) S.settings.maxRounds = Number(o.maxRounds);
@@ -1239,7 +1260,7 @@
     newGame, addPlayer, addBot, removePlayer, setSettings: withBoard(setSettings), botStep: withBoard(botStep), pickToken, startGame,
     act: withBoard(act), endGame: withBoard(endGame), bankrupt: withBoard(bankrupt), calcRent: withBoard(calcRent), netWorth: withBoard(netWorth), GOAL_WORTH,
     buyPrice, houseCost, unmortgageCost, ownsGroup: withBoard(ownsGroup), groupIdx, groupHasHouses: withBoard(groupHasHouses), bankSupply: withBoard(bankSupply), CARDS,
-    useBoard, board: (S) => BOARDS[(S && S.size) || 'normal'] || BOARDS.normal,
+    useBoard, board: boardFor,
     setRng: (f) => { rng = f; MOOD.setRng(f); CASINO.setRng(f); },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = ENGINE;

@@ -245,6 +245,7 @@
       if (S.bomb.fuse <= 0) {
         const dmg = g.RULES.bomb.base + g.RULES.bomb.step * S.round;
         due.push({ amt: dmg, to: null, msg: `💥 BOOM! Die Bombe explodiert bei ${p.name}: ${M(dmg)} Schaden!` });
+        p.stats.boom = (p.stats.boom || 0) + 1;
         const others = active(S).filter(o => o.id !== p.id);
         if (others.length) {
           S.bomb = { holder: pick(others).id, fuse: 3 + Math.floor(rng() * 3) };
