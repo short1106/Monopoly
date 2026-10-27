@@ -89,6 +89,7 @@
               <button class="link-btn" data-ui="achievements" type="button">🏅 Erfolge</button>
               <button class="link-btn" data-ui="editor" type="button">🛠️ Brett-Editor</button>
               <a class="link-btn" href="#story">📖 Kampagne</a>
+              <a class="link-btn" href="#arcade">🕹️ Spielhalle</a>
             </div>
           </div>
           <span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
@@ -98,7 +99,7 @@
         <div>Modi<b class="mono">12</b></div>
         <div>Figuren<b class="mono">16</b></div>
         <div>Hausregeln<b class="mono">17</b></div>
-        <div>Karten<b class="mono">160+</b></div>
+        <div>Extra-Spiele<b class="mono">06</b></div>
       </div>
     </div>
     <div class="marquee" aria-hidden="true"><div class="marquee-track" id="marquee"></div></div>
@@ -115,8 +116,14 @@
       <div class="camp-top" id="camp-top"></div>
       <div class="camp-grid" id="camp-grid"></div>
     </section>
+    <section class="home-sec" id="arcade">
+      <p class="sec-label"><span class="n">03</span>Spielhalle</p>
+      <h2 class="h2">Kein Bock auf Monopoly? <em>Dann das hier.</em></h2>
+      <p class="lead">Sechs Spiele, die mit Monopoly nichts zu tun haben. Mit Highscores, die auf deinem Gerät bleiben, und XP für dein Profil.</p>
+      <div class="mode-grid" id="arc-grid"></div>
+    </section>
     <section class="home-sec">
-      <p class="sec-label"><span class="n">03</span>Features</p>
+      <p class="sec-label"><span class="n">04</span>Features</p>
       <h2 class="h2">Mehr als <em>nur würfeln.</em></h2>
       <div class="feat-grid" id="home-feats"></div>
     </section>
@@ -166,6 +173,21 @@
         <button id="btn-start" class="btn btn-primary">Spiel starten</button>
         <button id="btn-leave" class="btn btn-ghost">Verlassen</button>
       </div>
+    </div>
+  </section>
+
+  <!-- Spielhalle -->
+  <section id="screen-arcade" class="screen" hidden>
+    <header class="topbar arc-bar">
+      <button id="arc-back" class="btn btn-small btn-ghost" type="button">← Zurück</button>
+      <div class="mini-logo" data-logo></div>
+      <span class="topbar-name">DULIDAN<span>SPIELHALLE</span></span>
+      <span class="spacer"></span>
+      <span class="chip" id="arc-best"></span>
+    </header>
+    <div class="arc-main">
+      <h1 class="arc-title" id="arc-title"></h1>
+      <div class="arc-stage" id="arc-stage"></div>
     </div>
   </section>
 
@@ -254,6 +276,7 @@
   <script src="js/world.js"></script>
   <script src="js/net.js"></script>
   <script src="js/fx.js"></script>
+  <script src="js/arcade.js"></script>
   <script src="js/ui.js"></script>
 </body>
 </html>

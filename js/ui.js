@@ -324,6 +324,42 @@
     return { amount, level: lvlOf(p.xp), title: titleOf(lvlOf(p.xp)), up: lvlOf(p.xp) > before };
   }
 
+  // ---------- Spielhalle: Spiele ohne Monopoly ----------
+  const ARC = window.DULI_ARCADE;
+  let arcCleanup = null;
+  function buildArcadeHome() {
+    $('#arc-grid').innerHTML = ARC.GAMES.map((g, i) => {
+      const b = g.best();
+      return `<button type="button" class="mode-card spot arc-card" data-arc="${g.id}"><span class="mc-n">G/${String(i + 1).padStart(2, '0')}</span><span class="mc-ic">${g.icon}</span>
+        <strong>${g.name}</strong><small>${g.text}</small><span class="mc-tags">${g.tags.map((t) => `<i>${t}</i>`).join('')}${b ? `<i class="hot">🏆 ${esc(b)}</i>` : ''}</span></button>`;
+    }).join('');
+  }
+  function openArcade(id) {
+    const g = ARC.GAMES.find((x) => x.id === id);
+    if (!g) return;
+    if (arcCleanup) arcCleanup();
+    show('screen-arcade');
+    $('#arc-title').innerHTML = `${g.icon} ${g.name}`;
+    const best = () => { const b = g.best(); $('#arc-best').textContent = b ? `🏆 ${b}` : 'Noch kein Rekord'; };
+    best();
+    const stage = $('#arc-stage');
+    stage.innerHTML = '';
+    arcCleanup = g.run(stage, {
+      name: () => (nameIn.value.trim() || store.get('duli-name') || 'Du').slice(0, 16),
+      say: (t) => aprilSay(t),
+      xp: (n) => { if (n <= 0) return; const r = gainXP(n, false); toast(`+${n} XP${r.up ? ` · Level ${r.level}: ${r.title}!` : ''}`); },
+      best,
+    });
+  }
+  $('#arc-grid').addEventListener('click', (e) => { const c = e.target.closest('[data-arc]'); if (c) openArcade(c.dataset.arc); });
+  $('#arc-back').onclick = () => {
+    if (arcCleanup) arcCleanup();
+    arcCleanup = null;
+    show('screen-home');
+    buildHome();
+    $('#arcade').scrollIntoView();
+  };
+
   // ---------- Kampagne „Aprils Story“ ----------
   const campDone = () => store.get('duli-camp') || {};
   function buildCampaign() {
@@ -473,6 +509,7 @@
     $('#home-feats').innerHTML = FEATS.map(([ic, t, d], i) => `<article class="feat spot"><span class="mc-n">F/${String(i + 1).padStart(2, '0')}</span><span class="mc-ic">${ic}</span><strong>${t}</strong><small>${d}</small></article>`).join('');
     $('#home-profile').innerHTML = profileHTML();
     buildCampaign();
+    buildArcadeHome();
     const pick = $('#home-pick');
     const m = modes.find((x) => x.id === App.prefMode);
     pick.hidden = !m;
