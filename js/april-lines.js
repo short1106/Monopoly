@@ -56,6 +56,12 @@
     { id: 'country-right-1', on: 'country-right', text: 'Richtiges Land. Six seven.' },
     { id: 'country-wrong-1', on: 'country-wrong', text: 'Falsches Land. Ich schäm mich fremd.' },
     { id: 'country-wrong-2', on: 'country-wrong', text: 'Erdkunde: sechs. Setzen.' },
+    // Risiko
+    { id: 'risk-conquer-1', on: 'risk-conquer', text: 'Eingenommen. Die Bevölkerung ist begeistert. Glaub ich.' },
+    { id: 'risk-conquer-2', on: 'risk-conquer', text: 'Neues Gebiet. Aura plus Landfläche.' },
+    { id: 'risk-elim-1', on: 'risk-elim', text: 'Ausgelöscht. Ruhe in Frieden, kleines Imperium.' },
+    { id: 'risk-sea-1', on: 'risk-sea', text: 'Seeschlacht. Tung tung tung Torpedo.' },
+    { id: 'risk-air-1', on: 'risk-air', text: 'Luftangriff. Ich hoffe, ihr habt Bunker.' },
     // Periode
     { id: 'period-on', on: 'period-on', text: 'Das ist mein Leid. Weil Shaqy mir als KI eine Periode gegeben hat.' },
     { id: 'period-on-2', on: 'period-on', text: 'Ich hab Krämpfe, ich hab keinen Körper, und trotzdem. Danke, Shaqy.' },
