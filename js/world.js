@@ -7,7 +7,7 @@
   const BOARDS = root.DULI_BOARDS;
   const MOOD = isNode ? require('./mood.js') : root.DULI_MOOD;
   const RL = isNode ? require('./rules.js') : root.DULI_RULES;
-  const MODES = ['world', 'royale', 'metro', 'tower', 'islands', 'festival'];
+  const MODES = ['world', 'royale', 'metro', 'tower', 'islands', 'festival', 'race', 'throne', 'quiz', 'bomb'];
 
   // ---------- Bretter vorbereiten ----------
   const compiled = {};
@@ -26,8 +26,11 @@
     const ZONE_CITIES = {};
     for (const id of PROPS) (ZONE_CITIES[CITY[id].zone] = ZONE_CITIES[CITY[id].zone] || []).push(id);
     const HUBS = Object.keys(CITY).filter(id => CITY[id].hub);
+    const PREV = {};
+    for (const id in CITY) if (CITY[id].next) PREV[CITY[id].next] = id;
+    const START = (d.CITIES.find(c => c.start) || {}).id || null;
     compiled[mode] = Object.assign({}, d, {
-      CITY, NEIGH, PROPS, ZONE_CITIES, HUBS,
+      CITY, NEIGH, PROPS, ZONE_CITIES, HUBS, PREV, START, SHOP: d.SHOP || [], QUESTIONS: d.QUESTIONS || [],
       LEVEL_ART: d.LEVEL_ART || ['', 'ein Studio', 'ein Büro', 'einen Tower', 'ein Wahrzeichen'],
       FUNK: d.FUNK || [], LOOT: d.LOOT || [], CARDS: d.CARDS || { april: [], studio: [] }, FACES: d.FACES || [], EVENTS: d.EVENTS || [], CHAOS: d.CHAOS || [],
       words: d.words || { zone: 'Zone', city: 'Stadt', cities: 'Städte' },
@@ -66,6 +69,7 @@
     let r = c.price * g.RENT_PCT[st.level];
     if (st.level === 0 && zoneComplete(S, st.owner, c.zone)) r *= RL.monoMult(S);
     if (S.headliner && S.headliner === c.zone) r *= 3;
+    if (S.king && st.owner === S.king) r *= 1.5;
     r *= RL.rentFactor(S);
     if (ev(S).boom && ev(S).zone === c.zone) r *= 2;
     if (ev(S).rentMult != null) r *= ev(S).rentMult;
@@ -160,7 +164,7 @@
     S.players.forEach((p, i) => {
       const home = g.starts[i % g.starts.length];
       Object.assign(p, {
-        money: st.startMoney || g.RULES.startMoney, loc: home, bankrupt: false, visited: [home],
+        money: g.RULES.fixedMoney || st.startMoney || g.RULES.startMoney, loc: home, bankrupt: false, visited: [home],
         items: { shield: 0, boost: 0 },
         stats: { rentPaid: 0, rentGot: 0, maxRent: 0, built: 0, bought: 0, takeovers: 0, flights: 0, km: 0, doubles: 0, loot: 0 },
       });
@@ -173,7 +177,14 @@
     if (variant === 'hardcore') S.players.forEach(p => { p.money = 800; });
     if (variant === 'rich') S.players.forEach(p => { p.money = 5000; });
     if (variant === 'tycoon') S.players.forEach(p => { p.money = Math.max(500, p.money - 500); });
-    S.players.forEach(p => { if (p.token === 'rocket') p.money += 150; p.used = { ghost: false, cat: false }; });
+    S.players.forEach(p => {
+      if (p.token === 'rocket') p.money += 150;
+      p.used = { ghost: false, cat: false, joker: false };
+      p.items.joker = 0;
+      if (g.RULES.race) p.race = { laps: 0, engine: 0, tires: false, nitro: 0 };
+    });
+    S.king = null; S.quiz = null; S.quizResult = null; S.raceWin = null;
+    S.bomb = g.RULES.bomb ? { holder: pick(S.players).id, fuse: 3 + Math.floor(rng() * 3) } : null;
     const giveProps = (n) => {
       const free = g.PROPS.filter(id => !S.cities[id].owner).sort(() => rng() - 0.5);
       for (let r = 0; r < n; r++) for (const p of S.players) { const id = free.pop(); if (id) S.cities[id].owner = p.id; }
@@ -215,11 +226,65 @@
       if (z > 0) { p.money += z; log(S, `🏦 Zinsen: ${p.name} bekommt ${M(z)}.`); }
     }
     MOOD.turnStart(S, p, moodApi(S));
+    turnCharges(S, p);
+  }
+
+  // Zahlungen zu Zugbeginn: Sudden Death, Tribut an den König, Bombe. Bei Schulden ist erst mal Schluss.
+  function turnCharges(S, p) {
+    const g = G(S), due = [];
+    if (p.bankrupt) return;
     const tax = RL.suddenTax(S);
-    if (tax && !p.bankrupt) {
-      log(S, `⏳ Sudden Death: ${p.name} zahlt ${M(tax)} Überlebens-Steuer.`);
-      charge(S, p, [{ to: null, amt: tax }]);
+    if (tax) due.push({ amt: tax, to: null, msg: `⏳ Sudden Death: ${p.name} zahlt ${M(tax)} Überlebens-Steuer.` });
+    const king = S.king && P(S, S.king);
+    if (g.RULES.throne && king && !king.bankrupt && king.id !== p.id) {
+      const amt = g.RULES.throne.tribute + 10 * Math.floor((S.round - 1) / 3);
+      due.push({ amt, to: king.id, msg: `👑 ${p.name} zahlt ${M(amt)} Tribut an König ${king.name}.` });
     }
+    if (S.bomb && S.bomb.holder === p.id) {
+      S.bomb.fuse--;
+      if (S.bomb.fuse <= 0) {
+        const dmg = g.RULES.bomb.base + g.RULES.bomb.step * S.round;
+        due.push({ amt: dmg, to: null, msg: `💥 BOOM! Die Bombe explodiert bei ${p.name}: ${M(dmg)} Schaden!` });
+        const others = active(S).filter(o => o.id !== p.id);
+        if (others.length) {
+          S.bomb = { holder: pick(others).id, fuse: 3 + Math.floor(rng() * 3) };
+          due.push({ amt: 0, msg: `💣 Eine neue Bombe taucht bei ${P(S, S.bomb.holder).name} auf. Zündschnur: ${S.bomb.fuse} Züge.` });
+        }
+      } else log(S, `💣 Die Zündschnur bei ${p.name} brennt: noch ${S.bomb.fuse} ${S.bomb.fuse === 1 ? 'Zug' : 'Züge'}!`);
+    }
+    for (const d of due) {
+      log(S, d.msg);
+      if (d.amt > 0 && !charge(S, p, [{ to: d.to, amt: d.amt }])) return;
+    }
+  }
+
+  // Auf Rundkursen Felder vor- oder zurückschieben (Boost, Öl, Rempler). Im Rennen zählen dabei die Runden mit.
+  function shove(S, p, n) {
+    const g = G(S);
+    const dir = n > 0 ? 1 : -1;
+    if (!S.path || !S.path.length || S.mover !== p.id) S.path = [p.loc];
+    for (let k = 0; k < Math.abs(n); k++) {
+      const from = p.loc, to = dir > 0 ? g.CITY[from].next : g.PREV[from];
+      if (!to) break;
+      if (p.race && dir > 0 && to === g.START) lap(S, p);
+      if (p.race && dir < 0 && from === g.START) p.race.laps = Math.max(0, p.race.laps - 1);
+      p.loc = to;
+      if (p.id === curP(S).id) S.path.push(to);
+    }
+    if (p.id === curP(S).id) { S.mover = p.id; S.moveId++; }
+  }
+  function lap(S, p) {
+    const L = G(S).RULES.race.laps;
+    p.race.laps++;
+    if (p.race.laps >= L) { if (!S.raceWin) S.raceWin = p.id; log(S, `🏁 ${p.name} fährt über die Ziellinie!`); }
+    else log(S, `🏁 ${p.name} startet in Runde ${p.race.laps + 1} von ${L}.`);
+  }
+  function raceOver(S) {
+    const w = P(S, S.raceWin);
+    S.ranking = [w, ...S.players.filter(p => p !== w).sort((a, b) => (b.race ? b.race.laps : 0) - (a.race ? a.race.laps : 0) || b.money - a.money)]
+      .map(p => ({ id: p.id, worth: p.money }));
+    S.phase = 'over'; S.winner = w.id;
+    log(S, `🏆 ${w.name} gewinnt das ${G(S).title}!`);
   }
 
   // Einmal pro Runde: Hausregeln, Varianten und Brett-Twists
@@ -430,6 +495,10 @@
       steps += 3;
       log(S, `⚡ Boost! ${p.name} läuft 3 Felder weiter.`);
     }
+    if (p.race) {
+      if (p.race.engine) steps += p.race.engine;
+      if (p.race.nitro > 0) { p.race.nitro--; steps *= 2; log(S, `🔥 NITRO! ${p.name} fährt doppelt so weit: ${steps} Felder.`); }
+    }
     S.shield = false;
     switch (S.face) {
       case 'pay':
@@ -445,7 +514,7 @@
         break;
       case 'surf':
         steps += 3;
-        log(S, `🏄 Crowdsurfen! ${p.name} wird 3 Felder weitergetragen.`);
+        log(S, `${face.icon} ${face.name}! ${p.name} kommt 3 Felder weiter.`);
         break;
       case 'april': {
         const pool = p.token === 'april' ? g.CHAOS.filter(x => x.good) : g.CHAOS;
@@ -488,6 +557,7 @@
 
   function stepTo(S, to) {
     const p = curP(S);
+    if (p.race && to === G(S).START) lap(S, p);
     if (S.steps > 1) S.passed.push(to);
     S.prevLoc = p.loc;
     p.loc = to;
@@ -502,6 +572,13 @@
     // METRO: Fahrpreise für durchfahrene Stationen kompletter fremder Linien
     const passed = (S.passed || []).filter(id => id !== p.loc);
     S.passed = [];
+    // Bombe: Wer überholt oder draufspringt, drückt sie weiter
+    if (S.bomb && S.bomb.holder === p.id) {
+      for (const node of passed.concat([p.loc])) {
+        const o = active(S).find(q => q.id !== p.id && q.loc === node);
+        if (o) { S.bomb.holder = o.id; log(S, `💣 ${p.name} drückt ${o.name} die Bombe in die Hand! Zündschnur: ${S.bomb.fuse}.`); break; }
+      }
+    }
     if (g.RULES.fare && passed.length && !S.shield) {
       const per = {};
       for (const id of passed) {
@@ -532,6 +609,13 @@
   function land(S) {
     const g = G(S), p = curP(S), id = p.loc, c = g.CITY[id];
     S.landed = true;
+    if (S.raceWin) return raceOver(S);
+    if (p.race) {
+      for (const o of active(S).filter(q => q.id !== p.id && q.loc === id)) {
+        shove(S, o, -2);
+        log(S, `💥 Rempler! ${p.name} schubst ${o.name} 2 Felder zurück.`);
+      }
+    }
     log(S, `${p.name} landet ${c.type === 'prop' ? 'auf' : 'bei'} ${c.name}.`);
     if (c.quip && rng() < 0.5) log(S, `April: „${c.quip}“`);
     if (p.token === 'doener' && !p.visited.includes(id)) {
@@ -583,10 +667,46 @@
         const x = pick(g.LOOT);
         p.stats.loot++;
         log(S, `🎁 Loot-Kiste! ${x.t}`);
-        if (x.id === 'shield' || x.id === 'boost') p.items[x.id]++;
+        if (x.id === 'shield' || x.id === 'boost' || x.id === 'joker') p.items[x.id] = (p.items[x.id] || 0) + 1;
+        if (x.id === 'defuse') {
+          if (S.bomb && S.bomb.holder === p.id) { S.bomb.fuse += 2; log(S, `🧯 Die Zündschnur bei ${p.name} brennt 2 Züge länger.`); }
+          else { p.money += 100; log(S, `🧯 Keine Bombe zum Entschärfen. ${p.name} verkauft das Kit für ${M(100)}.`); }
+        }
         if (x.money > 0) p.money += x.money;
         if (x.money < 0 && !charge(S, p, [{ to: null, amt: -x.money }])) return;
         break;
+      }
+      case 'coin': {
+        const amt = 30 + 10 * Math.floor(rng() * 6);
+        p.money += amt;
+        log(S, `🪙 ${p.name} sammelt ${M(amt)} ein.`);
+        break;
+      }
+      case 'boost':
+        log(S, `⏩ Boost-Pad! ${p.name} schießt 3 Felder nach vorn.`);
+        shove(S, p, 3);
+        if (S.raceWin) return raceOver(S);
+        break;
+      case 'oil':
+        if ((p.race && p.race.tires) || S.shield) { log(S, `🛞 ${p.name} fährt souverän über den Ölfleck.`); break; }
+        log(S, `🛢️ Ölfleck! ${p.name} rutscht 3 Felder zurück.`);
+        shove(S, p, -3);
+        break;
+      case 'shop':
+        S.sub = 'shop';
+        return;
+      case 'throne':
+        if (S.king === p.id) { log(S, `👑 ${p.name} sitzt schon auf dem Thron.`); break; }
+        log(S, `👑 ${p.name} stürmt den Thron${S.king && P(S, S.king) ? ` und stürzt ${P(S, S.king).name}` : ''}! Alle anderen zahlen ab jetzt Tribut.`);
+        S.king = p.id;
+        break;
+      case 'quiz': {
+        if (!g.QUESTIONS.length) break;
+        if (!S.quizDeck || !S.quizDeck.length) S.quizDeck = g.QUESTIONS.map((_, i) => i).sort(() => rng() - 0.5);
+        S.quiz = { i: S.quizDeck.shift(), order: [0, 1, 2, 3].sort(() => rng() - 0.5), hidden: [] };
+        S.sub = 'quiz';
+        log(S, `🧠 Quizfrage für ${p.name}!`);
+        return;
       }
       case 'portal':
         if (c.link && alive(S, c.link)) { S.sub = 'portal'; return; }
@@ -751,6 +871,7 @@
           if (lv) { log(S, `${p.name} zahlt ${M(lv * x.repairs)} für ${lv} Ausbaustufen.`); charge(S, p, [{ to: null, amt: lv * x.repairs }]); }
         } else if (x.teleport) {
           const targets = g.PROPS.filter(id => alive(S, id) && id !== here);
+          if (!targets.length) return null;
           const to = pick(targets);
           S.path = [here];
           moveLink(S, to, 'fly');
@@ -847,6 +968,49 @@
         if (!['roll', 'end', 'debt'].includes(S.sub)) return 'Handeln geht vor dem Würfeln oder am Ende deines Zuges.';
         if (S.trade) return 'Es gibt schon ein offenes Angebot.';
         return proposeTrade(S, pid, a.trade || {});
+      case 'buyUpgrade': {
+        if (S.sub !== 'shop' || !p.race) return 'Du bist nicht in der Boxengasse.';
+        const it = g.SHOP.find(x => x.id === a.item);
+        if (!it) return 'Unbekanntes Upgrade.';
+        const have = it.id === 'tires' ? (p.race.tires ? 1 : 0) : p.race[it.id];
+        if (have >= it.max) return 'Mehr geht nicht.';
+        if (p.money < it.cost) return 'Nicht genug Dulis.';
+        p.money -= it.cost;
+        if (it.id === 'tires') p.race.tires = true; else p.race[it.id]++;
+        log(S, `${it.icon} ${p.name} kauft ${it.name} für ${M(it.cost)}.`);
+        return null;
+      }
+      case 'leaveShop':
+        if (S.sub !== 'shop') return 'Geht gerade nicht.';
+        S.sub = 'end';
+        return null;
+      case 'joker': {
+        if (S.sub !== 'quiz' || !S.quiz) return 'Gerade gibt es keine Frage.';
+        if (S.quiz.hidden.length) return 'Der Joker ist schon gespielt.';
+        if (p.used.joker && !(p.items.joker > 0)) return 'Dein 50:50-Joker ist verbraucht.';
+        if (p.used.joker) p.items.joker--; else p.used.joker = true;
+        S.quiz.hidden = S.quiz.order.map((o, k) => (o === 0 ? -1 : k)).filter(k => k >= 0).sort(() => rng() - 0.5).slice(0, 2);
+        log(S, `🃏 ${p.name} spielt den 50:50-Joker!`);
+        return null;
+      }
+      case 'answer': {
+        if (S.sub !== 'quiz' || !S.quiz) return 'Gerade gibt es keine Frage.';
+        const k = Math.floor(Number(a.k));
+        if (!(k >= 0 && k < 4) || S.quiz.hidden.includes(k)) return 'Ungültige Antwort.';
+        const q = g.QUESTIONS[S.quiz.i], ok = S.quiz.order[k] === 0;
+        S.quizResult = { seq: (S.quizResult ? S.quizResult.seq : 0) + 1, i: S.quiz.i, order: S.quiz.order, k, ok, pid: p.id };
+        S.quiz = null;
+        S.sub = 'end';
+        if (ok) {
+          p.money += g.RULES.quiz.win;
+          p.stats.quiz = (p.stats.quiz || 0) + 1;
+          log(S, `✅ Richtig! „${q.a[0]}“ – ${p.name} gewinnt ${M(g.RULES.quiz.win)}.`);
+        } else {
+          log(S, `❌ Leider falsch! Richtig war „${q.a[0]}“. ${p.name} zahlt ${M(g.RULES.quiz.lose)}.`);
+          charge(S, p, [{ to: null, amt: g.RULES.quiz.lose }]);
+        }
+        return null;
+      }
       case 'endTurn':
         if (S.sub !== 'end') return 'Du kannst deinen Zug noch nicht beenden.';
         if (S.trade) return 'Erst das offene Angebot klären.';
@@ -877,6 +1041,11 @@
     if (MOOD.on(S)) MOOD.bankrupt(S, p); else log(S, 'April: „F. Pleite. Ich hab nichts gesehen.“');
     p.money = 0; p.bankrupt = true;
     S.debt = null; S.pendingSteps = null; S.pendingLand = false;
+    if (S.king === p.id) { S.king = null; log(S, '👑 Der Thron ist wieder frei!'); }
+    if (S.bomb && S.bomb.holder === p.id) {
+      const others = active(S);
+      if (others.length) S.bomb.holder = pick(others).id;
+    }
     if (S.trade && (S.trade.from === p.id || S.trade.to === p.id)) S.trade = null;
     const left = active(S);
     if (left.length === 1) {
@@ -929,6 +1098,9 @@
   // ---------- Bots ----------
   function cityValue(S, p, id) {
     const g = G(S), c = g.CITY[id], st = S.cities[id];
+    if (c.type === 'throne') return S.king === p.id ? 0 : 500;
+    if (c.hub && g.RULES.throne) return S.king === p.id ? 0 : 150;
+    if (S.bomb && S.bomb.holder === p.id && active(S).some(q => q.id !== p.id && q.loc === id)) return 400;
     if (!st) return c.type === 'loot' ? 60 : 0;
     if (!st.owner) return c.price * (1 + 0.7 * g.ZONE_CITIES[c.zone].filter(i => S.cities[i].owner === p.id).length);
     if (st.owner === p.id) return 50;
@@ -988,6 +1160,20 @@
         return go({ type: 'step', to: choice });
       }
       case 'card': return go({ type: 'cardOk' });
+      case 'shop': {
+        const r = p.race, sh = (id) => g.SHOP.find(x => x.id === id);
+        if (r.engine < 3 && p.money >= sh('engine').cost + 60) return go({ type: 'buyUpgrade', item: 'engine' });
+        if (!r.tires && p.money >= sh('tires').cost + 60) return go({ type: 'buyUpgrade', item: 'tires' });
+        if (r.nitro < 1 && p.money >= sh('nitro').cost + 60) return go({ type: 'buyUpgrade', item: 'nitro' });
+        return go({ type: 'leaveShop' });
+      }
+      case 'quiz': {
+        const q = S.quiz, right = q.order.indexOf(0);
+        if (!q.hidden.length && !p.used.joker && rng() < 0.3) return go({ type: 'joker' });
+        const open = [0, 1, 2, 3].filter(k => !q.hidden.includes(k));
+        const k = rng() < (q.hidden.length ? 0.75 : 0.6) ? right : pick(open.filter(x => x !== right));
+        return go({ type: 'answer', k });
+      }
       case 'portal': {
         const c = g.CITY[p.loc], to = g.CITY[c.link];
         const warned = !!S.event && S.event.warn === c.ring;

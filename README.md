@@ -15,6 +15,10 @@ Das Monopoly von **Dulidan Studios**: von Marxloh bis ins DULIDAN HQ. Spielbar i
 - 🏙️ **DULIDAN TOWER:** fünf Etagen, Aufzüge rauf, Rutschen runter, Aufzug-Gebühr für Etagen-Besitzer
 - 🏝️ **DULIDAN ISLANDS:** sieben Inseln, Fähren zwischen den Häfen, jede Runde kann eine Insel überflutet werden
 - 🎪 **DULIDAN FESTIVAL:** Rundgang übers Festivalgelände, jede Runde ein Headliner mit dreifacher Miete
+- 🏁 **DULIDAN RACE:** kein Kaufen, nur Rennen: 3 Runden, Boost-Pads, Ölflecken, Boxengasse mit Upgrades
+- 👑 **DULIDAN THRON:** King of the Hill: Wer auf dem Thron sitzt, kassiert Tribut von allen
+- 🧠 **DULIDAN QUIZ-SHOW:** 40 Quizfragen zu Duisburg, Öhringen, Dulidan und Allgemeinwissen, 50:50-Joker
+- 💣 **DULIDAN BOMBE:** heiße Kartoffel: Bombe weitergeben, bevor die Zündschnur abbrennt
 
 Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo, Baulöwe, Neureich, Sudden Death, Konto-Roulette), 17 Hausregeln zum Anklicken, 16 Figuren mit eigenen Fähigkeiten, ein Geldverlauf am Spielende und Erfolge, die auf dem Gerät gespeichert bleiben.
 

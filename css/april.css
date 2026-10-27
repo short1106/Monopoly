@@ -784,3 +784,41 @@ body::before { display: none; }
   .marquee-track, .hero2-logo { animation: none; }
 }
 .feat-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+
+/* ---------- RACE / THRON / QUIZ / BOMBE ---------- */
+.track { fill: none; stroke: #1c1726; stroke-width: 58; }
+.track-line { fill: none; stroke: rgba(255, 255, 255, .25); stroke-width: 2; stroke-dasharray: 18 14; }
+.track-grass { fill: rgba(47, 224, 138, .05); stroke: rgba(47, 224, 138, .18); stroke-width: 2; }
+.chk { fill: #fff; } .chk.b { fill: #111; }
+.castle { fill: rgba(255, 210, 58, .05); stroke: rgba(255, 210, 58, .35); stroke-width: 3; stroke-dasharray: 12 6; }
+.castle-tower { fill: #1a1424; stroke: rgba(255, 210, 58, .45); stroke-width: 2; }
+.throne-glow { fill: rgba(255, 210, 58, .12); stroke: rgba(255, 210, 58, .5); stroke-width: 2; animation: headPulse 1.6s ease-in-out infinite; }
+.city.n-throne .ring { stroke-width: 6; }
+.city.n-throne .core { fill: #3a2c08; }
+.tv { fill: #0e0a18; stroke: #a78bff; stroke-width: 3; filter: drop-shadow(0 0 20px rgba(167, 139, 255, .35)); }
+.tv-q { font: 800 26px var(--mono); fill: rgba(167, 139, 255, .6); letter-spacing: .4em; }
+.hazard { fill: none; stroke: #ffd23a; stroke-width: 10; stroke-dasharray: 22 22; opacity: .35; }
+.crater { fill: rgba(255, 51, 72, .08); stroke: rgba(255, 51, 72, .35); stroke-width: 2; }
+.bomb-big { font-size: 80px; }
+.player .pmeta .hot { color: var(--pink); font-weight: 600; }
+
+.map-card.deck-quiz { background: linear-gradient(150deg, #4b2bb5, #1a0f3a); width: min(440px, 86%); }
+.map-card.deck-quiz.is-right { background: linear-gradient(150deg, #138a52, #0a2a1c); }
+.map-card.deck-quiz.is-wrong { background: linear-gradient(150deg, #a01c33, #2a0a12); }
+.quiz-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 100%; text-align: left; }
+.quiz-opts span { display: flex; gap: 8px; align-items: center; padding: 7px 9px; border-radius: 8px; background: rgba(0, 0, 0, .28); font-size: 13px; font-weight: 600; }
+.quiz-opts b { font-family: var(--mono); color: #ffd98a; }
+.quiz-opts .is-hidden { opacity: .2; text-decoration: line-through; }
+.quiz-opts .is-right { background: #2fe08a; color: #052014; }
+.quiz-opts .is-right b { color: #052014; }
+.quiz-opts .is-wrong { background: #ff3348; }
+.card-mini.deck-quiz { background: linear-gradient(150deg, #4b2bb5, #1a0f3a); }
+.quiz-btns { display: grid; gap: 8px; }
+.btn-quiz { justify-content: flex-start; text-align: left; text-transform: none; letter-spacing: 0; font-family: var(--font); font-size: 14px; }
+.btn-quiz b { font-family: var(--mono); color: var(--pink); margin-right: 8px; }
+.shop { display: grid; gap: 8px; }
+.shop-item { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--bg-2); }
+.shop-item .si-ic { font-size: 24px; }
+.shop-item strong { display: block; font-size: 14px; }
+.shop-item strong small { color: var(--pink); font-family: var(--mono); margin-left: 4px; }
+.shop-item > div > small { color: var(--muted); font-size: 12px; }

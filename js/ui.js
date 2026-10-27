@@ -408,7 +408,7 @@
 
   const VARIANTS = RL.VARIANTS;
   const varIcon = (v) => (v.icon === 'april' ? aprilIcon('v-april') : v.icon);
-  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut', 'NEU'], festival: ['Rundgang', 'Headliner', 'NEU'] };
+  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['40 Fragen', 'Joker', 'NEU'], bomb: ['Heiße Kartoffel', 'NEU'] };
   function modeList() {
     return [
       { id: 'classic', icon: '🎲', name: 'Klassisch', text: 'Das Brett mit Duisburg und Öhringen. Als MINI, Normal oder MEGA-Weltreise.' },
@@ -421,6 +421,11 @@
       <span class="mc-n">M/${String(i + 1).padStart(2, '0')}</span><span class="mc-ic">${m.icon}</span>
       <strong>${esc(m.name)}</strong><small>${esc(m.text)}</small>
       <span class="mc-tags">${m.tags.map((t) => `<i class="${t === 'NEU' ? 'hot' : ''}">${t}</i>`).join('')}</span></button>`;
+  }
+  function endText(b) {
+    if (b.RULES.race) return `Wer zuerst ${b.RULES.race.laps} Runden fährt, gewinnt. Startgeld fest Ð${b.RULES.fixedMoney}.`;
+    if (b.id === 'royale') return 'Kein Runden-Limit: Es gewinnt, wer zuletzt noch nicht pleite ist. Der April-Sturm sorgt dafür.';
+    return `Kein Runden-Limit: Es gewinnt, wer zuletzt noch nicht pleite ist.${b.RULES.crisis ? ` Ab Runde ${b.RULES.crisis.from} steigen alle Mieten jede Runde (Krise).` : ''}`;
   }
   function ruleCards(st, world) {
     const rules = st.rules || {};
@@ -492,7 +497,7 @@
         <select id="set-size" ${ro}>${[['mini', '⚡ MINI (24 Felder)'], ['normal', 'Normal (40 Felder)'], ['mega', '🚀 MEGA (120 Felder)']].map(([v, l]) => `<option value="${v}" ${(st.size || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
       <label class="row"><span>💖 Aprils Laune<small>April mag jede Person anders, lässt sich bestechen, macht Geschenke – und rächt sich, wenn sie dich hasst</small></span>
         <input type="checkbox" class="switch" id="set-mood" ${st.mood !== false ? 'checked' : ''} ${ro}></label>
-      ${world ? `<p class="row"><span>Spielende<small>Kein Runden-Limit: Es gewinnt, wer zuletzt noch nicht pleite ist.${mode === 'royale' ? ' Der April-Sturm sorgt dafür.' : ` Ab Runde ${W.board(mode).RULES.crisis.from} steigen alle Mieten jede Runde (Krise).`}</small></span></p>` : ''}`;
+      ${world ? `<p class="row"><span>Spielende<small>${endText(W.board(mode))}</small></span></p>` : ''}`;
 
     $('#lobby-players').innerHTML = S.players.map((p, i) => `
       <li class="${(local ? p.id === App.localSel : p.id === myId) ? 'is-me' : ''}" ${local ? `data-sel="${esc(p.id)}"` : ''}>
@@ -946,6 +951,10 @@
     { id: 'briber', icon: '🤑', name: 'Korrupt', text: 'Besteche April 3× in einem Spiel.' },
     { id: 'rules5', icon: '🧩', name: 'Regel-Bastler', text: 'Spiele mit 5 oder mehr Hausregeln.' },
     { id: 'speedrun', icon: '⏱️', name: 'Speedrun', text: 'Gewinne ein Spiel in höchstens 15 Runden.' },
+    { id: 'racer', icon: '🏎️', name: 'Rennfahrer', text: 'Gewinne ein DULIDAN RACE.' },
+    { id: 'king', icon: '👑', name: 'Lang lebe der König', text: 'Sei am Spielende König in DULIDAN THRON.' },
+    { id: 'quizmaster', icon: '🧠', name: 'Quizmaster', text: 'Beantworte in einem Spiel 5 Quizfragen richtig.' },
+    { id: 'bombproof', icon: '💣', name: 'Bombensicher', text: 'Gewinne ein Spiel DULIDAN BOMBE.' },
   ];
   const achStore = () => Object.assign({ got: {}, wins: 0, modes: [] }, store.get('duli-ach') || {});
   function checkAchievements() {
@@ -969,6 +978,8 @@
       briber: any((p) => (p.bribes || 0) >= 3),
       rules5: Object.values((S.settings && S.settings.rules) || {}).filter(Boolean).length >= 5,
       speedrun: won && (S.round || 99) <= 15,
+      racer: won && S.mode === 'race', king: S.mode === 'throne' && mine.some((p) => p.id === S.king),
+      quizmaster: any((p, x) => (x.quiz || 0) >= 5), bombproof: won && S.mode === 'bomb',
     };
     const fresh = ACH.filter((a) => ok[a.id] && !st.got[a.id]);
     fresh.forEach((a) => { st.got[a.id] = Date.now(); });
@@ -1159,7 +1170,7 @@
         Object.assign(N.players[N.players.length - 1], { token: p.token, connected: p.connected, bot: !!p.bot });
       });
       App.disp = {};
-      App.czSeq = null; App.castKey = null;
+      App.czSeq = null; App.castKey = null; App.qrInit = false;
       App.S = N;
       startByMode(N);
       closeModal();
@@ -1411,8 +1422,8 @@
   function nodeHTML(c, x, y, g, lab) {
     const [lx, ly, anchor] = { n: [0, -17, 'middle'], s: [0, 26, 'middle'], e: [16, 4, 'start'], w: [-16, 4, 'end'] }[lab || 'n'];
     const t = c.type || 'prop';
-    const color = t === 'prop' ? g.ZONES[c.zone].color : t === 'event' && c.deck === 'studio' ? '#a78bff' : { portal: '#3ad1ff', loot: '#ffd83a', event: '#ff7ae6', lift: '#3ce08a', slide: '#ff4fd8', free: '#efeaf7' }[t] || '#efeaf7';
-    const icon = { portal: '🌀', loot: '🎁', lift: '⬆', slide: '⬇' }[t];
+    const color = t === 'prop' ? g.ZONES[c.zone].color : t === 'event' && c.deck === 'studio' ? '#a78bff' : { portal: '#3ad1ff', loot: '#ffd83a', event: '#ff7ae6', lift: '#3ce08a', slide: '#ff4fd8', free: '#efeaf7', boost: '#3ad1ff', oil: '#8a83a0', coin: '#ffd83a', shop: '#2fe08a', throne: '#ffd23a', quiz: '#a78bff' }[t] || '#efeaf7';
+    const icon = { portal: '🌀', loot: '🎁', lift: '⬆', slide: '⬇', boost: '⏩', oil: '🛢️', coin: '🪙', shop: '🔧', throne: '👑', quiz: '❓' }[t];
     const inner = t === 'event' ? (c.deck === 'studio' ? '<text class="nicon" y="4.5">💜</text>' : '<use href="#april" x="-9" y="-9" width="18" height="18"/>')
       : icon ? `<text class="nicon" y="4.5">${icon}</text>`
       : t === 'free' ? `<text class="nicon" y="4">${c.icon || (c.hub ? '⇄' : c.id === 'r3s' ? '🚀' : c.id === 'in' ? '🚪' : '•')}</text>` : '';
@@ -1486,6 +1497,27 @@
         decor += `<ellipse class="isle" cx="${mx}" cy="${my}" rx="${(Math.max(...xs) - Math.min(...xs)) / 2 + 34}" ry="${(Math.max(...ys) - Math.min(...ys)) / 2 + 30}" style="--g:${g.ZONES[z].color}"/>`;
       }
     }
+    if (g.id === 'race') {
+      const { cx, cy, rx, ry } = g.VIEW;
+      decor += `<ellipse class="track" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/><ellipse class="track-line" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`;
+      decor += `<ellipse class="track-grass" cx="${cx}" cy="${cy}" rx="${rx - 60}" ry="${ry - 60}"/>`;
+      for (let k = 0; k < 8; k++) decor += `<rect class="chk${k % 2 ? ' b' : ''}" x="${cx - 8 + (k % 2) * 8}" y="${cy - ry - 24 + Math.floor(k / 2) * 12}" width="8" height="12"/>`;
+      decor += `<text class="fest-title" x="${cx}" y="${cy + 12}" text-anchor="middle">DULIDAN RACE</text><text class="fest-sub" x="${cx}" y="${cy + 44}" text-anchor="middle">${g.RULES.race.laps} RUNDEN · VOLLGAS</text>`;
+    }
+    if (g.id === 'throne') {
+      const { cx, cy } = g.VIEW;
+      decor += `<rect class="castle" x="${cx - 120}" y="${cy - 90}" width="240" height="180" rx="8"/>`;
+      for (let k = 0; k < 4; k++) decor += `<rect class="castle-tower" x="${k % 2 ? cx + 98 : cx - 142}" y="${k < 2 ? cy - 112 : cy + 68}" width="44" height="44" rx="4"/>`;
+      decor += `<circle class="throne-glow" cx="${cx}" cy="${cy}" r="46"/>`;
+    }
+    if (g.id === 'quiz') {
+      const { cx, cy } = g.VIEW;
+      decor += `<rect class="tv" x="${cx - 170}" y="${cy - 100}" width="340" height="200" rx="16"/><text class="fest-title" x="${cx}" y="${cy - 10}" text-anchor="middle">QUIZ-SHOW</text><text class="fest-sub" x="${cx}" y="${cy + 24}" text-anchor="middle">MIT APRIL · LIVE</text><text class="tv-q" x="${cx}" y="${cy + 80}" text-anchor="middle">? ? ?</text>`;
+    }
+    if (g.id === 'bomb') {
+      const { cx, cy } = g.VIEW;
+      decor += `<ellipse class="hazard" cx="${cx}" cy="${cy}" rx="300" ry="190"/><circle class="crater" cx="${cx}" cy="${cy}" r="90"/><text class="bomb-big" x="${cx}" y="${cy + 30}" text-anchor="middle">💣</text>`;
+    }
     if (g.id === 'festival') {
       const { cx, cy, rx, ry } = g.VIEW;
       decor += `<ellipse class="fest-ground" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`;
@@ -1505,7 +1537,7 @@
     }
     for (const [a, b, kind, zone] of g.ROUTES) {
       const A = g.CITY[a], B = g.CITY[b];
-      if (kind === 'ring' && g.id === 'royale') continue;
+      if (kind === 'ring' && (g.id === 'royale' || g.id === 'race')) continue;
       if (kind === 'slide') {
         const mx = Math.min(A.x, B.x) - 70;
         routes += `<path class="route r-slide" data-r="${a}-${b}" d="M${A.x},${A.y} C${mx},${A.y} ${mx},${B.y} ${B.x},${B.y}"/>`;
@@ -1669,6 +1701,12 @@
   const NODE_INFO = {
     portal: (c, g) => `🌀 Portal: Springt auf Ring ${g.CITY[c.link] ? g.CITY[c.link].ring : '?'}. Du entscheidest, ob du durchgehst.`,
     loot: () => '🎁 Loot-Kiste: Schild, Boost, Dulis – oder eine Falle.',
+    boost: () => '⏩ Boost-Pad: Schießt dich 3 Felder nach vorn.',
+    oil: () => '🛢️ Ölfleck: Du rutschst 3 Felder zurück – außer mit Profi-Reifen.',
+    coin: () => '🪙 Münzen: Ð30 bis Ð80 zum Einsammeln.',
+    shop: () => '🔧 Boxengasse: Motor-Tuning, Profi-Reifen und Nitro kaufen.',
+    throne: () => '👑 Der Thron: Wer hier landet, wird König. Alle anderen zahlen zu Zugbeginn Tribut, die Mieten des Königs zählen 1,5×.',
+    quiz: (c, g) => `❓ Quizfeld: Richtig beantwortet gibt es ${M(g.RULES.quiz.win)}, falsch kostet ${M(g.RULES.quiz.lose)}.`,
     event: (c) => (c.deck === 'studio' ? '💜 Studio-Karte: Zieh eine Karte aus dem Studio-Stapel. Gut oder schlecht.' : '💖 April-Karte: April zieht für dich eine Karte. Gut oder schlecht.'),
     lift: (c, g) => `⬆ Aufzug: Fährt dich in den ${g.CITY[c.link].floor}. Stock. Wem die Ziel-Etage komplett gehört, kassiert Ð${g.RULES.liftFee}.`,
     slide: (c, g) => `⬇ Rutsche: Wuuuh, runter in den ${g.CITY[c.link].floor}. Stock.`,
@@ -1755,7 +1793,31 @@
     });
     let mc = $('#world .map-card');
     if (!mc) { mc = document.createElement('div'); mc.className = 'map-card'; mc.hidden = true; $('#world').appendChild(mc); }
-    if (S.sub === 'card' && S.card && S.phase === 'play' && !isBusy()) {
+    const qr = S.quizResult;
+    if (!App.qrInit) { App.qrInit = true; App.qrSeen = qr ? qr.seq : 0; }
+    if (qr && qr.seq !== App.qrSeen) {
+      App.qrSeen = qr.seq; App.qrUntil = Date.now() + 3400;
+      FX.play(qr.ok ? 'win' : 'jail');
+      clearTimeout(App.qrT); App.qrT = setTimeout(() => { if (App.S && isWorld()) renderWorld(); }, 3500);
+    }
+    const opts = (q, order, cls) => `<div class="quiz-opts">${order.map((o, k) => `<span class="${cls(o, k)}"><b>${'ABCD'[k]}</b>${esc(q.a[o])}</span>`).join('')}</div>`;
+    if (S.sub === 'quiz' && S.quiz && S.phase === 'play' && !isBusy()) {
+      const q = gb.QUESTIONS[S.quiz.i], k = `q|${S.turnNo}|${S.quiz.i}|${S.quiz.hidden.join(',')}`;
+      if (mc.dataset.key !== k || mc.hidden) {
+        mc.dataset.key = k;
+        mc.className = 'map-card deck-quiz';
+        mc.innerHTML = `<div class="mc-icon">🧠</div><div class="mc-kind">Quizfrage · +${M(gb.RULES.quiz.win)} / −${M(gb.RULES.quiz.lose)}</div><div class="mc-text">${esc(q.q)}</div>${opts(q, S.quiz.order, (o, j) => (S.quiz.hidden.includes(j) ? 'is-hidden' : ''))}<div class="mc-who">${esc(cur.name)} antwortet …</div>`;
+        mc.hidden = false;
+      }
+    } else if (qr && Date.now() < (App.qrUntil || 0)) {
+      const q = gb.QUESTIONS[qr.i], k = `r|${qr.seq}`;
+      if (mc.dataset.key !== k || mc.hidden) {
+        mc.dataset.key = k;
+        mc.className = `map-card deck-quiz ${qr.ok ? 'is-right' : 'is-wrong'}`;
+        mc.innerHTML = `<div class="mc-icon">${qr.ok ? '✅' : '❌'}</div><div class="mc-kind">${qr.ok ? 'Richtig!' : 'Leider falsch'}</div><div class="mc-text">${esc(q.q)}</div>${opts(q, qr.order, (o, j) => (o === 0 ? 'is-right' : j === qr.k ? 'is-wrong' : ''))}<div class="mc-who">${esc(P(qr.pid).name)} ${qr.ok ? `+${M(gb.RULES.quiz.win)}` : `−${M(gb.RULES.quiz.lose)}`}</div>`;
+        mc.hidden = false;
+      }
+    } else if (S.sub === 'card' && S.card && S.phase === 'play' && !isBusy()) {
       const x = gb.CARDS[S.card.deck][S.card.i];
       const k = `${S.turnNo}|${S.card.deck}|${S.card.i}`;
       if (mc.dataset.key !== k || mc.hidden) {
@@ -1775,7 +1837,7 @@
     const s2 = S.cities[to], cc = GB().CITY[to];
     const o = s2 ? P(s2.owner) : null;
     const toll = o && o.id !== cur.id ? W.rentFor(S, to, cur) : 0;
-    const tag = !s2 ? ({ free: cc.hub ? (cc.icon === '⚓' ? '⚓ Hafen' : '⇄ Umsteigen') : 'frei', event: cc.deck === 'studio' ? '💜 Studio-Karte' : '💖 April-Karte', loot: '🎁 Loot', portal: '🌀 Portal', lift: '⬆ Aufzug', slide: '⬇ Rutsche' }[cc.type] || '')
+    const tag = !s2 ? ({ free: cc.hub ? (cc.icon === '⚓' ? '⚓ Hafen' : '⇄ Umsteigen') : 'frei', event: cc.deck === 'studio' ? '💜 Studio-Karte' : '💖 April-Karte', loot: '🎁 Loot', portal: '🌀 Portal', lift: '⬆ Aufzug', slide: '⬇ Rutsche', boost: '⏩ Boost', oil: '🛢️ Öl', coin: '🪙 Münzen', shop: '🔧 Box', throne: '👑 Thron', quiz: '❓ Quiz' }[cc.type] || '')
       : !o ? `frei · ${M(cc.price)}` : o.id === cur.id ? 'deins' : `${rentWord()} ${M(toll)}`;
     const color = s2 ? GB().ZONES[cc.zone].color : '#efeaf7';
     return `<button class="dest ${toll ? 'is-toll' : ''}" data-act='${esc(JSON.stringify(action))}' data-pid="${esc(cur.id)}" style="--g:${color}">
@@ -1795,6 +1857,10 @@
     }
     if (S.flood) h += `<div class="news is-storm"><strong>🌊 Flut</strong><span>${esc(GB().ZONES[S.flood].name)} steht unter Wasser. Dort zahlt diese Runde niemand Miete.</span></div>`;
     if (S.headliner) h += `<div class="news"><strong>🎤 Headliner</strong><span>${esc(GB().ZONES[S.headliner].name)} spielt heute! Miete dort 3×.</span></div>`;
+    if (GB().RULES.throne) h += S.king && P(S.king) ? `<div class="news"><strong>👑 König: ${esc(P(S.king).name)}</strong><span>Alle anderen zahlen zu Zugbeginn Tribut. Die Mieten des Königs zählen 1,5×. Stürm den Thron in der Mitte!</span></div>`
+      : '<div class="news"><strong>👑 Der Thron ist frei</strong><span>Wer zuerst auf dem Thron in der Mitte landet, wird König und kassiert Tribut.</span></div>';
+    if (S.bomb && P(S.bomb.holder)) h += `<div class="news is-storm"><strong>💣 Bombe bei ${esc(P(S.bomb.holder).name)}</strong><span>Zündschnur: noch ${S.bomb.fuse} ${S.bomb.fuse === 1 ? 'Zug' : 'Züge'}. Weitergeben durch Überholen oder Draufspringen!</span></div>`;
+    if (GB().RULES.race) h += `<div class="news"><strong>🏁 ${GB().RULES.race.laps} Runden</strong><span>Wer zuerst ${GB().RULES.race.laps}× über die Ziellinie fährt, gewinnt. Rempler schubsen andere 2 Felder zurück.</span></div>`;
     h += moodNewsHTML();
     if (S.trade) {
       const from = P(S.trade.from), to = P(S.trade.to);
@@ -1817,7 +1883,7 @@
       return;
     }
     if (!me) {
-      const what = { roll: 'würfelt gleich', pick: 'wählt die Schritte', jet: 'sucht sich ein Ziel aus', walk: 'navigiert durchs Netz', buy: 'überlegt, ob gekauft wird', end: 'beendet gleich den Zug', debt: 'muss Schulden begleichen', portal: 'steht vor einem Portal', card: 'liest eine Karte' }[S.sub] || '';
+      const what = { roll: 'würfelt gleich', pick: 'wählt die Schritte', jet: 'sucht sich ein Ziel aus', walk: 'navigiert durchs Netz', buy: 'überlegt, ob gekauft wird', end: 'beendet gleich den Zug', debt: 'muss Schulden begleichen', portal: 'steht vor einem Portal', card: 'liest eine Karte', shop: 'ist in der Boxengasse', quiz: 'grübelt über der Quizfrage' }[S.sub] || '';
       el.innerHTML = h + `<p class="action-note">${esc(cur.name)} ${what} …</p>`;
       return;
     }
@@ -1834,6 +1900,10 @@
           tower: 'Du würfelst und läufst um deine Etage. Aufzüge bringen dich hoch, Rutschen runter.',
           islands: 'Du würfelst und läufst über Strände und Seewege. Der Dulidan-Würfel kann dir eine Fähre schenken.',
           festival: 'Du würfelst und läufst übers Festivalgelände. Achte auf den Headliner – dort ist alles 3× so teuer.',
+          race: 'Du würfelst und fährst. Motor-Tuning gibt Extra-Felder, Nitro verdoppelt den Wurf.',
+          throne: 'Du würfelst und läufst durch die Burg. Über die Treppen kommst du zum Thron in der Mitte.',
+          quiz: 'Du würfelst und läufst durchs Studio. Auf ❓-Feldern stellt April eine Quizfrage.',
+          bomb: 'Du würfelst und läufst um die Arena. Hast du die Bombe, überhol jemanden oder spring auf sein Feld!',
         }[S.mode]}</p>`;
         if (cur.items && (cur.items.shield || cur.items.boost)) h += `<p class="action-note">Deine Items: ${cur.items.shield ? `🛡️ ×${cur.items.shield} ` : ''}${cur.items.boost ? `⚡ ×${cur.items.boost}` : ''}</p>`;
         if (canTrade) h += uiBtn('Handeln', 'trade', 'btn-ghost');
@@ -1867,6 +1937,23 @@
         const x = GB().CARDS[S.card.deck][S.card.i];
         h += `<div class="card-mini deck-${S.card.deck}"><span class="ck">${S.card.deck === 'april' ? `${aprilIcon('ck-april')} April-Karte` : '💜 Studio-Karte'}</span><p>${esc(x.t)}</p></div>`;
         h += `<div class="btn-row">${btn('OK', { type: 'cardOk' }, pid, 'btn-primary')}</div>`;
+        break;
+      }
+      case 'shop': {
+        h += '<p class="action-note">🔧 <strong>Boxengasse!</strong> Was soll an deinen Wagen?</p>';
+        h += `<div class="shop">${GB().SHOP.map((it) => {
+          const have = it.id === 'tires' ? (cur.race.tires ? 1 : 0) : cur.race[it.id];
+          return `<div class="shop-item"><span class="si-ic">${it.icon}</span><div><strong>${it.name} <small>${have}/${it.max}</small></strong><small>${esc(it.text)}</small></div>${btn(M(it.cost), { type: 'buyUpgrade', item: it.id }, pid, 'btn-small', have >= it.max || cur.money < it.cost)}</div>`;
+        }).join('')}</div>`;
+        h += `<div class="btn-row">${btn('Weiterfahren', { type: 'leaveShop' }, pid, 'btn-primary')}</div>`;
+        break;
+      }
+      case 'quiz': {
+        const q = GB().QUESTIONS[S.quiz.i];
+        h += `<div class="card-mini deck-quiz"><span class="ck">🧠 Quizfrage</span><p>${esc(q.q)}</p></div>`;
+        h += `<div class="quiz-btns">${S.quiz.order.map((o, k) => btn(`<b>${'ABCD'[k]}</b> ${esc(q.a[o])}`, { type: 'answer', k }, pid, 'btn-quiz', S.quiz.hidden.includes(k))).join('')}</div>`;
+        const canJoker = !S.quiz.hidden.length && (!cur.used.joker || (cur.items && cur.items.joker > 0));
+        if (canJoker) h += btn('🃏 50:50-Joker', { type: 'joker' }, pid, 'btn-ghost btn-small');
         break;
       }
       case 'portal': {
@@ -1919,7 +2006,17 @@
       const owned = Object.keys(S.cities).filter((id) => S.cities[id].owner === p.id);
       const zones = W.completeZones(S, p.id);
       const meta = [];
-      if (!p.bankrupt) meta.push(`<span>${owned.length} ${words().cities}</span>`, `<span>${zones.length} komplett</span>`);
+      const gb = GB();
+      if (!p.bankrupt && gb.PROPS.length) meta.push(`<span>${owned.length} ${words().cities}</span>`, `<span>${zones.length} komplett</span>`);
+      if (p.race && !p.bankrupt) {
+        meta.push(`<span class="hot">🏁 Runde ${Math.min(p.race.laps + 1, gb.RULES.race.laps)}/${gb.RULES.race.laps}</span>`);
+        if (p.race.engine) meta.push(`<span>🔧+${p.race.engine}</span>`);
+        if (p.race.tires) meta.push('<span>🛞</span>');
+        if (p.race.nitro) meta.push(`<span>🔥×${p.race.nitro}</span>`);
+      }
+      if (S.king === p.id) meta.push('<span class="hot">👑 König</span>');
+      if (S.bomb && S.bomb.holder === p.id) meta.push(`<span class="warn">💣 ${S.bomb.fuse}</span>`);
+      if (gb.RULES.quiz && !p.bankrupt) meta.push(`<span>🃏 ${(p.used && !p.used.joker ? 1 : 0) + ((p.items && p.items.joker) || 0)}</span>`);
       if (p.items && p.items.shield) meta.push(`<span>🛡️×${p.items.shield}</span>`);
       if (p.items && p.items.boost) meta.push(`<span>⚡×${p.items.boost}</span>`);
       if (p.bankrupt) meta.push('<span class="warn">pleite</span>');
@@ -1940,6 +2037,13 @@
     const Wd = words().cities;
     if (!v) { $('#props-title').textContent = Wd; wrap.innerHTML = '<p class="empty">Du schaust zu.</p>'; return; }
     $('#props-title').textContent = App.mode === 'local' || v.id !== myId ? `${Wd} von ${v.name}` : `Deine ${Wd}`;
+    if (GB().RULES.race && v.race) {
+      wrap.innerHTML = GB().SHOP.map((it) => {
+        const have = it.id === 'tires' ? (v.race.tires ? 1 : 0) : v.race[it.id];
+        return `<div class="prop-row" style="--g:${have ? '#2fe08a' : '#3a2f4f'}"><span class="bar"></span><div class="pr-name">${it.icon} ${it.name}<small>${have}/${it.max} · ${esc(it.text)}</small></div></div>`;
+      }).join('') + '<p class="empty">Upgrades gibt’s in der 🔧 Boxengasse.</p>';
+      return;
+    }
     const owned = GB().PROPS.map((id) => GB().CITY[id]).filter((c) => S.cities[c.id].owner === v.id);
     if (!owned.length) { wrap.innerHTML = `<p class="empty">Noch keine ${Wd}. Würfel los und kauf was!</p>`; return; }
     const myTurn = S.phase === 'play' && curP().id === v.id && canControl(v.id);
@@ -1966,6 +2070,10 @@
     royale: '<li>🌀 Drei Ringe. Portale verbinden sie. Je weiter innen, desto teurer.</li><li>🌪️ Der April-Sturm zerstört in Runde 7 den äußeren und in Runde 14 den mittleren Ring. Wer dort steht, fliegt nach innen. Zerstörte Planeten zahlen die Hälfte zurück.</li><li>🔥 Danach steigen alle Mieten jede Runde um 30 %, bis nur noch einer übrig ist.</li><li>🎁 Loot-Kisten: 🛡️ Schild blockt eine Miete, ⚡ Boost bringt dich 3 Felder weiter.</li>',
     metro: '<li>🚇 Sieben U-Bahn-Linien, fünf Umsteigebahnhöfe.</li><li>🎫 Gehört jemandem eine ganze Linie, zahlst du Fahrpreis für jede seiner Stationen, durch die du nur durchfährst.</li><li>🚄 Express-Seite des Dulidan-Würfels: Spring zu einem beliebigen Umsteigebahnhof.</li>',
     islands: '<li>🏝️ Sieben Inseln, verbunden über Seewege. Jede Insel hat einen ⚓ Hafen.</li><li>⛴️ Fähre auf dem Dulidan-Würfel: Fahr direkt zu einem Hafen deiner Wahl.</li><li>🌊 Ab Runde 3 kann jede Runde eine Insel überflutet werden. Dort zahlt dann niemand Miete.</li><li>🎁 Schatzkisten und Flaschenpost liegen mitten im Meer.</li><li>📈 Ab Runde 8 steigen alle Mieten jede Runde. Gespielt wird, bis alle bis auf einen pleite sind.</li>',
+    race: '<li>🏁 Kein Kaufen, kein Bauen: Wer zuerst 3 Runden fährt, gewinnt. Alle starten mit Ð400.</li><li>⏩ Boost-Pads schießen dich 3 Felder vor, 🛢️ Ölflecken lassen dich 3 zurückrutschen.</li><li>🔧 In der Boxengasse: Motor-Tuning (+1 Feld pro Wurf), Profi-Reifen (Öl egal), Nitro (Wurf ×2).</li><li>💥 Landest du auf jemandem, schubst du ihn 2 Felder zurück.</li><li>🪙 Münzfelder bringen Geld für Upgrades.</li>',
+    throne: '<li>👑 In der Mitte steht der Thron. Über vier Treppen kommst du hin, mit 🕳️ Geheimgang direkt.</li><li>Wer auf dem Thron landet, wird König: Alle anderen zahlen zu Zugbeginn Tribut (steigt alle 3 Runden), und die Mieten des Königs zählen 1,5×.</li><li>Landet jemand anderes auf dem Thron, ist der alte König gestürzt.</li><li>📈 Ab Runde 10 steigen alle Mieten jede Runde.</li>',
+    quiz: '<li>🧠 Auf ❓-Feldern stellt April eine Quizfrage mit vier Antworten: Duisburg, Öhringen, Dulidan und Allgemeinwissen.</li><li>Richtig: +Ð150. Falsch: −Ð50. Alle sehen die Frage live auf dem Brett.</li><li>🃏 Einmal pro Spiel gibt es den 50:50-Joker, weitere findest du beim Publikumsjoker.</li><li>📈 Ab Runde 8 steigen alle Mieten jede Runde.</li>',
+    bomb: '<li>💣 Eine Person hat die Bombe. Bei jedem eigenen Zug brennt die Zündschnur einen Zug weiter.</li><li>Überholst du jemanden oder landest auf seinem Feld, wandert die Bombe zu ihm.</li><li>💥 Explodiert sie, kostet das Ð250 plus Ð25 pro Runde. Danach taucht eine neue Bombe bei jemand anderem auf.</li><li>🧯 Entschärfer-Kits verlängern die Zündschnur um 2 Züge.</li>',
     festival: '<li>🎪 Ein Rundgang übers Festival: Campingplatz, Foodcourt, Techno-Zelt, Rap-Bühne, Rock-Stage, VIP und Main Stage.</li><li>🎤 Jede Runde ist eine Area Headliner. Dort kostet die Miete das Dreifache.</li><li>🔁 Zugabe auf dem Dulidan-Würfel: nochmal würfeln. 🏄 Crowdsurfen: 3 Felder extra.</li><li>📈 Ab Runde 8 steigen alle Mieten jede Runde. Gespielt wird, bis alle bis auf einen pleite sind.</li>',
     tower: '<li>🏙️ Fünf Etagen, jede ein eigener Rundgang. Ganz oben das Penthouse.</li><li>⬆ Aufzüge bringen dich einen Stock hoch, ⬇ Rutschen einen runter.</li><li>Gehört jemandem eine ganze Etage, kassiert er Aufzug-Gebühr von allen, die dort ankommen.</li><li>🎁 Auf dem Helipad liegen Loot-Kisten.</li>',
   };

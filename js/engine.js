@@ -191,7 +191,7 @@
     if ([1000, 1500, 2000, 3000].includes(sm)) S.settings.startMoney = sm;
     if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
-    if (['classic', 'casino', 'world', 'royale', 'metro', 'tower', 'islands', 'festival'].includes(o.mode)) S.settings.mode = o.mode;
+    if (['classic', 'casino', 'world', 'royale', 'metro', 'tower', 'islands', 'festival', 'race', 'throne', 'quiz', 'bomb'].includes(o.mode)) S.settings.mode = o.mode;
     if (['mini', 'normal', 'mega'].includes(o.size)) S.settings.size = o.size;
     if (typeof o.mood === 'boolean') S.settings.mood = o.mood;
     if (VARIANTS.includes(o.variant)) S.settings.variant = o.variant;

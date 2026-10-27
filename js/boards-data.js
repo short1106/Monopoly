@@ -479,6 +479,278 @@
     };
   }
 
+  // ---------- Bausteine für Rundkurs-Bretter ----------
+  const placeRing = (ring, cx, cy, rx, ry) => ring.forEach((n, i) => {
+    const a = (-90 + (i * 360) / ring.length) * Math.PI / 180;
+    n.x = Math.round(cx + Math.cos(a) * rx); n.y = Math.round(cy + Math.sin(a) * ry);
+    n.next = ring[(i + 1) % ring.length].id;
+    n.lab = Math.abs(Math.cos(a)) < 0.4 ? (Math.sin(a) < 0 ? 'n' : 's') : (Math.cos(a) > 0 ? 'e' : 'w');
+  });
+  const RING_FACES = [
+    { id: 'pay', icon: '💰', name: 'Zahltag', text: 'Du bekommst Ð150 von der Bank.' },
+    { id: 'shield', icon: '🛡️', name: 'Schutz', text: 'Diesen Zug zahlst du nichts.' },
+    { id: 'april', icon: '💖', name: 'April-Chaos', text: 'April macht irgendwas. Gut oder schlecht.' },
+    { id: 'boss', icon: 'D', name: 'Dulidan-Power', text: 'Du bestimmst selbst, wie weit du läufst (2–12).' },
+    { id: 'encore', icon: '🔁', name: 'Nochmal!', text: 'Du darfst gleich nochmal würfeln.' },
+    { id: 'surf', icon: '🌬️', name: 'Rückenwind', text: 'Du läufst 3 Felder weiter.' },
+  ];
+  // Ringbrett aus Zonen-Definition: Liste aus 'z:<zone>' (nächstes Feld der Zone) oder Spezialfeldern
+  function ringBoard(ZONES, names, order) {
+    const used = {};
+    return order.map((o, i) => {
+      if (typeof o === 'string' && o.startsWith('z:')) {
+        const z = o.slice(2), k = used[z] = (used[z] || 0) + 1, [name, price, quip] = names[z][k - 1];
+        return node(`${z}${k}`, name, { zone: z, price, quip });
+      }
+      return node(o.id || `s${i}`, o.name, o);
+    });
+  }
+
+  // =====================================================================
+  // 🏁 DULIDAN RACE – kein Kaufen, nur Rennen: 3 Runden, Boost, Öl, Boxengasse
+  // =====================================================================
+  {
+    const T = [
+      ['start', 'Start / Ziel'], ['coin', 'Münzen'], ['free', 'Gerade'], ['boost', 'Boost-Pad'], ['coin', 'Münzen'], ['oil', 'Ölfleck'],
+      ['event-a', 'April-Karte'], ['coin', 'Münzen'], ['shop', 'Boxengasse Nord'], ['free', 'Haarnadel'], ['boost', 'Boost-Pad'], ['coin', 'Münzen'],
+      ['oil', 'Ölfleck'], ['free', 'Tunnel'], ['event-s', 'Studio-Karte'], ['boost', 'Boost-Pad'], ['coin', 'Münzen'], ['oil', 'Ölfleck'],
+      ['free', 'Tribüne'], ['coin', 'Münzen'], ['shop', 'Boxengasse Süd'], ['boost', 'Boost-Pad'], ['coin', 'Münzen'], ['free', 'Schikane'],
+      ['oil', 'Ölfleck'], ['event-a', 'April-Karte'], ['coin', 'Münzen'], ['boost', 'Boost-Pad'], ['free', 'Steilkurve'], ['oil', 'Ölfleck'], ['coin', 'Münzen'], ['free', 'Zielgerade'],
+    ];
+    const QUIPS = { start: 'Motoren an! Ich schwenk die Flagge.', boost: 'BOOOOST!', oil: 'Wer hat hier Öl verschüttet? Ich war’s nicht.', shop: 'Boxenstopp! Reifen, Motor, Snacks.', coin: 'Münzen! Einsammeln!' };
+    const CITIES = T.map(([t, name], i) => {
+      const id = i === 0 ? 'start' : `t${i}`;
+      if (t === 'start') return node(id, name, { type: 'free', start: true, icon: '🏁', quip: QUIPS.start, info: '🏁 Start und Ziel. Jedes Mal, wenn du hier vorbeifährst, zählt eine Runde.' });
+      if (t === 'event-a' || t === 'event-s') return node(id, name, { type: 'event', deck: t === 'event-a' ? 'april' : 'studio' });
+      if (t === 'free') return node(id, name, { type: 'free', icon: '·' });
+      return node(id, name, { type: t, quip: QUIPS[t] });
+    });
+    placeRing(CITIES, 500, 350, 410, 265);
+    BOARDS.race = {
+      id: 'race', title: 'DULIDAN RACE', icon: '🏁',
+      tagline: 'Kein Kaufen, kein Bauen: 3 Runden Vollgas. Boost-Pads, Ölflecken, Boxengasse für Upgrades. Wer zuerst im Ziel ist, gewinnt.',
+      walk: 'ring', ZONES: {}, CITIES, ROUTES: CITIES.map((n) => [n.id, n.next, 'ring']),
+      LEVELS: ['–'], RENT_PCT: [0],
+      RULES: { startMoney: 400, fixedMoney: 400, salary: 20, takeoverMult: 1.5, race: { laps: 3 }, noLimit: true },
+      SHOP: [
+        { id: 'engine', icon: '🔧', name: 'Motor-Tuning', cost: 250, max: 3, text: '+1 Feld bei jedem Wurf (stapelbar bis +3).' },
+        { id: 'tires', icon: '🛞', name: 'Profi-Reifen', cost: 200, max: 1, text: 'Ölflecken können dir nichts mehr.' },
+        { id: 'nitro', icon: '🔥', name: 'Nitro', cost: 150, max: 3, text: 'Dein nächster Wurf zählt doppelt.' },
+      ],
+      FACES: RING_FACES.map((f) => (f.id === 'shield' ? { ...f, icon: '🛞', name: 'Grip', text: 'Ölflecken können dir diesen Zug nichts.' } : f.id === 'surf' ? { ...f, name: 'Windschatten', icon: '🌬️', text: 'Du fährst 3 Felder weiter.' } : f.id === 'pay' ? { ...f, name: 'Preisgeld', text: 'Du bekommst Ð150 Preisgeld.' } : f)),
+      CHAOS: WD.CHAOS, EVENTS: [], FUNK, POWERS,
+      starts: ['start', 'start', 'start', 'start', 'start', 'start'],
+      VIEW: { w: 1000, h: 700, cx: 500, cy: 350, rx: 410, ry: 265 },
+      words: { zone: 'Abschnitt', city: 'Feld', cities: 'Upgrades' },
+    };
+  }
+
+  // =====================================================================
+  // 👑 DULIDAN THRON – King of the Hill: wer auf dem Thron sitzt, kassiert Tribut
+  // =====================================================================
+  {
+    const ZONES = {
+      dorf: { name: 'Bauerndorf', color: '#c47a45', build: 50 },
+      markt: { name: 'Marktviertel', color: '#5fd0ff', build: 50 },
+      ritter: { name: 'Rittergasse', color: '#ff8a2a', build: 100 },
+      zauber: { name: 'Zauberturm', color: '#2fe08a', build: 150 },
+      schatz: { name: 'Schatzkammer', color: '#ffd83a', build: 150 },
+      hof: { name: 'Königshof', color: '#c020b8', build: 200 },
+    };
+    const NAMES = {
+      dorf: [['Rübenfeld', 60, 'Rüben. So weit das Auge reicht.'], ['Hühnerstall', 60], ['Dorfbrunnen', 80]],
+      markt: [['Gemüsemarkt', 100], ['Schmiede', 100, 'Hier wird geschmiedet. Und geschwitzt.'], ['Gasthaus', 120]],
+      ritter: [['Turnierplatz', 140, 'Lanzen raus!'], ['Waffenkammer', 140], ['Pferdestall', 160]],
+      zauber: [['Alchemie-Labor', 180, 'Es blubbert. Verdächtig.'], ['Kristallhöhle', 180], ['Sternwarte', 200]],
+      schatz: [['Goldmine', 220], ['Juwelen-Tresor', 240, 'Ich hab nichts angefasst. Ehrlich.'], ['Münzprägerei', 240]],
+      hof: [['Bankettsaal', 280], ['Spiegelsaal', 300, 'Spieglein, Spieglein … April ist die Schönste.'], ['Krönungshalle', 350]],
+    };
+    const ring = ringBoard(ZONES, NAMES, [
+      { id: 'tor', name: 'Burgtor', type: 'free', icon: '🏰', quip: 'Willkommen in der Burg. Bitte Schuhe abtreten.' },
+      'z:dorf', 'z:dorf', 'z:dorf', { id: 'ka1', name: 'April-Karte', type: 'event', deck: 'april' },
+      'z:markt', 'z:markt', 'z:markt', { id: 'tav', name: 'Taverne', type: 'free', icon: '🍺', quip: 'Ein Met, bitte. Alkoholfrei.' },
+      'z:ritter', 'z:ritter', 'z:ritter', { id: 'tru', name: 'Schatztruhe', type: 'loot' },
+      'z:zauber', 'z:zauber', 'z:zauber', { id: 'ks1', name: 'Studio-Karte', type: 'event', deck: 'studio' },
+      'z:schatz', 'z:schatz', 'z:schatz', { id: 'gra', name: 'Burggraben', type: 'free', icon: '🌊', quip: 'Nicht reinfallen. Da sind Krokodile. Vielleicht.' },
+      'z:hof', 'z:hof', 'z:hof',
+    ]);
+    const cx = 500, cy = 350;
+    placeRing(ring, cx, cy, 390, 270);
+    const ROUTES = ring.map((n) => [n.id, n.next, 'ring']);
+    const throne = node('thron', 'Der Thron', { type: 'throne', x: cx, y: cy, lab: 's', quip: 'Der Thron! Setz dich. Ganz vorsichtig.' });
+    const stairs = [0, 6, 12, 18].map((ri, k) => {
+      const r = ring[ri];
+      const st = node(`tr${k}`, ['Treppe Nord', 'Treppe Ost', 'Treppe Süd', 'Treppe West'][k], { type: 'free', hub: true, icon: '🪜', info: '🪜 Treppe zum Thron. Mit dem 🕳️ Geheimgang springst du direkt hierher.',
+        x: Math.round(cx + (r.x - cx) * 0.5), y: Math.round(cy + (r.y - cy) * 0.5), lab: k % 2 ? (r.x > cx ? 'e' : 'w') : (r.y > cy ? 's' : 'n') });
+      ROUTES.push([r.id, st.id, 'path'], [st.id, throne.id, 'path']);
+      return st;
+    });
+    BOARDS.throne = {
+      id: 'throne', title: 'DULIDAN THRON', icon: '👑',
+      tagline: 'King of the Hill: Wer auf dem Thron in der Mitte landet, wird König und kassiert von allen Tribut – bis jemand den Thron stürmt.',
+      walk: 'random', ZONES, CITIES: [...ring, ...stairs, throne], ROUTES,
+      LEVELS: ['Unbebaut', 'Hütte', 'Fachwerkhaus', 'Burgturm', 'Festung'], LEVEL_ART: ['', 'eine Hütte', 'ein Fachwerkhaus', 'einen Burgturm', 'eine Festung'],
+      RENT_PCT: [0.2, 1, 2.8, 5.5, 8.5],
+      RULES: { startMoney: 1500, salary: 40, takeoverMult: 1.5, throne: { tribute: 30 }, crisis: { from: 10, step: 0.2 }, noLimit: true },
+      FACES: [
+        { id: 'nav', icon: '🧭', name: 'Kompass', text: 'Du wählst an jeder Kreuzung selbst, wohin es geht.' },
+        { id: 'jet', icon: '🕳️', name: 'Geheimgang', text: 'Spring direkt zu einer Treppe deiner Wahl.' },
+        ...RING_FACES.filter((f) => ['pay', 'april', 'shield', 'boss'].includes(f.id)),
+      ],
+      CHAOS: WD.CHAOS, EVENTS: WD.EVENTS, FUNK, POWERS,
+      LOOT: [
+        { id: 'money', t: '💰 Eine Truhe voller Goldmünzen! +Ð200.', money: 200 },
+        { id: 'shield', t: '🛡️ Ritterschild! Blockt die nächste Miete.' },
+        { id: 'boost', t: '🐎 Ein Pferd! Dein nächster Wurf geht 3 Felder weiter.' },
+        { id: 'trap', t: '🐀 Ratten in der Truhe! −Ð60.', money: -60 },
+      ],
+      starts: ['tor', 'tav', 'gra', 'tru', 'tor', 'tav'],
+      VIEW: { w: 1000, h: 700, cx, cy },
+      words: { zone: 'Viertel', city: 'Feld', cities: 'Felder' },
+    };
+  }
+
+  // =====================================================================
+  // 🧠 DULIDAN QUIZ-SHOW – Quizfelder mit echten Fragen, 50:50-Joker
+  // =====================================================================
+  {
+    const ZONES = {
+      kul: { name: 'Kulissen', color: '#c47a45', build: 50 },
+      kan: { name: 'Kantine', color: '#ffd83a', build: 50 },
+      mas: { name: 'Maske', color: '#ff7ae6', build: 100 },
+      reg: { name: 'Regie', color: '#5fd0ff', build: 150 },
+      stb: { name: 'Studio B', color: '#2fe08a', build: 150 },
+      bue: { name: 'Showbühne', color: '#c020b8', build: 200 },
+    };
+    const NAMES = {
+      kul: [['Pappwand', 60, 'Sieht aus wie Stein. Ist Pappe.'], ['Kunstnebel', 60], ['Requisite', 80]],
+      kan: [['Kaffeeautomat', 100, 'Kaffee Nummer sieben heute.'], ['Brötchentheke', 100], ['Snackregal', 120]],
+      mas: [['Puderdose', 140], ['Haarspray-Wolke', 140, 'Hust. Hust.'], ['Glitzer-Station', 160]],
+      reg: [['Mischpult', 180], ['Teleprompter', 200, 'Ich les nur ab. Pssst.'], ['Kamera 1', 220]],
+      stb: [['Publikumsränge', 240], ['Applaus-Schild', 240, 'APPLAUS! Lauter!'], ['Buzzer-Pult', 260]],
+      bue: [['Kandidatenpult', 300], ['Moderationspult', 350, 'Mein Platz. Ich moderiere.'], ['Jackpot-Wand', 400, 'Die Jackpot-Wand. Sie blinkt für dich.']],
+    };
+    const Q = (i) => ({ id: `q${i}`, name: 'Quizfrage', type: 'quiz' });
+    const ring = ringBoard(ZONES, NAMES, [
+      { id: 'ein', name: 'Studio-Eingang', type: 'free', icon: '🎬', quip: 'Und … Action!' },
+      'z:kul', 'z:kul', 'z:kul', Q(1), 'z:kan', 'z:kan', 'z:kan', Q(2), { id: 'qa1', name: 'April-Karte', type: 'event', deck: 'april' },
+      'z:mas', 'z:mas', 'z:mas', Q(3), 'z:reg', 'z:reg', 'z:reg', Q(4), { id: 'qs1', name: 'Studio-Karte', type: 'event', deck: 'studio' },
+      'z:stb', 'z:stb', 'z:stb', Q(5), { id: 'pj', name: 'Publikumsjoker', type: 'loot' }, 'z:bue', 'z:bue', 'z:bue', Q(6),
+    ]);
+    placeRing(ring, 500, 350, 390, 265);
+    BOARDS.quiz = {
+      id: 'quiz', title: 'DULIDAN QUIZ-SHOW', icon: '🧠',
+      tagline: 'Die Show mit April als Moderatorin: Auf Quizfeldern gibt’s echte Fragen. Richtig = Ð150, falsch = −Ð50. Einmal pro Spiel hilft der 50:50-Joker.',
+      walk: 'ring', ZONES, CITIES: ring, ROUTES: ring.map((n) => [n.id, n.next, 'ring']),
+      LEVELS: ['Unbebaut', 'Stuhl', 'Kulisse', 'Bühne', 'Studio'], LEVEL_ART: ['', 'einen Stuhl', 'eine Kulisse', 'eine Bühne', 'ein Studio'],
+      RENT_PCT: [0.2, 1, 2.8, 5.5, 8.5],
+      RULES: { startMoney: 1500, salary: 40, takeoverMult: 1.5, quiz: { win: 150, lose: 50 }, crisis: { from: 8, step: 0.2 }, noLimit: true },
+      FACES: RING_FACES, CHAOS: WD.CHAOS, EVENTS: WD.EVENTS, FUNK, POWERS,
+      LOOT: [
+        { id: 'money', t: '👏 Das Publikum liebt dich! +Ð150.', money: 150 },
+        { id: 'shield', t: '🎟️ Freikarte! Blockt die nächste Miete.' },
+        { id: 'joker', t: '🃏 Neuer 50:50-Joker!' },
+        { id: 'trap', t: '🍅 Das Publikum wirft Tomaten. Reinigung: −Ð60.', money: -60 },
+      ],
+      // Die erste Antwort ist jeweils richtig, die Reihenfolge wird beim Ziehen gemischt
+      QUESTIONS: [
+        { q: 'In welchen Fluss mündet die Ruhr in Duisburg?', a: ['Rhein', 'Main', 'Mosel', 'Neckar'] },
+        { q: 'Wie heißt der Duisburger Hafen, einer der größten Binnenhäfen der Welt?', a: ['Duisport', 'Rheinport', 'Ruhrhafen Nord', 'Hafen Mitte'] },
+        { q: 'Welcher Fußballverein spielt in der MSV-Arena?', a: ['MSV Duisburg', 'Schalke 04', 'VfL Bochum', 'Rot-Weiss Essen'] },
+        { q: 'Welches Tier ist der Spitzname des MSV Duisburg?', a: ['Zebras', 'Löwen', 'Adler', 'Wölfe'] },
+        { q: 'In welchem Bundesland liegt Öhringen?', a: ['Baden-Württemberg', 'Bayern', 'Hessen', 'Nordrhein-Westfalen'] },
+        { q: 'In welchem Bundesland liegt Duisburg?', a: ['Nordrhein-Westfalen', 'Niedersachsen', 'Rheinland-Pfalz', 'Baden-Württemberg'] },
+        { q: 'Wie heißt die begehbare Achterbahn-Skulptur in Duisburg?', a: ['Tiger & Turtle', 'Lion & Lizard', 'Snake & Shark', 'Bär & Biber'] },
+        { q: 'Was war der Landschaftspark Duisburg-Nord früher?', a: ['Ein Hüttenwerk', 'Ein Flughafen', 'Ein Zoo', 'Eine Brauerei'] },
+        { q: 'Zu welchem Landkreis gehört Öhringen?', a: ['Hohenlohekreis', 'Rems-Murr-Kreis', 'Ostalbkreis', 'Kreis Ludwigsburg'] },
+        { q: 'Welche größere Stadt liegt in der Nähe von Öhringen?', a: ['Heilbronn', 'Freiburg', 'Ulm', 'Konstanz'] },
+        { q: 'Welcher Fluss fließt durch Heilbronn?', a: ['Neckar', 'Donau', 'Rhein', 'Elbe'] },
+        { q: 'Welche Stadt ist die Hauptstadt von Nordrhein-Westfalen?', a: ['Düsseldorf', 'Köln', 'Duisburg', 'Dortmund'] },
+        { q: 'Wie heißt die Moderatorin von Dulidanopoly?', a: ['April', 'Alexa', 'Siri', 'Mai'] },
+        { q: 'Wohin musst du in Dulidanopoly statt ins Gefängnis?', a: ['Düsseldorf', 'Köln', 'Essen', 'Bochum'] },
+        { q: 'Welches Auto fährt bei Dulidan foliert durch die Stadt?', a: ['Ein Berlingo', 'Ein Porsche', 'Ein Trabi', 'Ein Bus'] },
+        { q: 'Was ist das teuerste Feld auf dem klassischen Dulidanopoly-Brett?', a: ['DULIDAN HQ', 'Innenhafen Duisburg', 'Königstraße', 'Wedau'] },
+        { q: 'Welcher Automat frisst bei Dulidanopoly deine Flaschen?', a: ['Der Pfandautomat', 'Der Kaffeeautomat', 'Der Fahrkartenautomat', 'Der Kaugummiautomat'] },
+        { q: 'Wie heißt die Währung in Dulidanopoly?', a: ['Dulis', 'Dulaten', 'Dukaten', 'Dulars'] },
+        { q: 'Welche Farbe hat das Dulidan-Logo hauptsächlich?', a: ['Lila', 'Grün', 'Orange', 'Gelb'] },
+        { q: 'Wie viele Felder hat ein klassisches Monopoly-Brett?', a: ['40', '36', '44', '52'] },
+        { q: 'Wie viele Augen hat ein normaler Würfel insgesamt?', a: ['21', '18', '24', '36'] },
+        { q: 'Was ist ein Pasch?', a: ['Zwei gleiche Würfelzahlen', 'Eine Sechs', 'Drei Würfel auf einmal', 'Ein verlorener Zug'] },
+        { q: 'Welche Farbe entsteht, wenn man Rot und Blau mischt?', a: ['Lila', 'Grün', 'Orange', 'Braun'] },
+        { q: 'Wofür steht RGB?', a: ['Rot, Grün, Blau', 'Rosa, Gelb, Braun', 'Rot, Gold, Beige', 'Rubin, Grau, Blau'] },
+        { q: 'Welches kostenlose Programm ist bekannt für 3D-Modelle und Rendering?', a: ['Blender', 'Excel', 'Word', 'Paint'] },
+        { q: 'Welches Dateiformat steht für Vektorgrafiken im Web?', a: ['SVG', 'MP3', 'DOCX', 'ZIP'] },
+        { q: 'Wie viele Bits hat ein Byte?', a: ['8', '4', '10', '16'] },
+        { q: 'Was ist die Hauptstadt von Japan?', a: ['Tokio', 'Osaka', 'Kyoto', 'Seoul'] },
+        { q: 'Welcher Planet ist der größte in unserem Sonnensystem?', a: ['Jupiter', 'Saturn', 'Mars', 'Erde'] },
+        { q: 'Wie viele Bundesländer hat Deutschland?', a: ['16', '12', '14', '18'] },
+        { q: 'Welche Stadt nennt man auch „Big Apple“?', a: ['New York', 'Los Angeles', 'Chicago', 'London'] },
+        { q: 'Welches chemische Element hat das Zeichen Fe?', a: ['Eisen', 'Fluor', 'Gold', 'Blei'] },
+        { q: 'In welchem Jahr fiel die Berliner Mauer?', a: ['1989', '1990', '1975', '2001'] },
+        { q: 'Wie heißt der höchste Berg Deutschlands?', a: ['Zugspitze', 'Brocken', 'Feldberg', 'Watzmann'] },
+        { q: 'Wie viele Spieler einer Mannschaft stehen beim Fußball auf dem Feld?', a: ['11', '9', '10', '12'] },
+        { q: 'Wie lange dauert ein Fußballspiel regulär?', a: ['90 Minuten', '60 Minuten', '80 Minuten', '120 Minuten'] },
+        { q: 'Was ist 67 + 33?', a: ['100', '99', '110', '67'] },
+        { q: 'Woraus besteht Ayran hauptsächlich?', a: ['Joghurt, Wasser und Salz', 'Milch und Zucker', 'Tee und Zitrone', 'Sahne und Honig'] },
+        { q: 'Wie viele Sekunden hat eine Stunde?', a: ['3600', '600', '6000', '360'] },
+        { q: 'Welcher Ozean ist der größte der Welt?', a: ['Pazifik', 'Atlantik', 'Indischer Ozean', 'Arktischer Ozean'] },
+      ],
+      starts: ['ein', 'ein', 'ein', 'ein', 'ein', 'ein'],
+      VIEW: { w: 1000, h: 700, cx: 500, cy: 350 },
+      words: { zone: 'Bereich', city: 'Feld', cities: 'Felder' },
+    };
+  }
+
+  // =====================================================================
+  // 💣 DULIDAN BOMBE – heiße Kartoffel: Bombe weitergeben, bevor sie platzt
+  // =====================================================================
+  {
+    const ZONES = {
+      sch: { name: 'Schrottplatz', color: '#c47a45', build: 50 },
+      lag: { name: 'Lagerhalle', color: '#5fd0ff', build: 50 },
+      bun: { name: 'Bunkerzone', color: '#ff8a2a', build: 100 },
+      lab: { name: 'Labor', color: '#2fe08a', build: 150 },
+      arn: { name: 'Arena', color: '#ff3348', build: 150 },
+      kon: { name: 'Kontrollzentrum', color: '#c020b8', build: 200 },
+    };
+    const NAMES = {
+      sch: [['Reifenstapel', 60], ['Rostlaube', 60, 'Fährt nicht mehr. Explodiert aber auch nicht.'], ['Schrottpresse', 80]],
+      lag: [['Palettenregal', 100], ['Gabelstapler', 100], ['Kistenberg', 120, 'Was ist in den Kisten? Frag nicht.']],
+      bun: [['Sandsäcke', 140], ['Wachturm', 140], ['Funkraum', 160, 'Hier spricht April. Over.']],
+      lab: [['Zündschnur-Lager', 180, 'Hier bitte NICHT rauchen.'], ['Sprengmeister-Büro', 180], ['Chemie-Raum', 200]],
+      arn: [['Tribüne West', 220], ['Tribüne Ost', 240], ['VIP-Box', 260]],
+      kon: [['Kameraraum', 300], ['Schaltzentrale', 350], ['Roter Knopf', 400, 'Nicht drücken. NICHT DRÜCKEN.']],
+    };
+    const ring = ringBoard(ZONES, NAMES, [
+      { id: 'bk', name: 'Bunker', type: 'free', icon: '🛖', quip: 'Sicher im Bunker. Für genau einen Zug.' },
+      'z:sch', 'z:sch', 'z:sch', { id: 'ba1', name: 'April-Karte', type: 'event', deck: 'april' },
+      'z:lag', 'z:lag', 'z:lag', { id: 'df1', name: 'Entschärfer', type: 'loot' },
+      'z:bun', 'z:bun', 'z:bun', { id: 'kr', name: 'Krater', type: 'free', icon: '🕳️', quip: 'Hier ist schon mal was explodiert.' },
+      'z:lab', 'z:lab', 'z:lab', { id: 'bs1', name: 'Studio-Karte', type: 'event', deck: 'studio' },
+      'z:arn', 'z:arn', 'z:arn', { id: 'df2', name: 'Entschärfer', type: 'loot' },
+      'z:kon', 'z:kon', 'z:kon',
+    ]);
+    placeRing(ring, 500, 350, 390, 265);
+    BOARDS.bomb = {
+      id: 'bomb', title: 'DULIDAN BOMBE', icon: '💣',
+      tagline: 'Heiße Kartoffel mit Grundstücken: Wer die Bombe hat, muss sie durch Überholen oder Draufspringen weitergeben, bevor die Zündschnur abbrennt.',
+      walk: 'ring', ZONES, CITIES: ring, ROUTES: ring.map((n) => [n.id, n.next, 'ring']),
+      LEVELS: ['Unbebaut', 'Container', 'Halle', 'Bunker', 'Festung'], LEVEL_ART: ['', 'einen Container', 'eine Halle', 'einen Bunker', 'eine Festung'],
+      RENT_PCT: [0.2, 1, 2.8, 5.5, 8.5],
+      RULES: { startMoney: 1500, salary: 40, takeoverMult: 1.5, bomb: { base: 250, step: 25 }, crisis: { from: 12, step: 0.15 }, noLimit: true },
+      FACES: RING_FACES, CHAOS: WD.CHAOS, EVENTS: WD.EVENTS, FUNK, POWERS,
+      LOOT: [
+        { id: 'defuse', t: '🧯 Entschärfer-Kit!' },
+        { id: 'money', t: '💰 Kiste voller Dulis! +Ð150.', money: 150 },
+        { id: 'shield', t: '🛡️ Schutzweste! Blockt die nächste Miete.' },
+        { id: 'boost', t: '⚡ Sprint! Dein nächster Wurf geht 3 Felder weiter.' },
+      ],
+      starts: ['bk', 'bk', 'bk', 'bk', 'bk', 'bk'],
+      VIEW: { w: 1000, h: 700, cx: 500, cy: 350 },
+      words: { zone: 'Sektor', city: 'Feld', cities: 'Felder' },
+    };
+  }
+
   for (const b of Object.values(BOARDS)) b.CARDS = CARDS;
   root.DULI_BOARDS = Object.assign(root.DULI_BOARDS || {}, BOARDS);
   if (root.DULI_BOARDS.world) root.DULI_BOARDS.world.CARDS = CARDS;
