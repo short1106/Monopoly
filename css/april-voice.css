@@ -1,0 +1,23 @@
+/* Aprils Sprüche (Untertitel unten links) und der Periodenmodus */
+.av-bubble { position: fixed; left: 14px; bottom: 14px; z-index: 9999; display: flex; align-items: center; gap: 10px; max-width: min(440px, calc(100vw - 28px)); padding: 8px 12px 8px 8px; border: 1px solid #ff7ae6; border-radius: 14px; background: rgba(14, 11, 19, .94); box-shadow: 0 10px 30px rgba(0, 0, 0, .55), 0 0 18px rgba(255, 122, 230, .25); animation: av-in .25s ease-out; }
+.av-bubble[hidden] { display: none; }
+.av-face { flex: none; width: 46px; height: 46px; padding: 0; border: 0; background: none; cursor: pointer; }
+.av-face svg { width: 100%; height: 100%; animation: av-talk .5s ease-in-out infinite alternate; }
+.av-text { margin: 0; font-weight: 700; font-size: 14px; line-height: 1.35; color: #f6f1fc; }
+.av-mute { flex: none; align-self: flex-start; padding: 2px 6px; border: 1px solid #33284a; border-radius: 6px; background: none; color: #a898bf; font-size: 10px; cursor: pointer; }
+.av-foot { color: #a898bf; opacity: .7; }
+@keyframes av-in { from { transform: translateY(12px); opacity: 0; } }
+@keyframes av-talk { to { transform: rotate(-4deg) translateY(-2px); } }
+
+/* Periodenmodus: alles wird rot, Tampons fallen */
+body.is-period::after { content: ""; position: fixed; inset: 0; z-index: 9990; pointer-events: none; background: rgba(255, 0, 48, .62); mix-blend-mode: color; animation: av-pulse 2.4s ease-in-out infinite alternate; }
+body.is-period::before { content: ""; position: fixed; inset: 0; z-index: 9989; pointer-events: none; background: radial-gradient(ellipse at center, transparent 40%, rgba(140, 0, 20, .55)); }
+body.is-period main, body.is-period .board, body.is-period #party { filter: sepia(.5) saturate(2.2) hue-rotate(-40deg); }
+body.is-period .av-bubble { border-color: #ff2a4a; box-shadow: 0 0 24px rgba(255, 42, 74, .6); }
+.av-period { position: fixed; inset: 0; z-index: 9995; pointer-events: none; overflow: hidden; }
+.av-period i { position: absolute; top: -80px; left: var(--x); width: 26px; height: 62px; transform: rotate(var(--r));
+  background: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 62'%3E%3Cpath d='M13 40 C 13 48 8 52 12 61' stroke='%233ad1ff' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3Crect x='3' y='2' width='20' height='40' rx='10' fill='%23fff'/%3E%3Cpath d='M6 12h14M5 20h16M5 28h16' stroke='%23e6dff0' stroke-width='2'/%3E%3Crect x='3' y='2' width='20' height='40' rx='10' fill='none' stroke='%23d8cfe6' stroke-width='1.2'/%3E%3C/svg%3E") center / contain no-repeat;
+  animation: av-fall var(--d) linear infinite; animation-delay: var(--w); filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .4)); }
+@keyframes av-fall { to { transform: translateY(calc(100vh + 160px)) rotate(calc(var(--r) + 300deg)); } }
+@keyframes av-pulse { to { opacity: .8; } }
+@media (prefers-reduced-motion: reduce) { .av-period i { animation-duration: 30s; } .av-face svg { animation: none; } }

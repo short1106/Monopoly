@@ -2,7 +2,9 @@
 (function () {
   const U = window.DULI_UNO, FX = window.DULI_FX, esc = window.DULI_PARTY.esc;
   const SYM = { skip: '⊘', rev: '⇄', d2: '+2', d4: '+4', wild: '', april: '' };
-  let pick = null, lastFx = null, lastTurn = null;
+  let pick = null, lastFx = null, lastTurn = null, lastWin = null;
+  const VO = window.DULI_VOICE;
+  if (VO) VO.remap({ card: ['card', 0.04], jail: ['loss', 0.5] });
 
   function cardHTML(c, attrs = '', cls = '') {
     const col = c.c ? `c-${c.c}` : 'c-wild';
@@ -29,10 +31,12 @@
     // Soundeffekte und Hinweise
     if (V.fx && lastFx !== V.fx.seq) {
       if (lastFx != null) FX && FX.play(V.fx.kind === 'play' ? 'card' : V.fx.kind === 'catch' ? 'jail' : 'coinDown');
+      if (lastFx != null && VO && V.fx.kind === 'play' && V.fx.card && V.fx.card.v === 'd4') VO.say('d4', { chance: 0.6 });
       lastFx = V.fx.seq;
     }
     if (myTurn && lastTurn !== `${V.logSeq}|${cur.id}` && lastTurn && !lastTurn.endsWith(me)) FX && FX.play('turn');
     lastTurn = `${V.logSeq}|${cur.id}`;
+    if (V.winner && lastWin !== `${V.round}|${V.winner}`) { if (lastWin !== null) FX && FX.play('win'); lastWin = `${V.round}|${V.winner}`; } else if (!V.winner && lastWin === null) lastWin = '';
 
     const opp = order.map((p) => {
       const n = V.counts[p.id];
@@ -85,7 +89,7 @@
     const on = (sel, fn) => root.querySelectorAll(sel).forEach((b) => { b.onclick = () => fn(b); });
     on('[data-draw]', () => (myTurn ? api.act({ type: 'draw' }) : api.toast('Du bist nicht dran.')));
     on('[data-pass]', () => api.act({ type: 'pass' }));
-    on('[data-uno]', () => { FX && FX.play('pop'); api.act({ type: 'uno' }); });
+    on('[data-uno]', () => { FX && FX.play('pop'); VO && VO.say('uno', { force: true }); api.act({ type: 'uno' }); });
     on('[data-catch]', (b) => api.act({ type: 'catch', target: b.dataset.catch }));
     on('[data-again]', () => api.again());
     on('[data-lobby]', () => api.lobby());

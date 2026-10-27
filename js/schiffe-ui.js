@@ -24,6 +24,7 @@
     return `sh ${h ? 'sh-h' : 'sh-v'} ${k === 0 ? 'sh-a' : k === ship.cells.length - 1 ? 'sh-z' : 'sh-m'}`;
   }
 
+  if (window.DULI_VOICE) window.DULI_VOICE.remap({ jail: ['hit', 0.35], bigLoss: ['sink', 0.9], build: ['build', 0] });
   function render(root, V, me, api) {
     if (!V) return;
     const meP = V.players.find((p) => p.id === me), oP = V.players.find((p) => p.id !== me);
@@ -78,6 +79,7 @@
       <ul class="uno-log">${V.log.slice(-4).reverse().map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`;
     if (V.phase === 'over') {
       const w = V.players.find((p) => p.id === V.winner);
+      if (L.wonSeq !== (V.last || {}).seq) { L.wonSeq = (V.last || {}).seq; if (window.DULI_VOICE) window.DULI_VOICE.say(w.id === me ? 'win' : 'loss', { force: true }); }
       h += `<div class="uno-over"><div class="p-card"><p class="sec-label"><span class="n">SEESCHLACHT</span>Vorbei</p><h2>${w.id === me ? 'Sieg! Die Flotte ist versenkt.' : `${esc(w.name)} gewinnt.`}</h2>
         <p class="p-sub">Schließ das Fenster, um die aufgedeckten Flotten zu sehen.</p>
         <div class="btn-row">${api.isHost ? '<button class="btn btn-primary" data-again>Revanche</button><button class="btn btn-ghost" data-lobby>Zur Lobby</button>' : ''}<button class="btn btn-ghost" data-close>Ansehen</button></div></div></div>`;

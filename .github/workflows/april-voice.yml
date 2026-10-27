@@ -1,0 +1,35 @@
+# Nimmt Aprils Sprüche einmal mit ElevenLabs auf und committet die MP3s nach assets/voice/.
+# Braucht das Repository-Secret ELEVENLABS_API_KEY. Läuft, wenn sich die Sprüche ändern, oder per Hand (Actions → Run workflow).
+name: Aprils Stimme aufnehmen
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - js/april-lines.js
+      - tools/april-voice.mjs
+      - .github/workflows/april-voice.yml
+permissions:
+  contents: write
+concurrency:
+  group: april-voice-${{ github.ref }}
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Sprüche aufnehmen
+        run: node tools/april-voice.mjs
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+      - name: MP3s committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/voice
+          if git diff --cached --quiet; then echo "Nichts Neues."; exit 0; fi
+          git commit -m "Aprils Stimme: Sprüche aufgenommen"
+          git pull --rebase
+          git push

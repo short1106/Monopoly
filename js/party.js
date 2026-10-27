@@ -160,6 +160,7 @@
       const V = App.view;
       if (!App.mode) return renderHome();
       if (!V) { root.innerHTML = '<div class="p-card"><p class="p-wait">Verbinde mit dem Raum …</p></div>'; return; }
+      if (V.phase !== App.lastPhase) { if (V.phase === 'play' && App.lastPhase === 'lobby' && window.DULI_VOICE) window.DULI_VOICE.say('start', { force: true }); App.lastPhase = V.phase; }
       if (V.phase === 'lobby') return renderLobby(V);
       G.render(root, V.S, myId, { act, toast, esc, players: V.players, settings: V.settings, isHost: V.host === myId, solo: !!App.solo, again: () => act({ type: 'again' }), lobby: () => act({ type: 'lobby' }),
         broadcast: (data) => { if (App.mode === 'host' && !App.solo) Net.broadcast({ type: 'custom', data }); } });
@@ -172,12 +173,12 @@
           <button id="p-create" class="btn btn-primary">Online-Raum erstellen</button>
           <div class="divider"><span>oder</span></div>
           <div class="join-row"><label class="field"><span>Raum-Code</span><input id="p-code" maxlength="4" autocomplete="off" placeholder="ABCD" value="${esc(new URLSearchParams(location.search).get('raum') || '')}"></label><button id="p-join" class="btn">Beitreten</button></div>
-          <button id="p-solo" class="btn btn-ghost">${esc(G.soloLabel || 'Gegen Bots spielen')}</button>
+          ${G.noSolo ? '' : `<button id="p-solo" class="btn btn-ghost">${esc(G.soloLabel || 'Gegen Bots spielen')}</button>`}
         </div></div>
         <div class="p-rules">${G.rulesHTML || ''}</div>`;
       $('#p-create').onclick = () => hostRoom(true);
       $('#p-join').onclick = joinRoom;
-      $('#p-solo').onclick = () => hostRoom(false);
+      if ($('#p-solo')) $('#p-solo').onclick = () => hostRoom(false);
       $('#p-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') joinRoom(); });
     }
     function renderLobby(V) {

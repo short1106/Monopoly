@@ -1,0 +1,46 @@
+/* DULIDAN Stadt Land Fluss */
+.slf { display: grid; gap: 14px; width: min(980px, 100%); margin: 0 auto; }
+.slf-head { display: flex; align-items: center; gap: 16px; }
+.slf-letter { flex: none; display: grid; place-items: center; width: 84px; height: 84px; border-radius: 18px; background: var(--grad); font: 900 54px var(--font); color: #fff; box-shadow: 0 10px 30px -8px rgba(218, 41, 207, .7); animation: slf-pop .4s ease-out; }
+@keyframes slf-pop { from { transform: scale(.4) rotate(-20deg); opacity: 0; } }
+.slf-head .sec-label { margin: 0; }
+.slf-sub { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+.slf-timer { margin-left: auto; font: 800 30px var(--mono, monospace); }
+.slf-timer.low { color: var(--danger); animation: slf-blink .5s steps(2) infinite; }
+@keyframes slf-blink { 50% { opacity: .4; } }
+.slf-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.slf-fields input { font-size: 17px; }
+.slf-btns { justify-content: center; }
+.slf-btns .btn { flex: 0 1 260px; }
+.slf-stop { font-size: 20px; letter-spacing: .15em; }
+.slf-who ul { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.slf-who li { padding: 4px 10px; border: 1px solid var(--line); border-left: 3px solid var(--pc); border-radius: 6px; font-size: 13px; }
+.slf-who small { color: var(--muted); }
+.slf-stopped { margin: 0 0 8px; text-align: center; color: var(--danger); font-weight: 800; }
+.slf-board { list-style: none; margin: 0 auto; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.slf-board li { display: flex; gap: 10px; padding: 6px 12px; border-radius: 8px; background: rgba(255, 255, 255, .04); border-bottom: 3px solid var(--pc); font-size: 13px; }
+.slf-board b { font-family: var(--mono, monospace); }
+.slf-table { overflow-x: auto; padding: 0; }
+.slf-table table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.slf-table th, .slf-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.slf-table th { font: 700 12px var(--mono, monospace); letter-spacing: .08em; }
+.slf-cat { color: var(--muted); font-weight: 700; white-space: nowrap; }
+.slf-table td small { display: block; color: var(--danger); font-size: 11px; }
+.slf-a { display: block; font-weight: 600; word-break: break-word; }
+.slf-a i { color: var(--muted); }
+.slf-table td.bad .slf-a { text-decoration: line-through; color: var(--muted); }
+.slf-pts { display: inline-block; margin-top: 4px; padding: 1px 6px; border-radius: 5px; font: 700 11px var(--mono, monospace); background: rgba(255, 255, 255, .06); }
+.slf-pts.p20 { background: rgba(60, 224, 138, .2); color: var(--ok); }
+.slf-pts.p10 { background: rgba(218, 41, 207, .2); color: #ff7ae6; }
+.slf-pts.p5 { background: rgba(255, 216, 58, .15); color: #ffd83a; }
+.slf-veto { margin: 4px 0 0 6px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 5px; background: none; color: var(--muted); font-size: 11px; cursor: pointer; }
+.slf-veto.on { border-color: var(--danger); color: var(--danger); }
+.slf-sum td { font-weight: 800; font-family: var(--mono, monospace); border-bottom: 0; }
+.slf-readyline { text-align: center; }
+.slf-final { display: grid; gap: 12px; }
+.slf-final h2 { margin: 0; }
+.slf-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.is-slf .p-settings { display: grid; gap: 10px; }
+.is-slf .p-settings select { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.is-slf .p-settings input:not(.switch) { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+@media (max-width: 600px) { .slf-letter { width: 64px; height: 64px; font-size: 40px; } .slf-head { flex-wrap: wrap; } .slf-timer { font-size: 24px; } }

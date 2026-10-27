@@ -93,7 +93,7 @@
       if (p.sheet[cat] != null || G.rolls === 3) return;
       p.sheet[cat] = knScore(cat, G.dice);
       sound(p.sheet[cat] >= 25 ? 'cash' : 'pop');
-      if (cat === 'kniffel' && p.sheet[cat] === 50) { api.say(`KNIFFEL! ${p.name} hat fünf Gleiche!`); sound('win'); }
+      if (cat === 'kniffel' && p.sheet[cat] === 50) { api.say(`KNIFFEL! ${p.name} hat fünf Gleiche!`); sound('win'); if (window.DULI_VOICE) window.DULI_VOICE.say('kniffel', { force: true }); }
       next();
     }
     function next() {

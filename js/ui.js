@@ -3437,6 +3437,7 @@
     moneyPops();
     if (S.phase === 'over' && App.lastPhase !== 'over') {
       FX.confetti();
+      if (window.DULI_VOICE) window.DULI_VOICE.say('win', { force: true });
       const w = P(S.winner);
       const { fresh, xp, camp } = gameOverRewards();
       openModal(`<div class="winner">${camp ? campEndHTML(camp) : ''}${tokHTML(w.token, w.color)}<h2>${esc(w.name)} gewinnt!</h2><p>${world ? 'Die Welt gehört jetzt Dulidan. 🌍💜' : 'Herzlichen Glückwunsch zum Dulidanopoly-Sieg. 💜'}</p>
@@ -3445,6 +3446,7 @@
         ${fresh.length ? `<h3 class="ach-title">🏅 Neue Erfolge</h3><div class="ach-grid">${fresh.map((a) => `<div class="ach is-got is-new"><span class="ach-ic">${a.icon}</span><strong>${a.name}</strong><small>${a.text}</small></div>`).join('')}</div>` : ''}
         ${awardsHTML()}</div>`);
     }
+    if (S.phase === 'play' && App.lastPhase === 'lobby' && window.DULI_VOICE) window.DULI_VOICE.say('start', { force: true });
     App.lastPhase = S.phase;
   }
 })();

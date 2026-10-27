@@ -41,7 +41,19 @@ Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo,
 - 🚶 **SPIEL DES LEBENS** (`leben.html`): 1–6 Personen online. April (KI, Claude von Anthropic) leitet das Spiel: Alle starten mit 18, jede Runde (Monat, Quartal, Halbjahr oder Jahr) bekommt jede Person ein Event und antwortet frei. Werte Gesundheit, Geld, Macht, Happiness, laufende Effekte, Beziehungen, Lebenschronik. Echte Karte (OpenStreetMap): mieten, kaufen, finanzieren, vermieten, verkaufen. Prüfungen per Würfel oder Quiz, Tod ist endgültig (neue Figur oder die anderen gewinnen). Eigene Figuren werden auf dem Gerät gespeichert und lassen sich per Code teilen.
   - Der Host trägt unter „KI & Stimme“ einen eigenen Anthropic-API-Schlüssel ein (optional einen ElevenLabs-Schlüssel für Aprils Stimme). Die Schlüssel bleiben nur im Browser des Hosts und gehen direkt an die APIs. Ist das ElevenLabs-Guthaben leer, läuft das Spiel einfach ohne Stimme weiter.
   - `js/leben.js` (Regeln, Grenzen für Aprils Vorschläge, Immobilien) · `js/leben-ai.js` (Prompt, Claude-Aufruf, Stimme) · `js/leben-ui.js` · `vendor/anthropic-sdk.js` (Anthropic TypeScript SDK, MIT) · `vendor/leaflet/` (Leaflet, BSD-2). Adressen: Nominatim/OpenStreetMap.
+- 🎲 **KNIFFEL** (`kniffel.html`): 1–6 Personen online plus Bots. Würfel halten, drei Würfe, gemeinsamer Block, Revanche.
+- ✍️ **STADT LAND FLUSS** (`slf.html`): 2–10 Personen online. Eigene Kategorien (oder Vorlagen Klassisch, Dulidan, 18+), STOPP mit 10 Sekunden Gnadenfrist, Veto gegen Quatsch-Antworten, Punkte 20/10/5.
 - Alle nutzen `js/party.js` (Lobby, Raum-Code, Bots, Host schickt jeder Person nur ihre eigene Sicht).
+
+## Aprils Sprüche und Stimme
+Auf allen Seiten kommentiert April unten links (Spielstart, Sieg, Pleite, Knast, Kniffel, UNO, Treffer, STOPP …). Die Texte stehen in `js/april-lines.js`.
+Aufgenommen werden sie **einmal** mit ElevenLabs, danach spielt die Seite die MP3s aus `assets/voice/` ohne Token-Verbrauch ab:
+1. GitHub → Repository → Settings → Secrets and variables → Actions → **New repository secret**: Name `ELEVENLABS_API_KEY`, Wert = ElevenLabs-Schlüssel.
+2. Actions → **Aprils Stimme aufnehmen** → Run workflow (oder den letzten Lauf mit „Re-run jobs“ neu starten).
+3. Die Action committet die MP3s. Neue oder geänderte Sprüche in `js/april-lines.js` werden beim nächsten Push automatisch nachgenommen.
+Ohne Aufnahme zeigt April die Sprüche nur als Untertitel. „aus“ in der Sprechblase schaltet sie ab.
+
+**Periodenmodus:** Strg + Alt + P (oder 5× auf April in der Sprechblase tippen). Alles wird rot, es regnet Tampons, und April beschwert sich bei Shaqy.
 
 ## Technik
 - Symbole: [game-icons.net](https://game-icons.net) von Lorc, Delapouite und weiteren Autor:innen, Lizenz [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). `js/icons.js` ersetzt beim Anzeigen jedes Emoji durch eines dieser Symbole.
