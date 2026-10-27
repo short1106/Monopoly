@@ -36,5 +36,13 @@
  "period-on": "9c188cc4a5e4",
  "period-on-2": "c92878037102",
  "period-off": "54624c598a5d",
- "period-hint": "a5abb775c083"
+ "period-hint": "a5abb775c083",
+ "geo-perfect-1": "a5e3fdd3ab57",
+ "geo-perfect-2": "954a0c595dd6",
+ "geo-good-1": "312ba576d103",
+ "geo-bad-1": "94b3a8e43363",
+ "geo-bad-2": "97b987c26edf",
+ "country-right-1": "25dbcddf470d",
+ "country-wrong-1": "7e2f4fc7e24c",
+ "country-wrong-2": "e98cb07e3ca4"
 }
