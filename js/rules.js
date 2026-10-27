@@ -2,6 +2,7 @@
 // außer eine Regel ist mit only: 'classic' nur fürs klassische Brett (und Casino) gedacht.
 (function (root) {
   const RULES = [
+    { id: 'splitSteal', icon: '🤝', name: 'Split or Steal', hot: true, text: 'Wer auf Aprils Pause landet, spielt mit einer zufälligen Person um die Spardose. Erst behaupten (Lüge erlaubt), dann geheim: Teilen oder Klauen?', only: 'classic' },
     { id: 'doublesCash', icon: '🎲', name: 'Pasch-Prämie', text: 'Jeder Pasch bringt Ð50.' },
     { id: 'lucky7', icon: '🍀', name: 'Glückszahl 7', text: 'Wer genau 7 würfelt, bekommt Ð77.' },
     { id: 'monopoly3', icon: '👑', name: 'Monopol-Power', text: 'Eine ganze Farbgruppe kassiert 3× statt 2× Miete.' },
@@ -18,7 +19,6 @@
     { id: 'secret', icon: '🕵️', name: 'Geheimes Konto', text: 'Das Geld der anderen ist versteckt. Pokerface!' },
     { id: 'noAuction', icon: '🔨', name: 'Keine Auktionen', text: 'Nicht gekaufte Felder bleiben einfach frei.', only: 'classic' },
     { id: 'jailRent', icon: '⛓️', name: 'Knast ohne Miete', text: 'Wer in Düsseldorf sitzt, kassiert keine Miete.', only: 'classic' },
-    { id: 'splitSteal', icon: '🤝', name: 'Split or Steal', text: 'Wer auf Aprils Pause landet, spielt mit einer zufälligen Person um die Spardose. Erst behaupten (Lüge erlaubt), dann geheim: Teilen oder Klauen?', only: 'classic' },
     { id: 'noJail', icon: '🚫', name: 'Düsseldorf light', text: 'Statt Knast zahlt man Ð100 in die Spardose.', only: 'classic' },
   ];
   const VARIANTS = [

@@ -631,7 +631,8 @@
   }
   function ruleCards(st, world) {
     const rules = st.rules || {};
-    const extra = world ? [] : [
+    const love = { id: 'mood', setting: 'mood', icon: '💖', name: 'Aprils Laune', text: 'Balken „mag dich“: April mag jede Person anders, lässt sich bestechen, macht Geschenke und rächt sich bei Hass.', on: st.mood !== false };
+    const extra = world ? [love] : [love,
       { id: 'pot', setting: 'pot', icon: '🐷', name: 'Aprils Spardose', text: 'Steuern und Strafen sammeln sich auf „Aprils Pause“.', on: st.pot !== false },
       { id: 'goDouble', setting: 'goDouble', icon: '💸', name: 'Doppelt auf LOS', text: 'Wer genau auf LOS landet, bekommt das Gehalt doppelt.', on: !!st.goDouble },
     ];
@@ -693,7 +694,7 @@
       <div class="variant-grid">${VARIANTS.map((v) => `<button type="button" class="variant ${v.id === curVar ? 'is-on' : ''}" data-variant="${v.id}" ${ro}><span class="v-ic">${varIcon(v)}</span><strong>${v.name}</strong><small>${esc(vText(v))}</small></button>`).join('')}</div>`;
     const rules = ruleCards(st, world);
     $('#rule-grid').innerHTML = rules.map((r) => `<button type="button" class="rule-card ${r.on ? 'is-on' : ''}" data-rule="${r.id}" ${r.setting ? `data-setting="${r.setting}"` : ''} aria-pressed="${r.on}" ${ro}>
-      <span class="rc-ic">${r.icon}</span><strong>${r.name}</strong><small>${esc(r.text)}</small><i class="rc-check" aria-hidden="true"></i></button>`).join('');
+      <span class="rc-ic">${r.icon}</span><strong>${r.name}${r.hot ? ' <i class="rc-new">NEU</i>' : ''}</strong><small>${esc(r.text)}</small><i class="rc-check" aria-hidden="true"></i></button>`).join('');
     $('#rule-count').textContent = `${rules.filter((r) => r.on).length} aktiv`;
     const yrs = [3, 5, 10, 0].includes(st.years) ? st.years : 5;
     $('#fine-settings').innerHTML = `
@@ -707,8 +708,6 @@
         ${ro ? '' : uiBtn('Editor', 'editor', 'btn-small btn-ghost')}</span></label>` : ''}
       <label class="row"><span>🎨 Brett-Skin<small>Nur auf deinem Gerät</small></span>
         <select id="set-skin">${SKINS.map(([id, n, ic]) => `<option value="${id}" ${document.documentElement.dataset.skin === id ? 'selected' : ''}>${ic} ${n}</option>`).join('')}</select></label>
-      ${real ? '' : `<label class="row"><span>💖 Aprils Laune<small>April mag jede Person anders, lässt sich bestechen, macht Geschenke – und rächt sich, wenn sie dich hasst</small></span>
-        <input type="checkbox" class="switch" id="set-mood" ${st.mood !== false ? 'checked' : ''} ${ro}></label>`}
       ${world ? `<p class="row"><span>Spielende<small>${endText(W.board(mode))}</small></span></p>` : ''}`;
 
     $('#lobby-players').innerHTML = S.players.map((p, i) => `
