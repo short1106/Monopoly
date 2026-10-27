@@ -18,6 +18,7 @@
     { id: 'secret', icon: '🕵️', name: 'Geheimes Konto', text: 'Das Geld der anderen ist versteckt. Pokerface!' },
     { id: 'noAuction', icon: '🔨', name: 'Keine Auktionen', text: 'Nicht gekaufte Felder bleiben einfach frei.', only: 'classic' },
     { id: 'jailRent', icon: '⛓️', name: 'Knast ohne Miete', text: 'Wer in Düsseldorf sitzt, kassiert keine Miete.', only: 'classic' },
+    { id: 'splitSteal', icon: '🤝', name: 'Split or Steal', text: 'Wer auf Aprils Pause landet, spielt mit einer zufälligen Person um die Spardose. Erst behaupten (Lüge erlaubt), dann geheim: Teilen oder Klauen?', only: 'classic' },
     { id: 'noJail', icon: '🚫', name: 'Düsseldorf light', text: 'Statt Knast zahlt man Ð100 in die Spardose.', only: 'classic' },
   ];
   const VARIANTS = [

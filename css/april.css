@@ -1124,3 +1124,15 @@ b.warn { color: #ff7a93; }
 .tg-grade { font-size: 64px; font-weight: 800; line-height: 1; color: #3ce08a; text-shadow: 0 0 30px rgba(60, 224, 138, .8); }
 .tg-grade.g-D, .tg-grade.g-F { color: #ff3d5e; text-shadow: 0 0 30px rgba(255, 61, 94, .8); }
 .tg-grade.g-C { color: #ffd83a; text-shadow: 0 0 30px rgba(255, 216, 58, .7); }
+
+/* ================= LOGISTICS ================= */
+.board.is-logi .t-station .cicon { font-size: max(12px, 3cqi); }
+#tracks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1; }
+.board.is-logi .center { isolation: isolate; }
+#tracks .trk { fill: none; stroke: rgba(255, 255, 255, .12); stroke-width: 1.5; stroke-dasharray: 4 5; }
+#tracks .trk.is-on { stroke: var(--pc); stroke-width: 5; stroke-dasharray: none; filter: drop-shadow(0 0 6px var(--pc)); stroke-linecap: round; }
+.logi-deed .deed-note strong { color: var(--fg); }
+.logi-h { margin: 12px 0 4px; font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.logi-lines td small { display: block; color: var(--muted); font-size: 11px; }
+.logi-lines td:last-child { text-align: right; }
+.trk-on { display: inline-block; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--pc); color: var(--fg); font-size: 12px; margin-right: 6px; }

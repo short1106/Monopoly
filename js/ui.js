@@ -5,7 +5,7 @@
   const MOOD = window.DULI_MOOD, CZ = window.DULI_CASINO, RL = window.DULI_RULES, CAMP = window.DULI_CAMPAIGN;
   const isWorld = () => !!(App.S && W.MODES.includes(App.S.mode));
   const GB = () => W.board(App.S.mode);
-  const R = window.DULI_REAL;
+  const R = window.DULI_REAL, LG = window.DULI_LOGI;
   const isReal = () => !!(App.S && App.S.isReal);
   const ENG = () => (isWorld() ? W : isReal() ? R : E);
   const { GROUPS, TOKENS } = D;
@@ -606,12 +606,13 @@
 
   const VARIANTS = RL.VARIANTS;
   const varIcon = (v) => (v.icon === 'april' ? aprilIcon('v-april') : v.icon);
-  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['40 Fragen', 'Joker'], bomb: ['Heiße Kartoffel'], realistic: ['Quartale', 'Steuern', 'NEU'] };
+  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['40 Fragen', 'Joker'], bomb: ['Heiße Kartoffel'], realistic: ['Quartale', 'Steuern', 'NEU'], logistics: ['Schienen', 'Netze', 'NEU'] };
   function modeList() {
     return [
       { id: 'classic', icon: '🎲', name: 'Klassisch', text: 'Das Brett mit Duisburg und Öhringen. Als MINI, Normal oder MEGA-Weltreise.' },
       { id: 'casino', icon: '🎰', name: 'DULIDAN CASINO', text: 'Jede Straße ist ein Casino. Wer bei dir landet, zockt gegen deine Bank.' },
       ...W.MODES.map((id) => { const b = W.board(id); return { id, icon: b.icon || '🌍', name: b.title, text: b.tagline }; }),
+      { id: 'logistics', icon: '🚆', name: 'LOGISTICS', text: 'Nur Bahnhöfe, Flughäfen und Häfen. Leg teure Schienen: Je größer dein Netz, desto höher die Miete.' },
       { id: 'realistic', icon: '🏢', name: 'REALISTIC', text: 'Echte Immobilien: Quartale, Kredite, SCHUFA, Mieter, Hotels, Steuererklärung und Anwälte.' },
     ].map((m) => Object.assign(m, { tags: MODE_TAGS[m.id] || [] }));
   }
@@ -697,9 +698,9 @@
       ${real ? `<label class="row"><span>Spieldauer<small>Eine Runde ist ein Quartal. Am Ende gewinnt das höchste Nettovermögen. Alle starten mit Ð250.000 und einem Job.</small></span>
         <select id="set-years" ${ro}>${[[3, '3 Jahre (12 Quartale)'], [5, '5 Jahre (20 Quartale)'], [10, '10 Jahre (40 Quartale)'], [0, 'Bis zur Insolvenz']].map(([v, l]) => `<option value="${v}" ${yrs === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : `<label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
         <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>`}
-      ${!world && !real && mode !== 'casino' ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
+      ${!world && !real && !['casino', 'logistics'].includes(mode) ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
         <select id="set-size" ${ro}>${[['mini', '⚡ MINI (24 Felder)'], ['normal', 'Normal (40 Felder)'], ['mega', '🚀 MEGA (120 Felder)']].map(([v, l]) => `<option value="${v}" ${(st.size || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
-      ${!world && !real && (st.size || 'normal') === 'normal' ? `<label class="row"><span>🛠️ Straßennamen<small>${st.names && Object.keys(st.names).length ? `Eigenes Brett „${esc(st.boardName || 'Eigenes Brett')}“ mit ${Object.keys(st.names).length} neuen Namen` : 'Originalnamen. Eigene Namen baust du im Brett-Editor.'}</small></span>
+      ${!world && !real && mode !== 'logistics' && (st.size || 'normal') === 'normal' ? `<label class="row"><span>🛠️ Straßennamen<small>${st.names && Object.keys(st.names).length ? `Eigenes Brett „${esc(st.boardName || 'Eigenes Brett')}“ mit ${Object.keys(st.names).length} neuen Namen` : 'Originalnamen. Eigene Namen baust du im Brett-Editor.'}</small></span>
         <span class="row-ctl"><select id="set-board" ${ro}><option value="orig">Original</option>${(st.names && Object.keys(st.names).length) || Object.keys(myBoard().names).length ? `<option value="custom" ${st.names && Object.keys(st.names).length ? 'selected' : ''}>🛠️ ${esc(st.names && Object.keys(st.names).length ? st.boardName || 'Eigenes Brett' : myBoard().name)}</option>` : ''}</select>
         ${ro ? '' : uiBtn('Editor', 'editor', 'btn-small btn-ghost')}</span></label>` : ''}
       <label class="row"><span>🎨 Brett-Skin<small>Nur auf deinem Gerät</small></span>
@@ -790,14 +791,16 @@
     board.classList.toggle('is-casino', casino);
     const mega = BRD.id === 'mega', L = BRD.N / 4;
     board.classList.toggle('is-mega', mega);
-    const custom = !['normal', 'real'].includes(BRD.id);
+    const custom = !['normal', 'real', 'logi'].includes(BRD.id);
+    const logi = BRD.id === 'logi';
+    board.classList.toggle('is-logi', logi);
     const real = BRD.id === 'real';
     board.classList.toggle('is-mini', BRD.id === 'mini');
     board.style.gridTemplateColumns = board.style.gridTemplateRows = custom ? `1.55fr repeat(${L - 1}, 1fr) 1.55fr` : '';
     $('#center').style.gridArea = custom ? `2 / 2 / ${L + 1} / ${L + 1}` : '';
     // Das MEGA-Brett startet gezoomt, die Kamera folgt der Figur
     if (mega && !App.megaZoomInit) { App.megaZoomInit = true; $('#board-wrap').classList.add('is-zoomed'); $('#btn-zoom').textContent = 'Übersicht'; }
-    $('.center-sub').textContent = casino ? 'Casino Night · Duisburg' : real ? 'Realistic · Immobilien' : 'Duisburg · Öhringen';
+    $('.center-sub').textContent = casino ? 'Casino Night · Duisburg' : real ? 'Realistic · Immobilien' : logi ? 'Logistics · Deutschland' : 'Duisburg · Öhringen';
     SPACES.forEach((sp, i) => {
       const { r, c, side } = cellPos(i);
       const el = document.createElement('div');
@@ -815,7 +818,7 @@
           : `<div class="cicon">${(real && REAL_ICON[sp.type]) || CORNER_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>${sp.sub ? `<div class="csub">${esc(sp.sub)}</div>` : ''}`;
       } else if (sp.type === 'prop') {
         body = `${casino ? `<div class="cgame">${CZ.INFO[CZ.GAMES[sp.group]].icon}</div>` : ''}<div class="cname">${esc(sp.name)}</div><div class="cprice">${real ? MK(sp.price) : M(sp.price)}</div>`;
-      } else if (sp.type === 'rail' || sp.type === 'util') {
+      } else if (sp.type === 'rail' || sp.type === 'util' || sp.type === 'station') {
         body = `<div class="cicon">${sp.icon}</div><div class="cname">${esc(sp.name)}</div><div class="cprice">${real ? MK(sp.price) : M(sp.price)}</div>`;
       } else if (sp.type === 'tax') {
         body = `<div class="cicon">${sp.icon}</div><div class="cname">${esc(sp.name)}</div>${real ? '' : `<div class="cprice">${M(sp.amount)}</div>`}`;
@@ -823,7 +826,7 @@
         body = `<div class="cicon">${real && REAL_ICON[sp.type] ? REAL_ICON[sp.type] : sp.type === 'april' ? aprilIcon() : TYPE_ICON[sp.type] || sp.icon || ''}</div><div class="cname">${esc(sp.name)}</div>`;
       }
       el.innerHTML = (sp.type === 'prop' ? `<div class="band" style="--g:${GROUPS[sp.group].color}"></div>` : '')
-        + `<div class="cell-body">${body}</div>${['prop', 'rail', 'util'].includes(sp.type) ? '<div class="owner-flag"></div>' : ''}<div class="cell-tokens"></div>`;
+        + `<div class="cell-body">${body}</div>${['prop', 'rail', 'util', 'station'].includes(sp.type) ? '<div class="owner-flag"></div>' : ''}<div class="cell-tokens"></div>`;
       board.appendChild(el);
     });
     if (board.dataset.kbd) return;
@@ -877,6 +880,7 @@
       }
     });
 
+    renderTracks();
     // Würfel
     const [a, b] = S.dice;
     const fresh = S.rollId !== App.lastRoll;
@@ -944,6 +948,7 @@
         <table>${rows.map((r, k) => `<tr class="${highlight && owner && k === now ? 'is-now' : ''}"><td>${r[0]}</td><td>${M(r[1])}</td></tr>`).join('')}
         <tr><td>Haus / Hotel kostet</td><td>${M(g.house)}</td></tr><tr><td>Hypothek</td><td>${M(sp.price / 2)}</td></tr><tr><td>Kaufpreis</td><td>${M(sp.price)}</td></tr></table>${ownerLine}</div>`;
     }
+    if (S && S.isLogi && ['station', 'rail', 'util'].includes(sp.type)) return logiDeedHTML(i, ownerLine);
     if (sp.type === 'rail') {
       return `<div class="deed"><div class="deed-head light-text" style="--g:#2a2140">🚉 ${esc(sp.name)}<small>Bahnhof</small></div>
         <table><tr><td>1 Bahnhof</td><td>${M(25)}</td></tr><tr><td>2 Bahnhöfe</td><td>${M(50)}</td></tr><tr><td>3 Bahnhöfe</td><td>${M(100)}</td></tr><tr><td>4 Bahnhöfe</td><td>${M(200)}</td></tr>
@@ -969,6 +974,7 @@
   function openDeed(i) {
     if (!App.S) return;
     if (App.S.isReal) return openRealProp(i);
+    if (App.S.isLogi) return openModal(deedHTML(i, true), () => deedHTML(i, true));
     openModal(deedHTML(i, true));
   }
 
@@ -1286,8 +1292,11 @@
       let info = st.mort ? 'Hypothek' : '';
       if (sp.type === 'prop' && S.isCasino) info = `${CZ.INFO[CZ.GAMES[sp.group]].icon} ${CZ.LEVELS[st.houses]}${st.mort ? ' · geschlossen (Hypothek)' : ''}`;
       else if (sp.type === 'prop' && st.houses) info = st.houses === 5 ? 'Hotel' : `${st.houses} ${st.houses === 1 ? 'Haus' : 'Häuser'}`;
+      if (S.isLogi && sp.type === 'station') info = `${st.mort ? 'Hypothek · ' : ''}Netz: ${((n) => `${n} ${n > 1 ? 'Bahnhöfe' : 'Bahnhof'}`)(LG.network(S, k).length)} · Miete ${M(E.calcRent(S, k))}`;
+      if (S.isLogi && !info) info = sp.type === 'rail' ? 'Flughafen' : 'Hafen';
       if (!info) info = sp.type === 'rail' ? (S.isCasino ? 'Casino-Shuttle' : 'Bahnhof') : sp.type === 'util' ? (S.isCasino ? 'Wechselstube' : 'Werk') : 'Keine Häuser';
       let btns = '';
+      if (manage && S.isLogi && sp.type === 'station') btns += uiBtn('🛤️ Schienen', 'logiDeed', 'btn-small', `data-i="${k}"`);
       if (manage) {
         if (sp.type === 'prop' && !st.mort && E.ownsGroup(S, v.id, sp.group)) {
           const cost = E.houseCost(v, sp.group, S);
@@ -1366,6 +1375,7 @@
       return App.S && App.S.phase !== 'lobby' ? render() : null;
     }
     if (kind === 'cityInfo') return openCity(data.id);
+    if (kind === 'logiDeed') return openDeed(Number(data.i));
     if (kind === 'rxProp') return openRealProp(Number(data.i));
     if (kind === 'rxBank') return openModal(realBankHTML(), realBankHTML);
     if (kind === 'rxStmt') return openModal(stmtHTML(), stmtHTML);
@@ -1616,7 +1626,15 @@
     $('#btn-zoom').textContent = w.classList.contains('is-zoomed') ? (mega ? 'Übersicht' : 'Normal') : 'Zoom';
     followCam();
   };
-  $('#btn-rules').onclick = () => (isReal() ? openModal(realRulesHTML()) : isWorld() ? openModal(worldRulesHTML()) : openModal(`<h2>Regeln</h2><div class="rules">
+  $('#btn-rules').onclick = () => (isReal() ? openModal(realRulesHTML()) : App.S && App.S.isLogi ? openModal(`<h2>🚆 DULIDANOPOLY LOGISTICS</h2><div class="rules">
+    <p>Auf dem Brett gibt es nur Bahnhöfe, Flughäfen und Häfen. Wer zuletzt nicht pleite ist, gewinnt.</p>
+    <h3>Bahnhöfe & Schienen</h3><ul><li>20 deutsche Bahnhöfe. Allein bringt ein Bahnhof wenig Miete.</li>
+      <li>Gehören dir zwei Bahnhöfe, die durch eine echte Strecke verbunden sind, kannst du Schienen legen. Teuer: Ð100 + Ð3 pro Kilometer.</li>
+      <li>Miete = Grundmiete × Netzgröße². 2 verbundene Bahnhöfe = 4-fach, 5 = 25-fach, 10 = 100-fach. Du kannst mehrere kleine Netze haben und sie später verbinden.</li>
+      <li>Hypothek auf einen Bahnhof unterbricht das Netz. Wechselt ein Bahnhof den Besitzer, werden die Schienen daran abgebaut.</li></ul>
+    <h3>Flughäfen & Häfen</h3><ul><li>4 Flughäfen (Ð25/50/100/200) und 4 Häfen (Ð30/60/120/240) zählen wie Bahnhöfe im Klassiker.</li>
+      <li>Jeder eigene Flughafen oder Hafen gibt +10 % auf alle deine Bahnhöfe.</li></ul>
+    <h3>Sonst</h3><ul><li>Würfeln, kaufen, versteigern, handeln, Karten, Stellwerk (statt Düsseldorf) wie im Klassiker. Über LOS gibt es Ð200.</li></ul></div>`) : isWorld() ? openModal(worldRulesHTML()) : openModal(`<h2>Regeln</h2><div class="rules">
     <p>Alle starten mit ${M(Math.round(((App.S && App.S.settings && App.S.settings.startMoney) || D.START_MONEY) * BRD.moneyMult))}. Wer zuletzt nicht pleite ist, gewinnt. Bezahlt wird in Dulis (Ð).</p>
     ${BRD.id === 'mega' ? '<h3>🚀 MEGA-Brett</h3><ul><li>Einmal um die Welt: 120 Felder, von Duisburg und Öhringen über Afrika, Südamerika, Asien und Europa bis New York – und ganz am Ende das DULIDAN HQ.</li><li>Du läufst doppelt so weit, wie du würfelst. Startgeld ×1,5, über LOS gibt es Ð300.</li><li>Gebaut wird erst, wenn dir die ganze Gruppe gehört – meistens 4 Straßen. Handeln lohnt sich!</li><li>„Übersicht“ zeigt das ganze Brett, im Zoom folgt die Kamera der Figur.</li></ul>' : BRD.id === 'mini' ? '<h3>⚡ MINI-Brett</h3><ul><li>24 Felder mit den wichtigsten Straßen, jede Farbgruppe hat nur 2 Felder.</li><li>Weniger Startgeld, über LOS gibt es Ð100. Schnelle Runde für zwischendurch.</li></ul>' : ''}
     <h3>Dein Zug</h3><ul>
@@ -2685,6 +2703,68 @@
   buildHome();
   runBoot();
   applyTempo();
+
+  // ================= LOGISTICS: Schienen und Netze =================
+  function logiDeedHTML(i, ownerLine) {
+    const S = App.S, sp = SPACES[i], st = S.props[i];
+    const owner = st && P(st.owner);
+    if (sp.type === 'rail' || sp.type === 'util') {
+      const rents = sp.type === 'rail' ? [25, 50, 100, 200] : [1, 2, 3, 4].map((n) => LG.portRent(n));
+      return `<div class="deed"><div class="deed-head light-text" style="--g:#2a2140">${sp.icon} ${esc(sp.name)}<small>${sp.type === 'rail' ? 'Flughafen' : 'Hafen'}</small></div>
+        <table>${rents.map((r, k) => `<tr><td>${k + 1} ${sp.type === 'rail' ? (k ? 'Flughäfen' : 'Flughafen') : (k ? 'Häfen' : 'Hafen')}</td><td>${M(r)}</td></tr>`).join('')}
+        <tr><td>Bonus</td><td>+10 % auf alle deine Bahnhöfe</td></tr><tr><td>Hypothek</td><td>${M(sp.price / 2)}</td></tr><tr><td>Kaufpreis</td><td>${M(sp.price)}</td></tr></table>${ownerLine}</div>`;
+    }
+    const net = owner ? LG.network(S, i) : [i];
+    const v = viewer();
+    const manage = owner && v && owner.id === v.id && S.phase === 'play' && curP().id === v.id && canControl(v.id) && ['roll', 'end', 'debt', 'buy'].includes(S.sub);
+    const sizes = [1, 2, 3, 4, 6, 8, 12];
+    const lines = LG.LINES.filter((l) => l.a === i || l.b === i).map((l) => {
+      const j = l.a === i ? l.b : l.a, t = (S.tracks || []).find((x) => LG.key(x.a, x.b) === LG.key(l.a, l.b));
+      const oj = S.props[j].owner && P(S.props[j].owner);
+      const cost = E.trackCost(S, i, j);
+      let status;
+      if (t) status = `<span class="trk-on" style="--pc:${P(t.owner).color}">liegt (${esc(P(t.owner).name)})</span>${manage && t.owner === v.id ? kbtn(`Rückbau +${M(Math.floor(t.cost / 2))}`, { type: 'untrack', a: i, b: j }, v.id, 'btn-small btn-ghost') : ''}`;
+      else if (manage && oj && oj.id === v.id && !S.props[j].mort && !st.mort) status = kbtn(`🛤️ Bauen ${M(cost)}`, { type: 'track', a: i, b: j }, v.id, 'btn-small', v.money < cost, v.money < cost ? 'Zu wenig Geld' : '');
+      else status = `<small>${oj ? `gehört ${esc(oj.name)}` : 'noch frei'} · ${M(cost)}</small>`;
+      return `<tr><td>🚉 ${esc(SPACES[j].name)}<small>${l.km} km</small></td><td>${status}</td></tr>`;
+    }).join('');
+    return `<div class="deed logi-deed"><div class="deed-head light-text" style="--g:#1b3a2a">🚉 ${esc(sp.name)}<small>${esc(sp.sub || 'Bahnhof')}</small></div>
+      <p class="deed-note">Miete = ${M(sp.price / 8)} × Netzgröße². Netz = deine Bahnhöfe, die mit deinen Schienen verbunden sind. +10 % pro eigenem Flughafen oder Hafen.${owner ? ` Aktuelles Netz: <strong>${net.length} Bahnhöfe</strong> → ${M(E.calcRent(S, i))}.` : ''}</p>
+      <table><tr><th>Netz</th><th>Miete (ohne Bonus)</th></tr>${sizes.map((n) => `<tr class="${owner && n === net.length ? 'is-now' : ''}"><td>${n} ${n > 1 ? 'Bahnhöfe' : 'Bahnhof'}</td><td>${M(Math.round((sp.price / 8) * n * n))}</td></tr>`).join('')}</table>
+      <h4 class="logi-h">Strecken</h4><table class="logi-lines">${lines}</table>
+      <table><tr><td>Hypothek</td><td>${M(sp.price / 2)} (unterbricht das Netz)</td></tr><tr><td>Kaufpreis</td><td>${M(sp.price)}</td></tr></table>${ownerLine}</div>`;
+  }
+  // Schienennetz als Linien quer durch die Brettmitte
+  function renderTracks() {
+    const S = App.S, c = $('#center');
+    let svg = $('#tracks');
+    if (!S || !S.isLogi) { if (svg) svg.remove(); return; }
+    const cr = c.getBoundingClientRect();
+    if (!cr.width) return;
+    const key = JSON.stringify([S.tracks, Math.round(cr.width), Math.round(cr.height), Object.keys(S.props).map((k) => S.props[k].owner)]);
+    if (svg && svg.dataset.k === key) return;
+    if (!svg) { svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.id = 'tracks'; svg.setAttribute('aria-hidden', 'true'); c.prepend(svg); }
+    svg.dataset.k = key;
+    const W0 = cr.width, H0 = cr.height;
+    svg.setAttribute('viewBox', `0 0 ${W0} ${H0}`);
+    const pt = (i) => {
+      const r = document.querySelector(`#board .cell[data-i="${i}"]`).getBoundingClientRect();
+      return [Math.max(6, Math.min(W0 - 6, r.left + r.width / 2 - cr.left)), Math.max(6, Math.min(H0 - 6, r.top + r.height / 2 - cr.top))];
+    };
+    const path = (a, b) => {
+      const [x1, y1] = pt(a), [x2, y2] = pt(b);
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      const cx = mx + (W0 / 2 - mx) * 0.35, cy = my + (H0 / 2 - my) * 0.35;
+      return `M${x1.toFixed(1)} ${y1.toFixed(1)} Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`;
+    };
+    const out = LG.LINES.map((l) => {
+      const t = (S.tracks || []).find((x) => LG.key(x.a, x.b) === LG.key(l.a, l.b));
+      return t ? `<path class="trk is-on" style="--pc:${P(t.owner).color}" d="${path(l.a, l.b)}"/>` : `<path class="trk" d="${path(l.a, l.b)}"/>`;
+    }).join('');
+    const dots = LG.STATIONS.map((i) => { const [x, y] = pt(i), o = S.props[i].owner && P(S.props[i].owner); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${o ? 5 : 3}" style="fill:${o ? o.color : 'rgba(255,255,255,.35)'}"/>`; }).join('');
+    svg.innerHTML = out + dots;
+  }
+  window.addEventListener('resize', () => { if (App.S && App.S.isLogi && App.S.phase !== 'lobby') renderTracks(); });
 
   // ================= REALISTIC: Immobilien wie im echten Leben =================
   const pctTxt = (x, d = 1) => (x * 100).toFixed(d).replace('.', ',') + ' %';

@@ -106,7 +106,7 @@
   function ownsGroup(S, pid, g) { return groupIdx(g).every(i => S.props[i].owner === pid); }
   function groupHasHouses(S, g) { return groupIdx(g).some(i => S.props[i].houses > 0); }
   function houseCost(p, g, S) {
-    const mult = (S && S.event && S.event.buildMult) || 1;
+    const mult = ((S && S.event && S.event.buildMult) || 1) * (S && S.pol && S.pol.law === 'baufoerderung' ? 0.5 : 1);
     return Math.max(5, Math.round((GROUPS[g].house - (p.token === 'pen' ? 25 : 0)) * mult * RL.buildFactor(S) / 5) * 5);
   }
   function buyPrice(p, idx) {
@@ -128,6 +128,8 @@
     if (S.settings && S.settings.variant === 'hardcore') r *= 1.5;
     if (S.event && S.event.rentMult != null) r *= S.event.rentMult;
     r *= RL.rentFactor(S);
+    if (S.pol && S.pol.law === 'mietbremse') r *= 0.7;
+    if (S.pol && S.pol.law === 'deregulierung') r *= 1.3;
     return Math.round(r);
   }
 
@@ -210,7 +212,7 @@
     if ([1000, 1500, 2000, 3000].includes(sm)) S.settings.startMoney = sm;
     if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
-    if (['classic', 'casino', 'world', 'royale', 'metro', 'tower', 'islands', 'festival', 'race', 'throne', 'quiz', 'bomb', 'realistic', 'logistics'].includes(o.mode)) S.settings.mode = o.mode;
+    if (['classic', 'casino', 'world', 'royale', 'metro', 'tower', 'islands', 'festival', 'race', 'throne', 'quiz', 'bomb', 'realistic', 'logistics', 'war', 'politics'].includes(o.mode)) S.settings.mode = o.mode;
     if ([3, 5, 10, 0].includes(Number(o.years)) && o.years !== '' && o.years != null) S.settings.years = Number(o.years);
     if (['mini', 'normal', 'mega'].includes(o.size)) S.settings.size = o.size;
     if (o.names && typeof o.names === 'object') {
@@ -246,6 +248,10 @@
     S.isLogi = S.settings.mode === 'logistics';
     if (S.isLogi) S.size = 'logi';
     S.tracks = [];
+    S.isWar = S.settings.mode === 'war';
+    S.isPol = S.settings.mode === 'politics';
+    S.pol = S.isPol ? { law: null, kanzler: null, vize: null, every: 5, wins: {}, last: null, pending: null } : null;
+    S.sos = null; S.sosShow = null; S.war = null; S.battle = null;
     useBoard(S);
     S.players.forEach((p, i) => {
       p.stats = newStats();
@@ -265,7 +271,7 @@
     if (variant === 'hardcore') S.players.forEach(p => { p.money = Math.round(800 * BD.moneyMult); });
     if (variant === 'rich') S.players.forEach(p => { p.money = Math.round(5000 * BD.moneyMult); });
     if (variant === 'tycoon') S.players.forEach(p => { p.money = Math.max(500, p.money - 500); });
-    S.players.forEach(p => { if (p.token === 'rocket') p.money += 150; });
+    S.players.forEach(p => { if (p.token === 'rocket') p.money += 150; p.troops = S.isWar ? 12 : 0; p.camp = 0; });
     if (variant === 'tycoon') giveRandomProps(S, 3);
     if (RL.on(S, 'startProps')) giveRandomProps(S, 2);
     if (variant === 'blitz') {
@@ -290,9 +296,14 @@
 
   // ---------- Zugablauf ----------
   function passGo(S, p) {
-    const amt = BD.go + (p.token === 'zebra' ? 50 : 0) + MOOD.salaryBonus(S);
+    const amt = Math.max(0, BD.go + (p.token === 'zebra' ? 50 : 0) + MOOD.salaryBonus(S) - (S.pol && S.pol.law === 'maut' ? 100 : 0));
     p.money += amt;
     log(S, `${p.name} zieht über LOS und kassiert ${money(amt)}.`);
+    if (S.isWar) {
+      const t = 4 + Math.floor(Object.keys(S.props).filter(k => S.props[k].owner === p.id).length / 3);
+      p.troops = (p.troops || 0) + t;
+      log(S, `🪖 ${p.name} rekrutiert ${t} Truppen (jetzt ${p.troops}).`);
+    }
     if (RL.on(S, 'interest')) {
       const z = Math.min(100, Math.floor(p.money * 0.05));
       if (z > 0) { p.money += z; log(S, `🏦 Zinsen: ${p.name} bekommt ${money(z)}.`); }
@@ -380,6 +391,8 @@
       if (rent <= 0) { log(S, `Mietfrei! ${p.name} zahlt nichts.`); return proceed(S); }
       if (p.token === 'ghost' && !p.used.ghost && rent >= 100) { p.used.ghost = true; log(S, `👻 ${p.name} geht als Geist durch die Wand und zahlt keine ${money(rent)}!`); return proceed(S); }
       if (S.isCasino && sp.type === 'prop') return enterCasino(S, p, p.pos, owner, Math.max(20, rent * 2));
+      if (S.isWar && sp.type === 'prop') { S.war = { idx: p.pos, att: p.id, def: owner.id, rent }; S.sub = 'war'; log(S, `⚔️ ${p.name} steht in ${sp.name} von ${owner.name}: Tribut zahlen oder angreifen?`); return; }
+      lobbyCut(S, p, rent);
       log(S, `${p.name} zahlt ${money(rent)} Miete an ${owner.name}.`);
       if (p.stats) { p.stats.rentPaid += rent; p.stats.maxRent = Math.max(p.stats.maxRent, rent); }
       if (owner.stats) owner.stats.rentGot += rent;
@@ -390,7 +403,7 @@
     }
     switch (sp.type) {
       case 'tax': {
-        const amt = Math.round(sp.amount * MOOD.taxMult(S) * (p.token === 'pizza' ? 0.5 : 1));
+        const amt = Math.round(sp.amount * MOOD.taxMult(S) * (p.token === 'pizza' ? 0.5 : 1) * (S.pol && S.pol.law === 'steuersenkung' ? 0.5 : 1));
         log(S, `${sp.name}! ${p.name} zahlt ${money(amt)}${amt > sp.amount ? ' (April ist sauer: doppelt!)' : ''}.`);
         if (charge(S, p, [{ to: null, amt }])) proceed(S);
         return;
@@ -404,6 +417,14 @@
         sendJail(S, p);
         return proceed(S);
       case 'parking':
+        if (S.pot > 0 && RL.on(S, 'splitSteal') && active(S).length >= 2) {
+          const others = active(S).filter(o => o.id !== p.id);
+          const b = others[Math.floor(rng() * others.length)];
+          S.sos = { a: p.id, b: b.id, pot: S.pot, claim: null, pick: {} };
+          S.sub = 'sos';
+          log(S, `🐷 Split or Steal! ${p.name} und ${b.name} spielen um Aprils Spardose (${money(S.pot)}).`);
+          return;
+        }
         if (S.pot > 0) {
           log(S, `${p.name} knackt Aprils Spardose: ${money(S.pot)}! 🐷`);
           if (p.stats) p.stats.pot += S.pot;
@@ -520,8 +541,10 @@
       roundRules(S);
       recordHist(S);
     }
+    if (S.phase !== 'play') return;
     log(S, `${curP(S).name} ist dran.`);
     MOOD.turnStart(S, curP(S), moodApi(S));
+    if (S.pol && S.pol.pending && S.sub === 'roll') S.sub = 'law';
     const tax = RL.suddenTax(S), cp = curP(S);
     if (tax && !cp.bankrupt) {
       log(S, `⏳ Sudden Death: ${cp.name} zahlt ${money(tax)} Überlebens-Steuer.`);
@@ -540,6 +563,7 @@
       rich.money -= x; poor.money += x;
       log(S, `🏹 Robin Hood: ${rich.name} gibt ${poor.name} ${money(x)}.`);
     }
+    if (S.isPol) polRound(S);
     if (RL.variant(S) === 'swap' && S.round % 5 === 0) {
       const ms = shuffle(act.map(p => p.money));
       act.forEach((p, i) => { p.money = ms[i]; });
@@ -1013,6 +1037,217 @@
     return null;
   }
 
+
+  // ---------- SPLIT OR STEAL an Aprils Spardose ----------
+  function sosClaim(S, pid, claim) {
+    const x = S.sos;
+    if (!x || S.sub !== 'sos' || x.a !== pid || x.claim) return 'Gerade nichts zu behaupten.';
+    if (!['split', 'steal'].includes(claim)) return 'Ungültig.';
+    x.claim = claim;
+    log(S, `🗣️ ${P(S, pid).name} sagt: „${claim === 'split' ? 'Ich teile, versprochen!' : 'Ich klaue. Ehrlich.'}“ – Wahrheit oder Lüge?`);
+    return null;
+  }
+  function sosPick(S, pid, pick) {
+    const x = S.sos;
+    if (!x || S.sub !== 'sos' || !x.claim || ![x.a, x.b].includes(pid) || x.pick[pid]) return 'Gerade nichts zu wählen.';
+    if (!['split', 'steal'].includes(pick)) return 'Ungültig.';
+    x.pick[pid] = pick;
+    if (!x.pick[x.a] || !x.pick[x.b]) return null;
+    const a = P(S, x.a), b = P(S, x.b), pa = x.pick[x.a], pb = x.pick[x.b];
+    let msg;
+    if (pa === 'split' && pb === 'split') {
+      const h = Math.floor(x.pot / 2);
+      a.money += h; b.money += x.pot - h; S.pot = 0;
+      msg = `🤝 Beide teilen! ${a.name} und ${b.name} bekommen je ${money(h)}.`;
+    } else if (pa === 'steal' && pb === 'steal') {
+      msg = `💀 Beide klauen! Niemand bekommt was. April behält die Spardose (${money(x.pot)}).`;
+    } else {
+      const w = pa === 'steal' ? a : b, l = w === a ? b : a;
+      w.money += x.pot; S.pot = 0;
+      msg = `🗡️ ${w.name} klaut die ganze Spardose (${money(x.pot)})! ${l.name} hat ${w === a ? 'die Lüge geglaubt' : 'zu früh vertraut'}.`;
+    }
+    const lied = x.claim !== pa;
+    log(S, `${msg} ${a.name} hat ${lied ? 'gelogen' : 'die Wahrheit gesagt'}.`);
+    S.sosShow = { seq: (S.sosShow ? S.sosShow.seq : 0) + 1, a: x.a, b: x.b, pa, pb, claim: x.claim, pot: x.pot };
+    S.sos = null;
+    proceed(S);
+    return null;
+  }
+
+  // ---------- WAR: Gebiete erobern ----------
+  function defense(S, idx) {
+    const st = S.props[idx], sp = SPACES[idx];
+    return 1 + (st.gar || 0) + 2 * st.houses + (sp.type === 'prop' && st.owner && ownsGroup(S, st.owner, sp.group) ? 2 : 0);
+  }
+  function battleDice(att, def) {
+    const rolls = [];
+    while (att > 0 && def > 0) {
+      const a = Array.from({ length: Math.min(3, att) }, d6).sort((x, y) => y - x);
+      const d = Array.from({ length: Math.min(2, def) }, d6).sort((x, y) => y - x);
+      for (let i = 0; i < Math.min(a.length, d.length); i++) { if (a[i] > d[i]) def--; else att--; }
+      if (rolls.length < 8) rolls.push([a, d]);
+    }
+    return { att, def, rolls };
+  }
+  function warPay(S, p) {
+    const w = S.war;
+    if (!w || S.sub !== 'war' || w.att !== p.id) return 'Kein Krieg offen.';
+    const o = P(S, w.def);
+    S.war = null;
+    log(S, `${p.name} zahlt ${money(w.rent)} Tribut an ${o.name}.`);
+    if (p.stats) { p.stats.rentPaid += w.rent; p.stats.maxRent = Math.max(p.stats.maxRent, w.rent); }
+    if (o.stats) o.stats.rentGot += w.rent;
+    MOOD.rentPaid(S, p, o, w.rent);
+    if (charge(S, p, [{ to: o.id, amt: w.rent }])) proceed(S);
+    return null;
+  }
+  function warAttack(S, p, n) {
+    const w = S.war;
+    if (!w || S.sub !== 'war' || w.att !== p.id) return 'Kein Krieg offen.';
+    n = Math.floor(Number(n));
+    if (!(n >= 1) || n > (p.troops || 0)) return `Du hast nur ${p.troops || 0} Truppen.`;
+    const st = S.props[w.idx], sp = SPACES[w.idx], o = P(S, w.def);
+    const defN = defense(S, w.idx);
+    const r = battleDice(n, defN);
+    p.troops -= n;
+    p.stats.attacks = (p.stats.attacks || 0) + 1;
+    S.war = null;
+    S.battle = { seq: (S.battle ? S.battle.seq : 0) + 1, idx: w.idx, att: p.id, def: o.id, n, defN, win: r.def === 0, left: r.def === 0 ? r.att : r.def, rolls: r.rolls };
+    if (r.def === 0) {
+      st.owner = p.id;
+      st.houses = Math.max(0, st.houses - 1);
+      st.gar = r.att;
+      p.stats.takeovers = (p.stats.takeovers || 0) + 1;
+      log(S, `⚔️ SIEG! ${p.name} erobert ${sp.name} von ${o.name} (${n} gegen ${defN}). ${r.att} Truppen bleiben als Besatzung.`);
+      MOOD.built(S, p, sp.name);
+      proceed(S);
+      return null;
+    }
+    const base = 1 + 2 * st.houses + (ownsGroup(S, o.id, sp.group) ? 2 : 0);
+    st.gar = Math.max(0, r.def - base);
+    const half = Math.ceil(w.rent / 2);
+    log(S, `🛡️ ${o.name} hält ${sp.name}! ${p.name} verliert ${n} Truppen und zahlt ${money(half)} Reparationen.`);
+    if (charge(S, p, [{ to: o.id, amt: half }])) proceed(S);
+    return null;
+  }
+  function deploy(S, p, idx, n) {
+    const st = S.props[idx];
+    n = Math.floor(Number(n));
+    if (!S.isWar || !st || st.owner !== p.id || SPACES[idx].type !== 'prop') return 'Nur auf eigenen Gebieten.';
+    if (!(n >= 1) || n > (p.troops || 0)) return 'So viele Truppen hast du nicht.';
+    p.troops -= n;
+    st.gar = (st.gar || 0) + n;
+    log(S, `🪖 ${p.name} stationiert ${n} Truppen in ${SPACES[idx].name} (Verteidigung ${defense(S, idx)}).`);
+    return null;
+  }
+
+  // ---------- POLITICS: Wahlen und Gesetze ----------
+  const LAWS = {
+    mietbremse: { icon: '🧾', name: 'Mietpreisbremse', text: 'Alle Mieten −30 %.' },
+    deregulierung: { icon: '📈', name: 'Deregulierung', text: 'Alle Mieten +30 %.' },
+    reichensteuer: { icon: '💰', name: 'Reichensteuer', text: 'Jede Runde zahlt die reichste Person 10 % ihres Bargelds (max. Ð300) in Aprils Spardose.' },
+    grundeinkommen: { icon: '🤲', name: 'Grundeinkommen', text: 'Jede Runde bekommen alle Ð50 von der Bank.' },
+    baufoerderung: { icon: '🏗️', name: 'Bauförderung', text: 'Häuser und Hotels kosten die Hälfte.' },
+    maut: { icon: '🚧', name: 'PKW-Maut', text: 'Über LOS gibt es Ð100 weniger.' },
+    lobby: { icon: '🤝', name: 'Lobbygesetz', text: 'Die Regierung kassiert 10 % jeder gezahlten Miete extra von der Bank.' },
+    steuersenkung: { icon: '✂️', name: 'Steuersenkung', text: 'Steuerfelder kosten die Hälfte.' },
+    abgabe: { icon: '⚖️', name: 'Vermögensabgabe', text: 'Sofort: Alle mit über Ð2.000 Bargeld zahlen 15 % an die ärmste Person.' },
+  };
+  function votes(S, p) {
+    let v = 0;
+    for (const k in S.props) {
+      const st = S.props[k], sp = SPACES[k];
+      if (st.owner !== p.id || st.mort) continue;
+      v += sp.type === 'prop' ? (1 + st.houses) * (ownsGroup(S, p.id, sp.group) ? 1.5 : 1) : 1;
+    }
+    v += Math.floor(p.money / 400) + (p.camp || 0) + (MOOD.on(S) && p.like >= 70 ? 2 : 0);
+    return Math.max(0.5, v);
+  }
+  function lobbyCut(S, payer, rent) {
+    if (!S.pol || S.pol.law !== 'lobby' || !S.pol.kanzler || S.pol.kanzler === payer.id) return;
+    const k = P(S, S.pol.kanzler);
+    if (!k || k.bankrupt) return;
+    const x = Math.round(rent * 0.1);
+    if (x > 0) { k.money += x; log(S, `🤝 Lobbygesetz: ${k.name} kassiert ${money(x)} extra.`); }
+  }
+  function polRound(S) {
+    const pol = S.pol, act = active(S);
+    const k = pol.kanzler && P(S, pol.kanzler), v = pol.vize && P(S, pol.vize);
+    if (k && !k.bankrupt) k.money += 100;
+    if (v && !v.bankrupt) v.money += 50;
+    if (pol.law === 'grundeinkommen') { act.forEach(p => { p.money += 50; }); log(S, '🤲 Grundeinkommen: Alle bekommen Ð50.'); }
+    if (pol.law === 'reichensteuer') {
+      const rich = act.slice().sort((a, b) => b.money - a.money)[0];
+      const x = Math.min(300, Math.floor(rich.money * 0.1));
+      if (x > 0) { rich.money -= x; S.pot = (S.pot || 0) + x; log(S, `💰 Reichensteuer: ${rich.name} zahlt ${money(x)} in Aprils Spardose.`); }
+    }
+    if (S.round % pol.every === 0) election(S);
+  }
+  function election(S) {
+    const act = active(S), pol = S.pol;
+    const v = act.map(p => votes(S, p)), total = v.reduce((a, b) => a + b, 0);
+    const raw = v.map(x => (x / total) * 100), seats = raw.map(Math.floor);
+    let left = 100 - seats.reduce((a, b) => a + b, 0);
+    raw.map((x, i) => [x - Math.floor(x), i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { seats[i]++; left--; } });
+    const order = act.map((p, i) => ({ p, s: seats[i] })).sort((a, b) => b.s - a.s);
+    const top = order[0], second = order[1];
+    const majority = top.s > 50;
+    pol.kanzler = top.p.id;
+    pol.vize = majority ? null : second.p.id;
+    pol.wins[top.p.id] = (pol.wins[top.p.id] || 0) + 1;
+    pol.last = { round: S.round, seats: Object.fromEntries(order.map(o => [o.p.id, o.s])), kanzler: pol.kanzler, vize: pol.vize };
+    act.forEach(p => { p.camp = 0; });
+    log(S, `🗳️ BUNDESTAGSWAHL! ${order.map(o => `${o.p.name} ${o.s}`).join(' · ')} Sitze. ${top.p.name} wird Kanzler${majority ? ' mit absoluter Mehrheit' : `, Koalition mit ${second.p.name}`}.`);
+    if (pol.wins[top.p.id] >= 3) {
+      S.ranking = rank(S);
+      S.phase = 'over';
+      S.winner = top.p.id;
+      log(S, `🏛️ ${top.p.name} gewinnt die dritte Wahl und regiert für immer. Spiel vorbei!`);
+      return;
+    }
+    const ids = shuffle(Object.keys(LAWS).filter(id => id !== pol.law)).slice(0, 3);
+    pol.pending = { opts: ids };
+  }
+  function enactLaw(S, pid, id) {
+    const pol = S.pol;
+    if (!pol || !pol.pending || pol.kanzler !== pid) return 'Nur die Regierung macht Gesetze.';
+    if (!pol.pending.opts.includes(id)) return 'Dieses Gesetz steht nicht zur Wahl.';
+    pol.law = id;
+    pol.pending = null;
+    const L = LAWS[id];
+    log(S, `📜 Neues Gesetz von ${P(S, pid).name}: ${L.icon} ${L.name} – ${L.text}`);
+    if (id === 'abgabe') {
+      const act = active(S), poor = act.slice().sort((a, b) => a.money - b.money)[0];
+      let sum = 0;
+      act.forEach(p => { if (p.money > 2000 && p !== poor) { const x = Math.floor(p.money * 0.15); p.money -= x; sum += x; } });
+      poor.money += sum;
+      log(S, `⚖️ Vermögensabgabe: ${poor.name} bekommt ${money(sum)}.`);
+      pol.law = null;
+    }
+    if (S.sub === 'law') S.sub = 'roll';
+    return null;
+  }
+  function campaign(S, p, amt) {
+    amt = Number(amt);
+    if (!S.isPol || ![100, 250, 500].includes(amt)) return 'Ungültig.';
+    if (p.money < amt) return 'Zu wenig Geld für den Wahlkampf.';
+    p.money -= amt;
+    p.camp = (p.camp || 0) + amt / 100;
+    log(S, `📣 ${p.name} steckt ${money(amt)} in den Wahlkampf (+${amt / 100} Stimmen).`);
+    return null;
+  }
+  function botLaw(S, p) {
+    const opts = S.pol.pending.opts;
+    const act = active(S), richest = act.slice().sort((a, b) => b.money - a.money)[0], poorest = act.slice().sort((a, b) => a.money - b.money)[0];
+    const houses = Object.values(S.props).filter(st => st.owner === p.id).reduce((a, st) => a + st.houses, 0);
+    const score = (id) => ({
+      deregulierung: houses * 2, mietbremse: -houses, lobby: 4, baufoerderung: 3,
+      reichensteuer: richest.id === p.id ? -5 : 3, abgabe: poorest.id === p.id ? 8 : p.money > 2000 ? -4 : 1,
+      grundeinkommen: 2, steuersenkung: 1, maut: 0,
+    }[id] || 0) + rng();
+    return opts.slice().sort((a, b) => score(b) - score(a))[0];
+  }
+
   // ---------- Aktionen ----------
   function act(S, pid, a) {
     const err = actInner(S, pid, a);
@@ -1064,6 +1299,10 @@
     }
     if (S.phase !== 'play') return 'Das Spiel ist vorbei.';
     if (!p || p.bankrupt) return 'Du spielst nicht mit.';
+    if (a.type === 'sosClaim') return sosClaim(S, pid, a.claim);
+    if (a.type === 'sosPick') return sosPick(S, pid, a.pick);
+    if (a.type === 'law') return S.sub === 'law' ? enactLaw(S, pid, a.id) : 'Gerade wird kein Gesetz gemacht.';
+    if (S.sub === 'sos' || S.sub === 'law') return S.sub === 'sos' ? 'Erst Split or Steal klären.' : 'Erst muss die Regierung ein Gesetz machen.';
     const isCur = curP(S).id === pid;
     const needCur = () => (isCur ? null : 'Du bist nicht dran.');
     const manageOk = () => (isCur && ['roll', 'end', 'debt', 'buy'].includes(S.sub) ? null : 'Das geht nur in deinem Zug.');
@@ -1148,6 +1387,10 @@
         if (S.trade) return 'Erst das offene Angebot klären.';
         nextTurn(S); return null;
       case 'build': return manageOk() || build(S, p, Number(a.idx));
+      case 'warPay': return needCur() || warPay(S, p);
+      case 'warAttack': return needCur() || warAttack(S, p, a.n);
+      case 'deploy': return manageOk() || deploy(S, p, Number(a.idx), a.n);
+      case 'campaign': return manageOk() || campaign(S, p, a.amt);
       case 'track': return manageOk() || (S.isLogi ? buildTrack(S, p, Number(a.a), Number(a.b)) : 'Nur in LOGISTICS.');
       case 'untrack': return manageOk() || (S.isLogi ? sellTrack(S, p, Number(a.a), Number(a.b)) : 'Nur in LOGISTICS.');
       case 'sell': return manageOk() || sell(S, p, Number(a.idx));
@@ -1199,6 +1442,11 @@
     for (const k of owned) {
       if (S.props[k].mort && p.money - unmortgageCost(k) > 450) return { type: 'unmortgage', idx: k };
     }
+    if (S.isWar && (p.troops || 0) >= 6) {
+      const mine = owned.filter(k => SPACES[k].type === 'prop' && !S.props[k].mort).sort((a, b) => defense(S, a) - defense(S, b) || SPACES[b].price - SPACES[a].price);
+      if (mine.length && defense(S, mine[0]) < 8) return { type: 'deploy', idx: mine[0], n: Math.min(3, p.troops - 3) };
+    }
+    if (S.isPol && S.round % S.pol.every === S.pol.every - 1 && !p.camp && p.money > 700) return { type: 'campaign', amt: p.money > 1500 ? 500 : 250 };
     if (S.isLogi) {
       // Strecke bauen, die das größte Netz ergibt
       const opts = LG.buildable(S, p.id).map(l => {
@@ -1298,10 +1546,27 @@
       const next = a.high + 10;
       return { pid: b.id, action: next <= max ? { type: 'bid', amt: next } : { type: 'pass' } };
     }
+    if (S.sub === 'sos' && S.sos) {
+      const x = S.sos, A = P(S, x.a), B = P(S, x.b);
+      if (!x.claim) return A.bot ? { pid: A.id, action: { type: 'sosClaim', claim: rng() < 0.85 ? 'split' : 'steal' } } : null;
+      if (A.bot && !x.pick[A.id]) return { pid: A.id, action: { type: 'sosPick', pick: rng() < 0.6 ? 'split' : 'steal' } };
+      if (B.bot && !x.pick[B.id]) return { pid: B.id, action: { type: 'sosPick', pick: rng() < (x.claim === 'split' ? 0.6 : 0.3) ? 'split' : 'steal' } };
+      return null;
+    }
+    if (S.sub === 'law' && S.pol && S.pol.pending) {
+      const k = P(S, S.pol.kanzler);
+      return k && k.bot ? { pid: k.id, action: { type: 'law', id: botLaw(S, k) } } : null;
+    }
     const p = curP(S);
     if (!p.bot) return null;
     const go = (action) => ({ pid: p.id, action });
     switch (S.sub) {
+      case 'war': {
+        const w = S.war, d = defense(S, w.idx);
+        const need = Math.ceil(d * 1.6) + 1;
+        if ((p.troops || 0) >= Math.max(3, need) && (w.rent >= 20 || rng() < 0.5)) return go({ type: 'warAttack', n: Math.min(p.troops, need + 2) });
+        return go({ type: 'warPay' });
+      }
       case 'roll': {
         const m = botManage(S, p);
         if (m) return go(m);
@@ -1344,7 +1609,7 @@
     newGame, addPlayer, addBot, removePlayer, setSettings: withBoard(setSettings), botStep: withBoard(botStep), pickToken, startGame,
     act: withBoard(act), endGame: withBoard(endGame), bankrupt: withBoard(bankrupt), calcRent: withBoard(calcRent), netWorth: withBoard(netWorth), GOAL_WORTH,
     buyPrice, houseCost, unmortgageCost, ownsGroup: withBoard(ownsGroup), groupIdx, groupHasHouses: withBoard(groupHasHouses), bankSupply: withBoard(bankSupply), CARDS,
-    useBoard, board: boardFor, trackCost: (S, a, b) => trackCost(S, a, b),
+    useBoard, board: boardFor, LAWS, defense: withBoard(defense), votes: withBoard(votes), trackCost: (S, a, b) => trackCost(S, a, b),
     setRng: (f) => { rng = f; MOOD.setRng(f); CASINO.setRng(f); },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = ENGINE;
