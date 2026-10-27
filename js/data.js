@@ -178,7 +178,7 @@
     ['Studio-Karte. Bitte kein „Kannst du mal eben schnell …“.', 'Ich rieche einen neuen Kunden. Oder Kaffee.', 'Das Studio ruft. Ich geh nicht ran.'],
     ['Wedau: Regattabahn, Sonne, Reichtum.', 'Hier rudern Leute. Ich rudere nur emotional.', 'Wedau ist das Malibu von Duisburg. Ungefähr.'],
     ['Öhringen Hbf: Endstation. Für die Bahn und für deine Geduld.', 'Von hier geht’s nach Heilbronn. Spannung pur.', 'Kleiner Bahnhof, großes Herz.', 'Ich steig hier aus. Ich wohn hier sozusagen.'],
-    ['Die letzte April-Karte vor dem HQ. Dramatisch.', 'Ich hab heute meine Periode und null Geduld. Zieh.', 'No rizz, aber viel Glück.'],
+    ['Die letzte April-Karte vor dem HQ. Dramatisch.', 'Ich hab heute null Geduld. Zieh.', 'No rizz, aber viel Glück.'],
     ['Innenhafen: Restaurants, Wasser, Lichter. Date-Spot.', 'Hier sieht Duisburg aus wie Amsterdam. Fast.', 'Teuer hier. Aber schön teuer.', 'Abends am Innenhafen chillen. Ich lade meinen Akku.'],
     ['Der „Prinz“ wollte nur kurz dein Geld leihen …', '„Klick hier für ein gratis iPhone.“ Und du hast geklickt.', 'Gescammt. Ich hab’s gesehen und nichts gesagt. Sorry.', 'Nächstes Mal frag mich vorher.'],
     ['DULIDAN HQ! Mein Zuhause. Schuhe aus.', 'Hier entsteht Magie. Und manchmal Bugs.', 'Willkommen im Hauptquartier. Kaffee steht links.', 'Das teuerste Feld. Weil wir es wert sind. 💜'],

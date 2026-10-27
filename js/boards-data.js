@@ -12,7 +12,7 @@
     { t: 'April macht für dich Werbung: Jeder Mitspieler zahlt dir Ð30.', collect: 30 },
     { t: 'April hat in deinem Namen Döner für alle bestellt. Du zahlst jedem Ð30.', payEach: 30 },
     { t: 'April findet deinen alten Pfand. +Ð40.', money: 40 },
-    { t: 'April hat ihre Periode und ist genervt. Zahle Ð50 für Schokolade.', money: -50 },
+    { t: 'April hat Sushi auf deinen Namen bestellt. Zahle Ð50.', money: -50 },
   ];
   const POWERS = {
     dulidan: 'Boss-Rabatt: kauft 10 % günstiger.',
@@ -32,7 +32,7 @@
       { t: 'TUNG TUNG TUNG SAHUR! April schenkt dir Ð100.', money: 100, good: true },
       { t: '67! 😂 April findet das so lustig, dass sie dir Ð67 gibt.', money: 67, good: true },
       { t: 'April hatte Zugriff auf deine Karte 💳 und hat 50 Energy-Drinks bestellt. Zahle Ð100.', money: -100 },
-      { t: 'April hat ihre Periode 🩸, ist genervt und will Schokolade. Zahle Ð50.', money: -50 },
+      { t: 'April hat Heißhunger auf Bubble Tea 🧋 und du zahlst. Ð50.', money: -50 },
       { t: 'No rizz. Dein Pitch ist gefloppt. Zahle jedem Mitspieler Ð30.', payEach: 30 },
       { t: 'April macht auf TikTok Werbung für dich. Jeder Mitspieler zahlt dir Ð30.', collect: 30, good: true },
       { t: '„April regelt das.“ 🛡️ Du bekommst ein Schild gegen die nächste Miete.', item: 'shield', good: true },

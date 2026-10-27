@@ -93,7 +93,7 @@
     { t: 'April macht für dich Werbung: Jeder Mitspieler zahlt dir Ð30.', collect: 30, good: true },
     { t: 'April hat in deinem Namen eine Runde Döner ausgegeben. Du zahlst jedem Ð30.', payEach: 30 },
     { t: 'April gibt dir Red Bull. Du läufst doppelt so weit!', stepMult: 2, good: true },
-    { t: 'April hat ihre Periode und will nicht laufen. Du läufst nur halb so weit.', stepMult: 0.5 },
+    { t: 'April hat Muskelkater vom Gym und will nicht laufen. Du läufst nur halb so weit.', stepMult: 0.5 },
   ];
 
   const POWERS = {
