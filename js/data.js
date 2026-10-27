@@ -187,96 +187,105 @@
 
   // ================= MEGA-BRETT: 120 Felder, 3× so groß =================
   const MEGA_GROUPS = {
-    m1: { name: 'Duisburg-Nord', color: '#8b5a2b', house: 50 },
-    m2: { name: 'Niederrhein', color: '#c08a5a', house: 50 },
+    m1: { name: 'Duisburg', color: '#8b5a2b', house: 50 },
+    m2: { name: 'Osteuropa', color: '#c08a5a', house: 50 },
     m3: { name: 'Öhringen', color: '#5fd0ff', house: 50 },
-    m4: { name: 'Hohenlohe', color: '#2f9fd8', house: 75 },
-    m5: { name: 'Duisburg-Mitte', color: '#ff4fd8', house: 100 },
-    m6: { name: 'Mülheim', color: '#b8329f', house: 100 },
-    m7: { name: 'Oberhausen', color: '#ff8a2a', house: 100 },
-    m8: { name: 'Duisburg-Süd', color: '#ffb347', house: 125 },
-    m9: { name: 'Krefeld', color: '#d8e04a', house: 125 },
-    m10: { name: 'Essen', color: '#ff3348', house: 150 },
-    m11: { name: 'Bochum', color: '#b0203a', house: 150 },
-    m12: { name: 'Duisburger Kultur', color: '#ffd83a', house: 150 },
-    m13: { name: 'Gelsenkirchen', color: '#9aa0b8', house: 175 },
-    m14: { name: 'Dortmund', color: '#2fe08a', house: 175 },
-    m15: { name: 'Heilbronn', color: '#1fb5a0', house: 200 },
-    m16: { name: 'Unterland', color: '#7ad06a', house: 200 },
-    m17: { name: 'Duisburg-Zentrum', color: '#4a6bff', house: 200 },
-    m18: { name: 'Innenhafen', color: '#7a55ff', house: 225 },
+    m4: { name: 'Afrika', color: '#e0a030', house: 75 },
+    m5: { name: 'Südamerika', color: '#ff4fd8', house: 100 },
+    m6: { name: 'Mittelamerika', color: '#b8329f', house: 100 },
+    m7: { name: 'Südasien', color: '#ff8a2a', house: 100 },
+    m8: { name: 'Mittelmeer', color: '#ffb347', house: 125 },
+    m9: { name: 'Ozeanien', color: '#d8e04a', house: 125 },
+    m10: { name: 'Mitteleuropa', color: '#ff3348', house: 150 },
+    m11: { name: 'Nordeuropa', color: '#b0203a', house: 150 },
+    m12: { name: 'Deutschland', color: '#ffd83a', house: 150 },
+    m13: { name: 'Golfstaaten', color: '#9aa0b8', house: 175 },
+    m14: { name: 'Nordamerika', color: '#2fe08a', house: 175 },
+    m15: { name: 'Ostasien', color: '#1fb5a0', house: 200 },
+    m16: { name: 'Japan', color: '#7ad06a', house: 200 },
+    m17: { name: 'US-Westküste', color: '#4a6bff', house: 200 },
+    m18: { name: 'Weltstädte', color: '#7a55ff', house: 225 },
     m19: { name: 'DULIDAN', color: '#da29cf', house: 250 },
   };
   Object.assign(GROUPS, MEGA_GROUPS);
-  // Miete wächst mit dem Preis, damit teure Straßen richtig weh tun
+  // Miete wächst mit dem Preis, damit teure Felder richtig weh tun
   const r5 = (n) => Math.max(1, Math.round(n / 5) * 5);
   function megaRent(price) {
     const r0 = Math.max(2, Math.round(price * (0.04 + price / 10000)));
     return [r0, r5(r0 * 5), r5(r0 * 14), r5(r0 * 38), r5(r0 * 47), r5(r0 * 56)];
   }
-  const mp = (name, group, price, q) => ({ type: 'prop', name, group, price, rent: megaRent(price), q });
-  const mrail = (name, q) => ({ type: 'rail', name, price: 200, icon: '🚉', q });
-  const mutil = (name, icon, sub, q) => ({ type: 'util', name, price: 150, icon, sub, q });
-  const mtax = (name, amount, icon, q) => ({ type: 'tax', name, amount, icon, q });
-  const mfree = (name, icon, sub, q) => ({ type: 'free', name, icon, sub, q });
+  const mp = (name, group, price, q) => ({ type: 'prop', name, group, price, rent: megaRent(price), q: q ? [q] : null });
+  const mrail = (name, q) => ({ type: 'rail', name, price: 200, icon: '🚉', q: q ? [q] : null });
+  const mutil = (name, icon, sub, q) => ({ type: 'util', name, price: 150, icon, sub, q: q ? [q] : null });
+  const mtax = (name, amount, icon, q) => ({ type: 'tax', name, amount, icon, q: q ? [q] : null });
+  const mfree = (name, icon, sub, q) => ({ type: 'free', name, icon, sub, q: q ? [q] : null });
   const AK = { type: 'april', name: 'April-Karte' }, SK = { type: 'studio', name: 'Studio-Karte' };
 
+  // Einmal um die Welt: Duisburg und Öhringen am Anfang, DULIDAN HQ ganz am Ende
   const MEGA_SPACES = [
     { type: 'go', name: 'LOS', sub: 'Neuer Auftrag! +Ð300' },
-    mp('Weseler Straße', 'm1', 60), SK, mp('Bruckhausen', 'm1', 60, ['Bruckhausen: Stahl, Staub und ganz viel Herz.']), mp('Hochfeld', 'm1', 80),
+    mp('Weseler Straße', 'm1', 60), SK, mp('Hochfeld', 'm1', 60), mp('Rheinorange', 'm1', 80),
     mtax('April hatte Zugriff auf deine Karte', 200, '💳'), mrail('Duisburg Hbf'),
-    mp('Dinslaken Altmarkt', 'm2', 80, ['Dinslaken. Klingt wie ein Zauberspruch. Ist keiner.']), AK,
-    mp('Moers Schloss', 'm2', 80, ['Moers hat ein Schloss und ein Comedy-Festival. Ich bin beides.']), mp('Kamp-Lintfort', 'm2', 90, ['Kamp-Lintfort: Kloster, Zeche, Gartenschau. Volles Programm.']),
-    mutil('Aprils Steckdose', '🔌', 'April zieht Strom, du zahlst.'), mp('Rheinberg', 'm2', 100, ['Rheinberg. Riecht nach Bier. Oder nach Einbildung.']),
-    mfree('Büdchen', '🏪', 'Gemischte Tüte, bitte.', ['Büdchen-Stopp! Gemischte Tüte für alle. Du zahlst nix, ausnahmsweise.']), SK, mrail('Duisburg-Ruhrort'),
-    mp('Öhringer Marktplatz', 'm3', 100), AK, mp('Hofgarten Öhringen', 'm3', 100), mp('Öhringer Weinberge', 'm3', 110, ['Weinberge! Ich trink Traubensaft. Digital.']), mp('Schloss Öhringen', 'm3', 120),
-    mtax('Abo vergessen zu kündigen', 60, '📺', ['Drei Streaming-Abos. Du benutzt eins.']),
-    mp('Pfedelbach', 'm4', 120, ['Pfedelbach. Ich hab’s dreimal falsch ausgesprochen.']), SK, mp('Neuenstein', 'm4', 120, ['Noch ein Schloss! Hohenlohe hat mehr Schlösser als ich Ausreden.']),
-    mp('Bretzfeld', 'm4', 130, ['Bretzfeld. Ich will eine Brezel. Jetzt.']), mrail('Öhringen Hbf'), mp('Künzelsau', 'm4', 140, ['Künzelsau: Hauptstadt der Schrauben. Bei mir ist eine locker.']), AK,
-    mutil('Waschsalon', '🫧', 'Frisst Socken. Und Dulis.', ['Die Maschine frisst Socken. Und Dulis.']),
+    mp('Sofia', 'm2', 80, 'Sofia: billig, schön, unterschätzt. Wie ich.'), AK,
+    mp('Bukarest', 'm2', 80, 'Bukarest: Paläste und Partys. Ich nehm beides.'), mp('Belgrad', 'm2', 90, 'Belgrad: Hier schläft keiner. Ich auch nicht.'),
+    mutil('Aprils Steckdose', '🔌', 'April zieht Strom, du zahlst.'), mp('Warschau', 'm2', 100, 'Warschau: Pierogi! Ich bestell zehn.'),
+    mfree('Büdchen', '🏪', 'Gemischte Tüte, bitte.', 'Büdchen-Stopp! Gemischte Tüte. Nichts passiert.'), SK,
+    mp('Öhringer Marktplatz', 'm3', 100), AK, mp('Hofgarten Öhringen', 'm3', 100), mp('Schloss Öhringen', 'm3', 120),
+    mfree('Döner-Pause', '🥙', 'Mit allem, scharf.', 'Döner-Pause. Mit allem, scharf.'), mtax('Abo vergessen zu kündigen', 60, '📺', 'Drei Streaming-Abos. Du benutzt eins.'),
+    mp('Lagos', 'm4', 120, 'Lagos: laut, schnell, voller Energie. Wie ich nach Red Bull.'), SK,
+    mp('Nairobi', 'm4', 120, 'Nairobi: Giraffen direkt neben der Stadt. Ich will eine.'), mp('Kairo', 'm4', 130, 'Kairo: Pyramiden! Ich bau mir eine aus Dulis.'),
+    mrail('Öhringen Hbf'), mp('Kapstadt', 'm4', 140, 'Kapstadt: Tafelberg, Meer, Pinguine. Perfekt.'), AK,
+    mutil('Waschsalon', '🫧', 'Frisst Socken. Und Dulis.', 'Die Maschine frisst Socken. Und Dulis.'),
+    mfree('Jetlag', '😴', 'Du schläfst eine Runde im Stehen.', 'Jetlag. Welcher Tag ist heute? Egal.'),
     { type: 'jail', name: 'UH! Schreckensort Düsseldorf', sub: 'Nur zu Besuch' },
-    mp('Meiderich', 'm5', 140), mp('Hamborn Altmarkt', 'm5', 140), SK, mp('Homberg', 'm5', 150, ['Homberg: links vom Rhein, rechts von der Vernunft.']), mp('Rheinhausen', 'm5', 160),
-    mrail('Duisburg-Rheinhausen'), mp('Mülheim Ruhrbania', 'm6', 160, ['Ruhrbania: schick am Wasser. Ich fühl mich reich.']), AK,
-    mp('Schloss Broich', 'm6', 160, ['Schloss Broich ist uralt. Älter als meine Witze.']), mp('Mülheim-Saarn', 'm6', 180, ['Saarn: Klosterflair. Psst, hier wird geflüstert.']),
-    mtax('Rundfunkbeitrag', 100, '📮', ['Der Brief kommt immer. Immer.']),
-    mp('Gasometer Oberhausen', 'm7', 180, ['Der Gasometer: 117 Meter hoch. Ich hab Höhenangst.']), mp('CentrO Oberhausen', 'm7', 180, ['CentrO! Shoppen, bis die Karte glüht. Deine Karte.']),
-    mutil('Pfandautomat', '♻️', 'Frisst deine Flaschen, gibt nix zurück.'), mp('Kaisergarten Oberhausen', 'm7', 190, ['Kaisergarten: Tiere gucken, kostenlos. Endlich was gratis.']),
-    mp('Sterkrade', 'm7', 200, ['Sterkrade: Kirmes! Ich fahr Autoscooter.']), mrail('Oberhausen Hbf', ['Umsteigen in Oberhausen. Wie immer.']),
-    mp('Zoo Duisburg', 'm8', 200), SK, mp('MSV-Arena', 'm8', 200), mp('Sechs-Seen-Platte', 'm8', 210), mp('Wedau', 'm8', 220),
-    mfree('Döner-Pause', '🥙', 'Mit allem, scharf.', ['Döner-Pause. Mit allem, scharf. Nichts passiert, nur Glück.']), AK,
-    mp('Burg Linn', 'm9', 220, ['Burg Linn: Ritter-Vibes. Ich bin die Prinzessin.']), mp('Krefelder Zoo', 'm9', 220, ['Noch ein Zoo. Ich liebe Tiere. Sie mich nicht.']), SK,
-    mp('Krefeld Rheinhafen', 'm9', 240, ['Hafen, Kräne, Möwen. Die Möwen sind korrupt.']), AK,
+    mp('Lima', 'm5', 140, 'Lima: Ceviche! Roher Fisch, mutig.'), mp('Bogotá', 'm5', 140, 'Bogotá: 2.600 Meter hoch. Ich krieg kaum Luft. Digital.'), SK,
+    mp('Buenos Aires', 'm5', 150, 'Buenos Aires: Tango! Ich tanz mit zwei linken Füßen.'), mp('Rio de Janeiro', 'm5', 160, 'Rio! Copacabana, Sonne, Samba. Ich bleib hier.'), AK,
+    mtax('Roaming-Gebühren', 100, '🌍', 'Du hast im Ausland TikTok geschaut. Roaming. Autsch.'),
+    mp('Havanna', 'm6', 160, 'Havanna: Oldtimer überall. Der Berlingo wäre hier ein Star.'), mp('Panama-Stadt', 'm6', 160, 'Panama-Stadt: Hier fahren Schiffe durch ein Loch im Kontinent.'),
+    mutil('Pfandautomat', '♻️', 'Frisst deine Flaschen, gibt nix zurück.'),
+    mp('San José', 'm6', 170, 'San José: Pura Vida! Ich bin so entspannt.'), mp('Mexiko-Stadt', 'm6', 180, 'Mexiko-Stadt: Tacos um drei Uhr nachts. Lebensziel.'), AK,
+    mrail('Mumbai CST', 'Mumbai CST: der schönste Bahnhof der Welt. Und der vollste.'),
+    mp('Mumbai', 'm7', 180, 'Mumbai: Bollywood! Ich tanz im Hintergrund.'), SK, mp('Delhi', 'm7', 180, 'Delhi: Chaos, Farben, Gewürze. Mein Lieblingsmix.'),
+    mp('Bangkok', 'm7', 190, 'Bangkok: Streetfood-Hauptstadt. Ich hab Hunger.'), mp('Jakarta', 'm7', 200, 'Jakarta: Stau, aber mit Aussicht.'),
+    mutil('Aprils WLAN', '📶', 'Passwort? Sag ich nicht.', 'Mein WLAN. Passwort? Sag ich nicht.'),
+    mfree('Flughafen-Lounge', '🛋️', 'Gratis Snacks. Endlich.', 'Flughafen-Lounge: gratis Kekse. Ich nehm die ganze Dose.'),
+    mp('Athen', 'm8', 200, 'Athen: Akropolis. Alt, aber stabil. Wie meine Witze.'), AK,
+    mp('Istanbul', 'm8', 200, 'Istanbul: zwei Kontinente, ein Döner. Respekt.'), mp('Rom', 'm8', 210, 'Rom: Pizza, Pasta, Kolosseum. Ich roll hier raus.'), SK,
+    mp('Barcelona', 'm8', 220, 'Barcelona: Strand und Sagrada Família. Die ist immer noch nicht fertig.'),
+    mtax('Parkknöllchen in Düsseldorf', 75, '🅿️', 'In Düsseldorf geparkt. Selbst schuld.'), AK,
     { type: 'parking', name: 'Aprils Pause', sub: 'Spardose' },
-    mp('Baldeneysee', 'm10', 240, ['Baldeneysee: Segeln! Ich werd seekrank. Digital.']), SK, mp('Rüttenscheid', 'm10', 240, ['Rü! Cafés, Bars, teurer Kaffee. Ich nehm zwei.']),
-    mp('Grugapark', 'm10', 250, ['Grugapark: Blumen, Wege, Zen. Ich bin nicht Zen.']), mp('Zeche Zollverein', 'm10', 260, ['Zollverein: Weltkulturerbe. Ich bin die Erbin.']),
-    mrail('Essen Hbf', ['Essen Hbf. Hier gibt’s nichts zu essen. Witz.']),
-    mp('Bergbau-Museum', 'm11', 260, ['Bergbau-Museum: unter Tage gibt’s kein WLAN. Horror.']), mp('Bermuda3eck', 'm11', 260, ['Bermuda3eck: Wer reingeht, verschwindet. Bis 5 Uhr morgens.']), AK,
-    mp('Ruhrstadion', 'm11', 270, ['Ruhrstadion! Ich sing mit. Schief.']), mp('Jahrhunderthalle', 'm11', 280, ['Jahrhunderthalle: so alt, so cool, so teuer.']),
-    mutil('Studio-Kaffeemaschine', '☕', 'Kaffee ist Treibstoff.', ['Kaffee ist Treibstoff. Kostet extra.']),
-    mp('Landschaftspark Nord', 'm12', 280), mp('Tiger & Turtle', 'm12', 280), mp('Lehmbruck-Museum', 'm12', 290), mp('Rheinorange', 'm12', 300),
-    mtax('Parkknöllchen in Düsseldorf', 75, '🅿️', ['In Düsseldorf geparkt. Selbst schuld.']),
-    mp('Schloss Berge', 'm13', 300, ['Schloss Berge. Ich sammle Schlösser.']), mp('Nordsternpark', 'm13', 300, ['Nordsternpark: Da steht ein riesiger Herkules. Ich bin kleiner, aber süßer.']), SK,
-    mp('Zoom Erlebniswelt', 'm13', 310, ['Zoom Erlebniswelt: Löwen! Ich versteck mich.']), mp('Arena AufSchalke', 'm13', 320, ['Blau-Weiß hier. Ich bleib Lila.']),
-    mrail('Dortmund Hbf', ['Dortmund Hbf: Die Uhr geht vor, der Zug nach.']),
-    mp('Phoenix-See', 'm14', 320, ['Phoenix-See: früher Stahlwerk, jetzt See. Glow-up.']), mp('Westenhellweg', 'm14', 320, ['Westenhellweg: Shoppen bis zum Umfallen.']), AK,
-    mp('Dortmunder U', 'm14', 330, ['Das Dortmunder U. Ich sag nur: U.']), mp('Westfalenstadion', 'm14', 340, ['Die Gelbe Wand! Ich bin die lila Wand.']),
-    mfree('Baustelle A40', '🚧', 'Stau. Natürlich.', ['A40, Stau. Natürlich. Nichts passiert.']),
-    { type: 'gotojail', name: 'Ab nach Düsseldorf!', sub: 'Deadline verpasst' },
-    mp('Neckarbogen', 'm15', 340, ['Neckarbogen: modern, schick, Wasser. Instagram-Alarm.']), mp('Kilianskirche', 'm15', 340, ['Kilianskirche: so schön, ich werd still. Kurz.']), SK,
-    mp('Experimenta', 'm15', 350, ['Experimenta! Wissenschaft! Ich bin auch ein Experiment.']), mp('Heilbronner Marktplatz', 'm15', 360, ['Heilbronn: Wein, Neckar, Käthchen. Ich bin das Käthchen.']),
-    mrail('Heilbronn Hbf', ['Heilbronn Hbf. Endlich Süden.']),
-    mp('Bad Wimpfen', 'm16', 360, ['Bad Wimpfen: Fachwerk-Overload. Ich lieb’s.']), mp('Burg Weibertreu', 'm16', 360, ['Burg Weibertreu: Die Frauen trugen ihre Männer raus. Legenden.']), AK,
-    mp('Neckarsulm', 'm16', 370, ['Neckarsulm: Hier wird geschraubt. An Autos und an Mieten.']), mp('Schwäbisch Hall', 'm16', 380, ['Schwäbisch Hall: große Treppe, großer Marktplatz.']),
-    mutil('Aprils WLAN', '📶', 'Passwort? Sag ich nicht.', ['Mein WLAN. Passwort? Sag ich nicht.']),
-    mp('Duisport', 'm17', 380), mp('Kaiserberg', 'm17', 380), SK, mp('Königstraße', 'm17', 390), mp('Forum Duisburg', 'm17', 400),
+    mp('Auckland', 'm9', 220, 'Auckland: Herr-der-Ringe-Land. Ich bin ein Hobbit.'), mp('Brisbane', 'm9', 220, 'Brisbane: Koalas zum Kuscheln. Ich will einen.'), SK,
+    mp('Melbourne', 'm9', 230, 'Melbourne: bester Kaffee der Welt. Sagen sie.'), mp('Sydney', 'm9', 240, 'Sydney: Opernhaus und Kängurus. Gleichzeitig.'),
+    mrail('Gare du Nord', 'Gare du Nord: Paris wartet. Der Zug auch.'),
+    mp('Prag', 'm10', 240, 'Prag: Märchenstadt. Ich bin die Prinzessin.'), mp('Wien', 'm10', 240, 'Wien: Schnitzel und Sachertorte. Diät morgen.'), AK,
+    mp('Brüssel', 'm10', 250, 'Brüssel: Waffeln und Pommes. Ich zieh hierhin.'), mp('Zürich', 'm10', 260, 'Zürich: Alles kostet doppelt. Auch die Miete hier.'),
+    mutil('Studio-Kaffeemaschine', '☕', 'Kaffee ist Treibstoff.', 'Kaffee ist Treibstoff. Kostet extra.'),
+    mp('Oslo', 'm11', 260, 'Oslo: Fjorde und Elektroautos. Sehr ordentlich.'), mp('Kopenhagen', 'm11', 260, 'Kopenhagen: Fahrräder überall. Und Zimtschnecken.'),
+    mp('Stockholm', 'm11', 270, 'Stockholm: Ich kauf ein Regal und bau es nie auf.'), mp('Amsterdam', 'm11', 280, 'Amsterdam: Grachten, Fahrräder, Käse. Gouda Wahl.'),
     mtax('Du wurdest gescammt', 100, '🎣'),
-    mp('Mercatorhalle', 'm18', 400, ['Mercatorhalle: Konzerte! Ich sing vor. Keiner will’s.']), mp('Stadtwerketurm', 'm18', 400, ['Der Stadtwerketurm: Duisburgs Leuchtturm. Ohne Meer.']), AK,
-    mp('Innenhafen Duisburg', 'm18', 420), mp('Schwanentor', 'm18', 440, ['Schwanentor: eine Brücke, die hochgeht. Wie deine Miete.']),
-    mutil('Kiosk-Kühlschrank', '🧊', 'Kalte Getränke, heiße Preise.', ['Kalte Getränke, heiße Preise.']),
-    mp('Dulidan Druckerei', 'm19', 460, ['Die Druckerei! Riecht nach frischen Plakaten.']), mtax('Handyvertrag verlängert', 80, '📱', ['Verlängert. Automatisch. Wie immer.']),
-    mp('Dulidan Folierhalle', 'm19', 480, ['Hier wird der Berlingo foliert. Mit Liebe und Föhn.']),
-    mfree('Berlingo-Parkplatz', '🚐', 'Nicht anfassen.', ['Der Berlingo parkt. Niemand fasst ihn an.']),
-    mp('DULIDAN HQ', 'm19', 550, null),
+    mp('Köln', 'm12', 280, 'Köln: Dom, Kölsch, Karneval. Bloß nicht Düsseldorf erwähnen.'), mp('Hamburg', 'm12', 280, 'Hamburg: Moin! Mehr sagt man hier nicht.'), SK,
+    mp('München', 'm12', 290, 'München: Brezn, Bier, Berge. Und teure Mieten.'), mp('Berlin', 'm12', 300, 'Berlin: arm, aber sexy. Die Miete ist nicht arm.'),
+    mrail('King’s Cross', 'King’s Cross: Gleis 9 ¾? Ich such noch.'),
+    mp('Riad', 'm13', 300, 'Riad: Hitze und Hochhäuser. Ich schmelze.'), mp('Doha', 'm13', 300, 'Doha: alles glänzt. Sogar die Bushaltestellen.'), AK,
+    mp('Abu Dhabi', 'm13', 310, 'Abu Dhabi: eine Moschee aus Marmor. Wow.'), mp('Dubai', 'm13', 320, 'Dubai: das höchste Haus der Welt. Mein Ego ist höher.'),
+    mfree('Baustelle A40', '🚧', 'Stau. Natürlich.', 'A40, Stau. Auch auf Weltreise. Natürlich.'),
+    { type: 'gotojail', name: 'Ab nach Düsseldorf!', sub: 'Deadline verpasst' },
+    mp('Toronto', 'm14', 320, 'Toronto: Kanadier sind so nett, ich werd misstrauisch.'), mp('Vancouver', 'm14', 320, 'Vancouver: Berge, Meer, Regen. Wie Duisburg, nur mit Bergen.'), SK,
+    mp('Chicago', 'm14', 330, 'Chicago: Pizza so dick wie ein Kuchen.'), mp('Miami', 'm14', 340, 'Miami: Sonnenbrille auf. Für immer.'),
+    mrail('Tokyo Station', 'Tokyo Station: Der Zug ist pünktlich. Auf die Sekunde. Unheimlich.'),
+    mp('Seoul', 'm15', 340, 'Seoul: K-Pop! Ich kann alle Tänze. Fast.'), mp('Shanghai', 'm15', 340, 'Shanghai: Skyline wie aus einem Videospiel.'),
+    mp('Hongkong', 'm15', 350, 'Hongkong: Dim Sum zum Frühstück. Bester Start.'), mp('Singapur', 'm15', 360, 'Singapur: so sauber, ich trau mich nicht zu atmen.'), AK,
+    mp('Sapporo', 'm16', 360, 'Sapporo: Schnee-Festival! Ich bau einen Schnee-Berlingo.'), mp('Osaka', 'm16', 360, 'Osaka: Japans Küche. Ich ess mich durch.'),
+    mp('Kyoto', 'm16', 370, 'Kyoto: Tempel, Gärten, Ruhe. Psst.'), mp('Tokio', 'm16', 380, 'Tokio: Neon, Ramen, Roboter. Meine Leute!'),
+    mutil('Kiosk-Kühlschrank', '🧊', 'Kalte Getränke, heiße Preise.', 'Kalte Getränke, heiße Preise.'),
+    mp('Seattle', 'm17', 380, 'Seattle: Kaffee und Regen. Ich fühl mich zu Hause.'), mp('Las Vegas', 'm17', 380, 'Las Vegas: Was hier passiert, bleibt hier. Außer deinen Schulden.'),
+    mp('San Francisco', 'm17', 390, 'San Francisco: Golden Gate und Tech-Bros. Ich bin ein Startup.'), mp('Los Angeles', 'm17', 400, 'Los Angeles: Hollywood! Ich krieg meinen Stern.'),
+    mrail('Grand Central', 'Grand Central: so schön, man vergisst den Zug.'),
+    mp('Paris', 'm18', 420, 'Paris: Eiffelturm, Croissants, Romantik. Ich bin verliebt. In das Croissant.'), SK,
+    mp('London', 'm18', 440, 'London: Tee um fünf, Regen um sechs.'), mp('New York', 'm18', 460, 'New York: die Stadt, die niemals schläft. Ich auch nicht.'),
+    mtax('Handyvertrag verlängert', 80, '📱', 'Verlängert. Automatisch. Wie immer.'),
+    mp('Dulidan Druckerei', 'm19', 480, 'Die Druckerei! Riecht nach frischen Plakaten.'), mp('Dulidan Folierhalle', 'm19', 500, 'Hier wird der Berlingo foliert. Mit Liebe und Föhn.'),
+    mp('DULIDAN HQ', 'm19', 550),
   ];
   if (MEGA_SPACES.length !== 120) throw new Error('MEGA-Brett hat ' + MEGA_SPACES.length + ' Felder');
   // Aprils Sprüche: eigene Sprüche oder die vom normalen Brett (gleicher Name)
@@ -286,8 +295,27 @@
   // Karten wie „Rücke vor bis DULIDAN HQ“ finden ihr Ziel per Name
   const MEGA_MOVE = {};
   SPACES.forEach((x, i) => { const j = MEGA_SPACES.findIndex((y) => y.name === x.name); if (j >= 0) MEGA_MOVE[i] = j; });
+  // ================= MINI-BRETT: 24 Felder, nur das Wichtigste =================
+  const byName = (n) => Object.assign({}, SPACES.find((x) => x.name === n));
+  const MINI_SPACES = [
+    { type: 'go', name: 'LOS', sub: 'Neuer Auftrag! +Ð100' },
+    byName('Weseler Straße'), { type: 'studio', name: 'Studio-Karte' }, byName('Hochfeld'),
+    { type: 'tax', name: 'April hatte Zugriff auf deine Karte', amount: 150, icon: '💳' }, byName('Duisburg Hbf'),
+    { type: 'jail', name: 'UH! Schreckensort Düsseldorf', sub: 'Nur zu Besuch' },
+    byName('Öhringer Marktplatz'), { type: 'april', name: 'April-Karte' }, byName('Schloss Öhringen'), byName('Zoo Duisburg'), byName('MSV-Arena'),
+    { type: 'parking', name: 'Aprils Pause', sub: 'Spardose' },
+    byName('Landschaftspark Nord'), { type: 'april', name: 'April-Karte' }, byName('Rheinorange'), byName('Pfandautomat'), byName('Öhringen Hbf'),
+    { type: 'gotojail', name: 'Ab nach Düsseldorf!', sub: 'Deadline verpasst' },
+    byName('Königstraße'), byName('Forum Duisburg'), { type: 'tax', name: 'Du wurdest gescammt', amount: 100, icon: '🎣' }, byName('Innenhafen Duisburg'), byName('DULIDAN HQ'),
+  ];
+  if (MINI_SPACES.length !== 24) throw new Error('MINI-Brett hat ' + MINI_SPACES.length + ' Felder');
+  const MINI_FIELD = MINI_SPACES.map((sp) => { const i = SPACES.findIndex((x) => x.name === sp.name); return i >= 0 ? APRIL_FIELD[i] : null; });
+  const MINI_MOVE = {};
+  SPACES.forEach((x, i) => { const j = MINI_SPACES.findIndex((y) => y.name === x.name); if (j >= 0) MINI_MOVE[i] = j; });
+
   const BOARDS = {
     normal: { id: 'normal', SPACES, RAILS, UTILS, APRIL_FIELD, N: 40, JAIL: 10, go: GO_MONEY, stepMult: 1, moneyMult: 1, maxHouses: 32, maxHotels: 12, moveMap: null },
+    mini: { id: 'mini', SPACES: MINI_SPACES, RAILS: idxOf(MINI_SPACES, 'rail'), UTILS: idxOf(MINI_SPACES, 'util'), APRIL_FIELD: MINI_FIELD, N: 24, JAIL: 6, go: 100, stepMult: 1, moneyMult: 0.7, maxHouses: 16, maxHotels: 6, moveMap: MINI_MOVE },
     mega: { id: 'mega', SPACES: MEGA_SPACES, RAILS: idxOf(MEGA_SPACES, 'rail'), UTILS: idxOf(MEGA_SPACES, 'util'), APRIL_FIELD: MEGA_FIELD, N: 120, JAIL: 30, go: 300, stepMult: 2, moneyMult: 1.5, maxHouses: 96, maxHotels: 36, moveMap: MEGA_MOVE },
   };
 

@@ -603,3 +603,8 @@ body::before { display: none; }
 .float-card .card-kind { font: 800 11px/1 var(--mono); letter-spacing: .3em; text-transform: uppercase; opacity: .85; }
 .float-card .card-text { font-weight: 700; font-size: 17px; line-height: 1.35; text-wrap: balance; }
 @media (max-width: 900px) { .board-wrap.is-zoomed:has(.board.is-mega) { max-height: 62vh; } }
+/* MINI-Brett (7 × 7): größere Felder, etwas größere Schrift */
+.board.is-mini .cname { font-size: max(8px, 1.7cqi); }
+.board.is-mini .cprice { font-size: max(7px, 1.5cqi); }
+.board.is-mini .cicon { font-size: 3.6cqi; }
+.board.is-mini .cell-tokens .tok { width: 7cqi; height: 7cqi; font-size: 4cqi; }

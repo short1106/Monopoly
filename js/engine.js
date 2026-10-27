@@ -180,7 +180,7 @@
     if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
     if (['classic', 'casino', 'world', 'royale', 'metro', 'tower'].includes(o.mode)) S.settings.mode = o.mode;
-    if (['normal', 'mega'].includes(o.size)) S.settings.size = o.size;
+    if (['mini', 'normal', 'mega'].includes(o.size)) S.settings.size = o.size;
     if (typeof o.mood === 'boolean') S.settings.mood = o.mood;
     if (VARIANTS.includes(o.variant)) S.settings.variant = o.variant;
     if ([0, 15, 20, 30, 50].includes(Number(o.maxRounds))) S.settings.maxRounds = Number(o.maxRounds);
@@ -200,7 +200,7 @@
     if (S.players.length < 2) return 'Ihr braucht mindestens 2 Spieler.';
     if (S.players.some(p => !p.token)) return 'Jeder muss zuerst eine Figur wählen.';
     if (!S.settings) S.settings = { startMoney: START_MONEY, pot: true, goDouble: false };
-    S.size = (S.settings.mode || 'classic') === 'classic' && S.settings.size === 'mega' ? 'mega' : 'normal';
+    S.size = (S.settings.mode || 'classic') === 'classic' && ['mini', 'mega'].includes(S.settings.size) ? S.settings.size : 'normal';
     useBoard(S);
     S.players.forEach((p, i) => {
       p.stats = newStats();
@@ -223,7 +223,7 @@
       idx.forEach((k, i) => { S.props[k].owner = S.players[i % S.players.length].id; });
     }
     S.log = [];
-    log(S, S.isCasino ? `🎰 DULIDAN CASINO öffnet! ${S.players[0].name} beginnt.` : S.size === 'mega' ? `🚀 MEGA-Dulidanopoly startet! 120 Felder, doppelte Schritte. ${S.players[0].name} beginnt.` : `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
+    log(S, S.isCasino ? `🎰 DULIDAN CASINO öffnet! ${S.players[0].name} beginnt.` : S.size === 'mega' ? `🚀 MEGA-Dulidanopoly startet! 120 Felder, doppelte Schritte. ${S.players[0].name} beginnt.` : S.size === 'mini' ? `⚡ MINI-Dulidanopoly startet! 24 Felder, nur das Wichtigste. ${S.players[0].name} beginnt.` : `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
     const intro = { blitz: '⚡ Blitz: Alle Felder sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: `💸 Millionär: Wer zuerst ${money(GOAL_WORTH)} Vermögen hat, gewinnt!`, chaos: '💖 April-Chaos: Jede Runde passiert irgendwas. Ihr wurdet gewarnt.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5. Viel Glück.' }[variant];
     if (intro) log(S, intro);
     return null;

@@ -409,8 +409,8 @@
     $('#settings').innerHTML = variantsHTML + `
       <label class="row"><span>Spielmodus<small>${world ? esc(W.board(st.mode).tagline) : st.mode === 'casino' ? 'Jede Straße ist ein Casino. Wer bei dir landet, muss gegen deine Bank zocken. Ausbauen macht dein Casino korrupter.' : 'Das Brett mit Duisburg und Öhringen'}</small></span>
         <select id="set-mode" ${ro}>${[['classic', '🎲 Klassisch'], ['casino', '🎰 DULIDAN CASINO'], ['world', '🌍 DULIDAN WORLD'], ['royale', '🌀 DULIDAN ROYALE'], ['metro', '🚇 DULIDAN METRO'], ['tower', '🏙️ DULIDAN TOWER']].map(([v, l]) => `<option value="${v}" ${(st.mode || 'classic') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      ${!world && st.mode !== 'casino' ? `<label class="row"><span>Brettgröße<small>${st.size === 'mega' ? 'MEGA: 120 Felder, 19 Straßengruppen von Duisburg bis Heilbronn, doppelte Schritte, 1,5× Startgeld' : 'Normal: 40 Felder'}</small></span>
-        <select id="set-size" ${ro}>${[['normal', 'Normal (40 Felder)'], ['mega', '🚀 MEGA (120 Felder)']].map(([v, l]) => `<option value="${v}" ${(st.size || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
+      ${!world && st.mode !== 'casino' ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
+        <select id="set-size" ${ro}>${[['mini', '⚡ MINI (24 Felder)'], ['normal', 'Normal (40 Felder)'], ['mega', '🚀 MEGA (120 Felder)']].map(([v, l]) => `<option value="${v}" ${(st.size || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
       <label class="row"><span>💖 Aprils Laune<small>April mag jede Person anders, lässt sich bestechen, macht Geschenke – und rächt sich, wenn sie dich hasst</small></span>
         <input type="checkbox" class="switch" id="set-mood" ${st.mood !== false ? 'checked' : ''} ${ro}></label>
       ${world ? `<p class="row"><span>Spielende<small>Kein Runden-Limit: Es gewinnt, wer zuletzt noch nicht pleite ist.${st.mode === 'royale' ? ' Der April-Sturm sorgt dafür.' : ` Ab Runde ${W.board(st.mode).RULES.crisis.from} steigen alle Mieten jede Runde (Krise).`}</small></span></p>` : ''}
@@ -502,8 +502,10 @@
     board.classList.toggle('is-casino', casino);
     const mega = BRD.id === 'mega', L = BRD.N / 4;
     board.classList.toggle('is-mega', mega);
-    board.style.gridTemplateColumns = board.style.gridTemplateRows = mega ? `1.55fr repeat(${L - 1}, 1fr) 1.55fr` : '';
-    $('#center').style.gridArea = mega ? `2 / 2 / ${L + 1} / ${L + 1}` : '';
+    const custom = BRD.id !== 'normal';
+    board.classList.toggle('is-mini', BRD.id === 'mini');
+    board.style.gridTemplateColumns = board.style.gridTemplateRows = custom ? `1.55fr repeat(${L - 1}, 1fr) 1.55fr` : '';
+    $('#center').style.gridArea = custom ? `2 / 2 / ${L + 1} / ${L + 1}` : '';
     // Das MEGA-Brett startet gezoomt, die Kamera folgt der Figur
     if (mega && !App.megaZoomInit) { App.megaZoomInit = true; $('#board-wrap').classList.add('is-zoomed'); $('#btn-zoom').textContent = 'Übersicht'; }
     $('.center-sub').textContent = casino ? 'Casino Night · Duisburg' : 'Duisburg · Öhringen';
@@ -1193,7 +1195,7 @@
   };
   $('#btn-rules').onclick = () => (isWorld() ? openModal(worldRulesHTML()) : openModal(`<h2>Regeln</h2><div class="rules">
     <p>Alle starten mit ${M(Math.round(((App.S && App.S.settings && App.S.settings.startMoney) || D.START_MONEY) * BRD.moneyMult))}. Wer zuletzt nicht pleite ist, gewinnt. Bezahlt wird in Dulis (Ð).</p>
-    ${BRD.id === 'mega' ? '<h3>🚀 MEGA-Brett</h3><ul><li>120 Felder, 19 Straßengruppen von Duisburg über das Ruhrgebiet bis Heilbronn und Hohenlohe.</li><li>Du läufst doppelt so weit, wie du würfelst. Startgeld ×1,5, über LOS gibt es Ð300.</li><li>Gebaut wird erst, wenn dir die ganze Gruppe gehört – meistens 4 Straßen. Handeln lohnt sich!</li><li>„Übersicht“ zeigt das ganze Brett, im Zoom folgt die Kamera der Figur.</li></ul>' : ''}
+    ${BRD.id === 'mega' ? '<h3>🚀 MEGA-Brett</h3><ul><li>Einmal um die Welt: 120 Felder, von Duisburg und Öhringen über Afrika, Südamerika, Asien und Europa bis New York – und ganz am Ende das DULIDAN HQ.</li><li>Du läufst doppelt so weit, wie du würfelst. Startgeld ×1,5, über LOS gibt es Ð300.</li><li>Gebaut wird erst, wenn dir die ganze Gruppe gehört – meistens 4 Straßen. Handeln lohnt sich!</li><li>„Übersicht“ zeigt das ganze Brett, im Zoom folgt die Kamera der Figur.</li></ul>' : BRD.id === 'mini' ? '<h3>⚡ MINI-Brett</h3><ul><li>24 Felder mit den wichtigsten Straßen, jede Farbgruppe hat nur 2 Felder.</li><li>Weniger Startgeld, über LOS gibt es Ð100. Schnelle Runde für zwischendurch.</li></ul>' : ''}
     <h3>Dein Zug</h3><ul>
       <li>Würfeln und ziehen. Bei einem Pasch darfst du nochmal. Drei Pasch hintereinander: ab nach Düsseldorf.</li>
       <li>Freies Feld: kaufen oder versteigern lassen. Fremdes Feld: Miete zahlen.</li>
