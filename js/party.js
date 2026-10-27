@@ -103,6 +103,7 @@
         return;
       }
       if (msg.type === 'room') { App.view = msg.room; render(); }
+      if (msg.type === 'custom' && G.onCustom) G.onCustom(msg.data);
       if (msg.type === 'error') toast(msg.msg);
     };
     Net.handlers.peerLeft = (cid) => { const p = App.room && App.room.players.find((x) => x.id === cid); if (p) { p.connected = false; commit(); } };
@@ -120,7 +121,7 @@
       App.room = newRoom();
       addPlayer(App.room, myId, n, false);
       App.mode = 'host';
-      if (!online) { App.code = null; App.mode = 'host'; App.solo = true; for (let k = 1; k < (G.soloBots || 1) + 1; k++) hostAct(myId, { type: 'addBot' }); commit(); return; }
+      if (!online) { App.code = null; App.mode = 'host'; App.solo = true; for (let k = 1; k < (G.soloBots ?? 1) + 1; k++) hostAct(myId, { type: 'addBot' }); commit(); return; }
       App.solo = false;
       const code = Net.randomCode();
       $('#p-create').disabled = true;
@@ -149,7 +150,7 @@
     function renderTop() {
       const chip = $('#p-room');
       chip.hidden = !App.mode;
-      chip.textContent = App.solo ? 'Gegen Bots' : App.code ? `Raum ${App.code}` : '';
+      chip.textContent = App.solo ? (G.soloChip || 'Gegen Bots') : App.code ? `Raum ${App.code}` : '';
       const net = $('#p-net');
       net.hidden = !App.mode || App.solo;
       net.textContent = App.mode === 'host' ? 'Host' : { online: 'Online', lost: 'Verbindung weg …', noroom: 'Raum nicht gefunden', reconnecting: 'Verbinde neu …' }[App.conn] || 'Verbinde …';
@@ -160,7 +161,8 @@
       if (!App.mode) return renderHome();
       if (!V) { root.innerHTML = '<div class="p-card"><p class="p-wait">Verbinde mit dem Raum …</p></div>'; return; }
       if (V.phase === 'lobby') return renderLobby(V);
-      G.render(root, V.S, myId, { act, toast, esc, players: V.players, isHost: V.host === myId, again: () => act({ type: 'again' }), lobby: () => act({ type: 'lobby' }) });
+      G.render(root, V.S, myId, { act, toast, esc, players: V.players, settings: V.settings, isHost: V.host === myId, solo: !!App.solo, again: () => act({ type: 'again' }), lobby: () => act({ type: 'lobby' }),
+        broadcast: (data) => { if (App.mode === 'host' && !App.solo) Net.broadcast({ type: 'custom', data }); } });
     }
     function renderHome() {
       root.innerHTML = `<div class="p-hero"><p class="sec-label"><span class="n">${esc(G.kicker || 'SPIEL')}</span>Dulidan Studios</p>
@@ -170,7 +172,7 @@
           <button id="p-create" class="btn btn-primary">Online-Raum erstellen</button>
           <div class="divider"><span>oder</span></div>
           <div class="join-row"><label class="field"><span>Raum-Code</span><input id="p-code" maxlength="4" autocomplete="off" placeholder="ABCD" value="${esc(new URLSearchParams(location.search).get('raum') || '')}"></label><button id="p-join" class="btn">Beitreten</button></div>
-          <button id="p-solo" class="btn btn-ghost">Gegen Bots spielen</button>
+          <button id="p-solo" class="btn btn-ghost">${esc(G.soloLabel || 'Gegen Bots spielen')}</button>
         </div></div>
         <div class="p-rules">${G.rulesHTML || ''}</div>`;
       $('#p-create').onclick = () => hostRoom(true);
@@ -181,22 +183,23 @@
     function renderLobby(V) {
       const host = V.host === myId;
       root.innerHTML = `<div class="p-card p-lobby"><p class="sec-label"><span class="n">LOBBY</span>${esc(G.title)}</p>
-        ${App.solo ? '<h2 class="p-code">Gegen Bots</h2>' : `<h2 class="p-code">${esc(V.code || '----')}</h2><p class="p-sub">Schick den Code oder den Link an deine Leute.</p>${host ? '<button class="btn btn-small" id="p-copy">Link kopieren</button>' : ''}`}
+        ${App.solo ? `<h2 class="p-code">${esc(G.soloChip || 'Gegen Bots')}</h2>` : `<h2 class="p-code">${esc(V.code || '----')}</h2><p class="p-sub">Schick den Code oder den Link an deine Leute.</p>${host ? '<button class="btn btn-small" id="p-copy">Link kopieren</button>' : ''}`}
         <ul class="p-players">${V.players.map((p) => `<li style="--pc:${p.color}"><span class="p-dot"></span><strong>${esc(p.name)}</strong>${p.bot ? '<span class="bot-tag">BOT</span>' : ''}${p.id === V.host ? '<small>Host</small>' : ''}${p.id === myId ? '<small>du</small>' : ''}${!p.connected && !p.bot ? '<small class="warn">offline</small>' : ''}${host && p.id !== myId ? `<button class="btn btn-small btn-ghost" data-kick="${esc(p.id)}">Entfernen</button>` : ''}</li>`).join('')}</ul>
         <p class="p-sub">${V.players.length}/${G.max} · mindestens ${G.min}</p>
         ${G.settingsHTML ? `<div class="p-settings">${G.settingsHTML(V.settings, host)}</div>` : ''}
-        ${host ? `<div class="btn-row">${V.players.length < G.max ? '<button class="btn" id="p-bot">+ Bot</button>' : ''}<button class="btn btn-primary" id="p-start" ${V.players.length < G.min ? 'disabled' : ''}>Spiel starten</button></div>` : '<p class="p-wait">Der Host startet gleich …</p>'}</div>`;
+        ${G.lobbyNote ? G.lobbyNote(host) : ''}
+        ${host ? `<div class="btn-row">${V.players.length < G.max && !G.noBots ? '<button class="btn" id="p-bot">+ Bot</button>' : ''}<button class="btn btn-primary" id="p-start" ${V.players.length < G.min ? 'disabled' : ''}>Spiel starten</button></div>` : '<p class="p-wait">Der Host startet gleich …</p>'}</div>`;
       if (host) {
         $('#p-start').onclick = () => act({ type: 'start' });
         if ($('#p-bot')) $('#p-bot').onclick = () => act({ type: 'addBot' });
         if ($('#p-copy')) $('#p-copy').onclick = () => { const l = `${location.origin}${location.pathname}?raum=${V.code}`; navigator.clipboard.writeText(l).then(() => toast('Link kopiert!'), () => toast(l)); };
         root.querySelectorAll('[data-kick]').forEach((b) => { b.onclick = () => act({ type: 'kick', id: b.dataset.kick }); });
-        root.querySelectorAll('[data-set]').forEach((el) => { el.onchange = () => act({ type: 'setting', key: el.dataset.set, value: el.type === 'checkbox' ? el.checked : el.value }); });
+        root.querySelectorAll('[data-set]').forEach((el) => { el.onchange = () => act({ type: 'setting', key: el.dataset.set, value: el.type === 'checkbox' ? el.checked : el.type === 'number' || el.dataset.num ? Number(el.value) : el.value }); });
       }
     }
     render();
     if (new URLSearchParams(location.search).get('raum') && App.name) setTimeout(() => { if (!App.mode) joinRoom(); }, 50);
-    return { act, toast };
+    return { act, toast, refresh: render };
   }
 
   window.DULI_PARTY = { start, esc };

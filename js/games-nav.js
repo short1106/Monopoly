@@ -21,6 +21,7 @@
     { href: './', name: 'Dulidanopoly', sub: 'Das Brettspiel · 16 Modi', ic: '🎲' },
     { href: 'uno.html', name: 'Dulidan UNO', sub: 'Kartenspiel · 2–6 online', ic: '🃏' },
     { href: 'schiffe.html', name: 'Schiffe versenken', sub: 'Seeschlacht · 2 online', ic: '🚢' },
+    { href: 'leben.html', name: 'Spiel des Lebens', sub: 'KI-Spielleiterin April · online', ic: '🚶' },
     { href: './#arcade', name: 'Spielhalle', sub: '6 Spiele für zwischendurch', ic: '🕹️' },
   ];
   const here = location.pathname.split('/').pop() || './';

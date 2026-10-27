@@ -38,7 +38,10 @@ Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo,
 ## Andere Spiele (oben rechts)
 - 🃏 **DULIDAN UNO** (`uno.html`): 2–6 Personen online oder gegen Bots. Vier Dulidan-Farben, Aussetzen, Richtungswechsel, +2, Farbwahl, +4 und die April-Karte (Farbe wählen und Hand tauschen). +2/+4 stapeln, „UNO!“ rufen, sonst kann man dich erwischen. Punkte über mehrere Runden.
 - 🚢 **SCHIFFE VERSENKEN** (`schiffe.html`): zu zweit online oder gegen einen Bot. Flotte selbst setzen oder zufällig, Treffer = nochmal, je einmal Radar (3×3 zählen) und Luftschlag (3 Felder).
-- Beide nutzen `js/party.js` (Lobby, Raum-Code, Bots, Host schickt jeder Person nur ihre eigene Sicht).
+- 🚶 **SPIEL DES LEBENS** (`leben.html`): 1–6 Personen online. April (KI, Claude von Anthropic) leitet das Spiel: Alle starten mit 18, jede Runde (Monat, Quartal, Halbjahr oder Jahr) bekommt jede Person ein Event und antwortet frei. Werte Gesundheit, Geld, Macht, Happiness, laufende Effekte, Beziehungen, Lebenschronik. Echte Karte (OpenStreetMap): mieten, kaufen, finanzieren, vermieten, verkaufen. Prüfungen per Würfel oder Quiz, Tod ist endgültig (neue Figur oder die anderen gewinnen). Eigene Figuren werden auf dem Gerät gespeichert und lassen sich per Code teilen.
+  - Der Host trägt unter „KI & Stimme“ einen eigenen Anthropic-API-Schlüssel ein (optional einen ElevenLabs-Schlüssel für Aprils Stimme). Die Schlüssel bleiben nur im Browser des Hosts und gehen direkt an die APIs. Ist das ElevenLabs-Guthaben leer, läuft das Spiel einfach ohne Stimme weiter.
+  - `js/leben.js` (Regeln, Grenzen für Aprils Vorschläge, Immobilien) · `js/leben-ai.js` (Prompt, Claude-Aufruf, Stimme) · `js/leben-ui.js` · `vendor/anthropic-sdk.js` (Anthropic TypeScript SDK, MIT) · `vendor/leaflet/` (Leaflet, BSD-2). Adressen: Nominatim/OpenStreetMap.
+- Alle nutzen `js/party.js` (Lobby, Raum-Code, Bots, Host schickt jeder Person nur ihre eigene Sicht).
 
 ## Technik
 - Symbole: [game-icons.net](https://game-icons.net) von Lorc, Delapouite und weiteren Autor:innen, Lizenz [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). `js/icons.js` ersetzt beim Anzeigen jedes Emoji durch eines dieser Symbole.
