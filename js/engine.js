@@ -1149,6 +1149,31 @@
     return null;
   }
 
+  // Bots handeln: Fehlt nur noch ein Feld zur ganzen Farbgruppe, wird es abgekauft oder getauscht
+  function botTradeIdea(S, p) {
+    if (S.trade || active(S).length < 2) return null;
+    S.botTrades = S.botTrades || {};
+    if (S.turnNo - (S.botTrades[p.id] ?? -99) < 4) return null;
+    const groups = [...new Set(SPACES.filter(x => x.type === 'prop').map(x => x.group))];
+    for (const g of groups) {
+      const idx = groupIdx(g);
+      if (idx.some(i => !S.props[i].owner)) continue;
+      const theirs = idx.filter(i => S.props[i].owner !== p.id);
+      if (theirs.length !== 1 || idx.length < 2) continue;
+      const k = theirs[0], o = P(S, S.props[k].owner);
+      if (!o || o.bankrupt || S.props[k].mort || groupHasHouses(S, g)) continue;
+      const completesFor = (j, pid) => groupIdx(SPACES[j].group).every(x => x === j || S.props[x].owner === pid);
+      const swap = Object.keys(S.props).map(Number).find(j => S.props[j].owner === p.id && SPACES[j].type === 'prop' && SPACES[j].group !== g
+        && !S.props[j].mort && !groupHasHouses(S, SPACES[j].group) && completesFor(j, o.id));
+      const price = SPACES[k].price;
+      const money = swap != null ? 0 : Math.min(p.money - RESERVE, Math.round(price * (1.6 + rng() * 0.6)));
+      if (swap == null && money < price * 1.3) continue;
+      S.botTrades[p.id] = S.turnNo;
+      return { type: 'tradePropose', trade: { to: o.id, give: { props: swap != null ? [swap] : [], money, jf: 0 }, get: { props: [k], money: 0, jf: 0 } } };
+    }
+    return null;
+  }
+
   function botStep(S) {
     if (S.phase !== 'play') return null;
     if (S.trade) {
@@ -1157,7 +1182,9 @@
       const t = S.trade;
       const gain = t.give.props.reduce((a, i) => a + valueFor(S, to.id, i), 0) + t.give.money + t.give.jf * 50;
       const loss = t.get.props.reduce((a, i) => a + valueFor(S, to.id, i) * 1.2, 0) + t.get.money + t.get.jf * 50;
-      return { pid: to.id, action: { type: gain >= loss * 1.25 && gain > 0 ? 'tradeAccept' : 'tradeDecline' } };
+      // Bekommt der Bot selbst eine ganze Gruppe dazu, sagt er schneller ja
+      const completes = t.give.props.some(i => SPACES[i].type === 'prop' && groupIdx(SPACES[i].group).every(x => x === i || S.props[x].owner === to.id));
+      return { pid: to.id, action: { type: gain >= loss * (completes ? 0.9 : 1.25) && gain > 0 ? 'tradeAccept' : 'tradeDecline' } };
     }
     if (S.sub === 'auction') {
       const a = S.auction, b = P(S, a.active[a.turn]);
@@ -1173,6 +1200,8 @@
       case 'roll': {
         const m = botManage(S, p);
         if (m) return go(m);
+        const tr = botTradeIdea(S, p);
+        if (tr) return go(tr);
         const br = MOOD.botBribe(S, p);
         if (br) return go({ type: 'bribe', amt: br });
         if (p.inJail && p.jailFree.length) return go({ type: 'useJailCard' });
