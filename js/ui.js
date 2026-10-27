@@ -399,7 +399,7 @@
       <label class="row"><span>Spielmodus<small>${world ? esc(W.board(st.mode).tagline) : 'Das Brett mit Duisburg und Öhringen'}</small></span>
         <select id="set-mode" ${ro}>${[['classic', '🎲 Klassisch'], ['world', '🌍 DULIDAN WORLD'], ['royale', '🌀 DULIDAN ROYALE'], ['metro', '🚇 DULIDAN METRO'], ['tower', '🏙️ DULIDAN TOWER']].map(([v, l]) => `<option value="${v}" ${(st.mode || 'classic') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       ${world && st.mode !== 'royale' ? `<label class="row"><span>Runden-Limit<small>Danach gewinnt der Reichste – vorher gewinnt, wer als Letzter nicht pleite ist</small></span>
-        <select id="set-rounds" ${ro}>${[15, 20, 30, 50, 0].map((r) => `<option value="${r}" ${(st.maxRounds ?? 30) === r ? 'selected' : ''}>${r ? r + ' Runden' : 'Kein Limit'}</option>`).join('')}</select></label>` : ''}
+        <select id="set-rounds" ${ro}>${[0, 15, 20, 30, 50].map((r) => `<option value="${r}" ${(st.maxRounds ?? (W.board(st.mode).RULES.noLimit ? 0 : 30)) === r ? 'selected' : ''}>${r ? r + ' Runden' : 'Kein Limit – bis alle pleite sind'}</option>`).join('')}</select></label>` : ''}
       <label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
         <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
       ${world ? '' : `<label class="row"><span>🐷 Aprils Spardose<small>Steuern und Strafen sammeln sich auf „Aprils Pause“</small></span>
@@ -1484,6 +1484,12 @@
     const cur = curP();
     let h = '';
     if (S.event) h += `<div class="news ${S.event.storm ? 'is-storm' : ''}"><strong>${S.event.storm ? '🌪️ April-Sturm' : '📰 April-News'} · Runde ${S.round}${S.maxRounds ? '/' + S.maxRounds : ''}</strong><span>${esc(S.event.t)}</span></div>`;
+    const crisis = GB().RULES.crisis;
+    if (crisis && !S.event?.storm) {
+      h += S.inflation
+        ? `<div class="news is-storm"><strong>📈 Weltwirtschaftskrise</strong><span>Alle Mauten +${Math.round(S.inflation * 100)} % – und es wird jede Runde schlimmer.</span></div>`
+        : `<div class="news"><strong>📈 Krise in Runde ${crisis.from}</strong><span>Ab dann steigen alle Mauten jede Runde. Spiel läuft, bis alle bis auf einen pleite sind.</span></div>`;
+    }
     if (S.trade) {
       const from = P(S.trade.from), to = P(S.trade.to);
       const side = (sd) => {
@@ -1637,7 +1643,7 @@
   }
 
   const TWISTS = {
-    world: '<li>Die Weltkarte: Routen über Land und See, ✈ Flughäfen für Jetset-Flüge.</li>',
+    world: '<li>Die Weltkarte: Routen über Land und See, ✈ Flughäfen für Jetset-Flüge.</li><li>📈 Ab Runde 8 kommt die Weltwirtschaftskrise: Alle Mauten steigen jede Runde um 20 %. Gespielt wird, bis alle bis auf einen pleite sind.</li>',
     royale: '<li>🌀 Drei Ringe. Portale verbinden sie. Je weiter innen, desto teurer.</li><li>🌪️ Der April-Sturm zerstört in Runde 7 den äußeren und in Runde 14 den mittleren Ring. Wer dort steht, fliegt nach innen. Zerstörte Planeten zahlen die Hälfte zurück.</li><li>🔥 Danach steigen alle Mieten jede Runde um 30 %, bis nur noch einer übrig ist.</li><li>🎁 Loot-Kisten: 🛡️ Schild blockt eine Miete, ⚡ Boost bringt dich 3 Felder weiter.</li>',
     metro: '<li>🚇 Sieben U-Bahn-Linien, fünf Umsteigebahnhöfe.</li><li>🎫 Gehört jemandem eine ganze Linie, zahlst du Fahrpreis für jede seiner Stationen, durch die du nur durchfährst.</li><li>🚄 Express-Seite des Dulidan-Würfels: Spring zu einem beliebigen Umsteigebahnhof.</li>',
     tower: '<li>🏙️ Fünf Etagen, jede ein eigener Rundgang. Ganz oben das Penthouse.</li><li>⬆ Aufzüge bringen dich einen Stock hoch, ⬇ Rutschen einen runter.</li><li>Gehört jemandem eine ganze Etage, kassiert er Aufzug-Gebühr von allen, die dort ankommen.</li><li>🎁 Auf dem Helipad liegen Loot-Kisten.</li>',

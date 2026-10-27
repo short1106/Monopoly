@@ -68,7 +68,8 @@
   const LEVELS = ['Unbebaut', 'Studio', 'Büro', 'Tower', 'Wahrzeichen'];
   const RENT_PCT = [0.15, 0.8, 2.2, 4.5, 7];
 
-  const RULES = { startMoney: 1500, salary: 50, takeoverMult: 1.5 };
+  // Ab Runde 8 Weltwirtschaftskrise: alle Mauten steigen jede Runde weiter, bis jemand pleite geht
+  const RULES = { startMoney: 1500, salary: 50, takeoverMult: 1.5, crisis: { from: 8, step: 0.2 }, noLimit: true };
 
   // Der lila Dulidan-Würfel – sechs Spezialseiten
   const FACES = [

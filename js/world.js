@@ -157,7 +157,7 @@
         stats: { rentPaid: 0, rentGot: 0, maxRent: 0, built: 0, bought: 0, takeovers: 0, flights: 0, km: 0, doubles: 0, loot: 0 },
       });
     });
-    S.maxRounds = g.RULES.maxRounds || (st.maxRounds ?? 30);
+    S.maxRounds = g.RULES.maxRounds || (st.maxRounds ?? (g.RULES.noLimit ? 0 : 30));
     const variant = st.variant || 'normal';
     S.goal = variant === 'million' ? 5000 : 0;
     if (variant === 'blitz') S.maxRounds = 20;
@@ -229,6 +229,15 @@
     }
   }
 
+  // WORLD: Weltwirtschaftskrise – Mauten steigen jede Runde, damit am Ende jemand pleite geht
+  function crisisTick(S) {
+    const c = G(S).RULES.crisis;
+    if (!c || S.round < c.from) return;
+    S.inflation = +(c.step * (S.round - c.from + 1)).toFixed(2);
+    if (S.round === c.from) log(S, `📈 WELTWIRTSCHAFTSKRISE! Ab jetzt steigen alle Mauten jede Runde um ${Math.round(c.step * 100)} %.`);
+    else log(S, `📈 Krise: Alle Mauten sind jetzt ${Math.round(S.inflation * 100)} % teurer.`);
+  }
+
   function collapse(S, ring) {
     const g = G(S);
     const dying = Object.keys(g.CITY).filter(id => g.CITY[id].ring === ring);
@@ -271,6 +280,7 @@
       if (S.maxRounds && S.round > S.maxRounds) return endGame(S, 'Rundenlimit erreicht.');
       drawEvent(S);
       stormTick(S);
+      crisisTick(S);
     } else if (S.settings && S.settings.variant === 'chaos') drawEvent(S);
     beginTurn(S);
   }
