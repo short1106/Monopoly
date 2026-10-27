@@ -606,12 +606,14 @@
 
   const VARIANTS = RL.VARIANTS;
   const varIcon = (v) => (v.icon === 'april' ? aprilIcon('v-april') : v.icon);
-  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['40 Fragen', 'Joker'], bomb: ['Heiße Kartoffel'], realistic: ['Quartale', 'Steuern', 'NEU'], logistics: ['Schienen', 'Netze', 'NEU'] };
+  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['40 Fragen', 'Joker'], bomb: ['Heiße Kartoffel'], realistic: ['Quartale', 'Steuern', 'NEU'], logistics: ['Schienen', 'Netze', 'NEU'], war: ['Truppen', 'Eroberung', 'NEU'], politics: ['Wahlen', 'Gesetze', 'NEU'] };
   function modeList() {
     return [
       { id: 'classic', icon: '🎲', name: 'Klassisch', text: 'Das Brett mit Duisburg und Öhringen. Als MINI, Normal oder MEGA-Weltreise.' },
       { id: 'casino', icon: '🎰', name: 'DULIDAN CASINO', text: 'Jede Straße ist ein Casino. Wer bei dir landet, zockt gegen deine Bank.' },
       ...W.MODES.map((id) => { const b = W.board(id); return { id, icon: b.icon || '🌍', name: b.title, text: b.tagline }; }),
+      { id: 'war', icon: '🪖', name: 'WAR', text: 'Straßen sind Gebiete. Zahl Tribut oder greif mit deinen Truppen an und erobere sie.' },
+      { id: 'politics', icon: '🏛️', name: 'POLITICS', text: 'Alle 5 Runden Bundestagswahl. Wer regiert, macht Gesetze. Drei Wahlsiege und das Spiel ist vorbei.' },
       { id: 'logistics', icon: '🚆', name: 'LOGISTICS', text: 'Nur Bahnhöfe, Flughäfen und Häfen. Leg teure Schienen: Je größer dein Netz, desto höher die Miete.' },
       { id: 'realistic', icon: '🏢', name: 'REALISTIC', text: 'Echte Immobilien: Quartale, Kredite, SCHUFA, Mieter, Hotels, Steuererklärung und Anwälte.' },
     ].map((m) => Object.assign(m, { tags: MODE_TAGS[m.id] || [] }));
@@ -698,9 +700,9 @@
       ${real ? `<label class="row"><span>Spieldauer<small>Eine Runde ist ein Quartal. Am Ende gewinnt das höchste Nettovermögen. Alle starten mit Ð250.000 und einem Job.</small></span>
         <select id="set-years" ${ro}>${[[3, '3 Jahre (12 Quartale)'], [5, '5 Jahre (20 Quartale)'], [10, '10 Jahre (40 Quartale)'], [0, 'Bis zur Insolvenz']].map(([v, l]) => `<option value="${v}" ${yrs === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : `<label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
         <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>`}
-      ${!world && !real && !['casino', 'logistics'].includes(mode) ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
+      ${!world && !real && !['casino', 'logistics', 'war', 'politics'].includes(mode) ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
         <select id="set-size" ${ro}>${[['mini', '⚡ MINI (24 Felder)'], ['normal', 'Normal (40 Felder)'], ['mega', '🚀 MEGA (120 Felder)']].map(([v, l]) => `<option value="${v}" ${(st.size || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
-      ${!world && !real && mode !== 'logistics' && (st.size || 'normal') === 'normal' ? `<label class="row"><span>🛠️ Straßennamen<small>${st.names && Object.keys(st.names).length ? `Eigenes Brett „${esc(st.boardName || 'Eigenes Brett')}“ mit ${Object.keys(st.names).length} neuen Namen` : 'Originalnamen. Eigene Namen baust du im Brett-Editor.'}</small></span>
+      ${!world && !real && !['logistics'].includes(mode) && (st.size || 'normal') === 'normal' ? `<label class="row"><span>🛠️ Straßennamen<small>${st.names && Object.keys(st.names).length ? `Eigenes Brett „${esc(st.boardName || 'Eigenes Brett')}“ mit ${Object.keys(st.names).length} neuen Namen` : 'Originalnamen. Eigene Namen baust du im Brett-Editor.'}</small></span>
         <span class="row-ctl"><select id="set-board" ${ro}><option value="orig">Original</option>${(st.names && Object.keys(st.names).length) || Object.keys(myBoard().names).length ? `<option value="custom" ${st.names && Object.keys(st.names).length ? 'selected' : ''}>🛠️ ${esc(st.names && Object.keys(st.names).length ? st.boardName || 'Eigenes Brett' : myBoard().name)}</option>` : ''}</select>
         ${ro ? '' : uiBtn('Editor', 'editor', 'btn-small btn-ghost')}</span></label>` : ''}
       <label class="row"><span>🎨 Brett-Skin<small>Nur auf deinem Gerät</small></span>
@@ -1039,6 +1041,9 @@
       return;
     }
 
+    h += modeNewsHTML(S);
+    const special = specialSubHTML(S, cur);
+    if (special != null) { el.innerHTML = h + special; return; }
     const me = canControl(cur.id);
     const label = App.mode === 'local' || cur.id !== myId ? esc(cur.name) : 'Du';
     h += `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${me ? (label === 'Du' ? 'Du bist dran!' : `${label} ist dran`) : `${esc(cur.name)} ist dran`}</h3>
@@ -1070,6 +1075,7 @@
         }
         if (canTrade) h += uiBtn('Handeln', 'trade', 'btn-ghost');
         h += bribeBtn(cur);
+        if (S.isPol) h += `<div class="btn-row pol-camp"><small>📣 Wahlkampf (1 Stimme pro Ð100):</small>${[100, 250, 500].map((a) => btn(M(a), { type: 'campaign', amt: a }, pid, 'btn-small btn-ghost', cur.money < a)).join('')}</div>`;
         break;
       }
       case 'casino': {
@@ -1242,6 +1248,8 @@
       if (p.inJail) meta.push('<span class="warn">in Düsseldorf</span>');
       if (p.skip) meta.push('<span class="warn">setzt aus</span>');
       if (p.jailFree.length) meta.push(`<span>${p.jailFree.length}× Freikarte</span>`);
+      if (S.isWar && !p.bankrupt) meta.push(`<span>🪖 ${p.troops || 0} Truppen</span>`);
+      if (S.isPol && S.pol) { const w = S.pol.wins[p.id] || 0; if (S.pol.kanzler === p.id) meta.push('<span class="warn">🏛️ Kanzler</span>'); if (w) meta.push(`<span>${w}/3 Wahlsiege</span>`); }
       if (App.mode !== 'local' && !p.connected && !p.bankrupt && !p.bot) meta.push('<span class="warn">offline</span>');
       if (p.id === myId && App.mode !== 'local') meta.push('<span>du</span>');
       return `<li class="player ${i === S.cur && S.phase === 'play' ? 'is-cur' : ''} ${p.bankrupt ? 'is-out' : ''}" data-pid="${esc(p.id)}" style="--pc:${p.color}">
@@ -1296,6 +1304,8 @@
       if (S.isLogi && !info) info = sp.type === 'rail' ? 'Flughafen' : 'Hafen';
       if (!info) info = sp.type === 'rail' ? (S.isCasino ? 'Casino-Shuttle' : 'Bahnhof') : sp.type === 'util' ? (S.isCasino ? 'Wechselstube' : 'Werk') : 'Keine Häuser';
       let btns = '';
+      if (S.isWar && sp.type === 'prop') info += ` · 🛡️ ${E.defense(S, k)}`;
+      if (manage && S.isWar && sp.type === 'prop' && (v.troops || 0) > 0) btns += btn('+1🪖', { type: 'deploy', idx: k, n: 1 }, v.id, 'btn-ghost', false, 'Truppe stationieren') + ((v.troops || 0) >= 3 ? btn('+3🪖', { type: 'deploy', idx: k, n: 3 }, v.id, 'btn-ghost') : '');
       if (manage && S.isLogi && sp.type === 'station') btns += uiBtn('🛤️ Schienen', 'logiDeed', 'btn-small', `data-i="${k}"`);
       if (manage) {
         if (sp.type === 'prop' && !st.mort && E.ownsGroup(S, v.id, sp.group)) {
@@ -1626,7 +1636,14 @@
     $('#btn-zoom').textContent = w.classList.contains('is-zoomed') ? (mega ? 'Übersicht' : 'Normal') : 'Zoom';
     followCam();
   };
-  $('#btn-rules').onclick = () => (isReal() ? openModal(realRulesHTML()) : App.S && App.S.isLogi ? openModal(`<h2>🚆 DULIDANOPOLY LOGISTICS</h2><div class="rules">
+  $('#btn-rules').onclick = () => (App.S && (App.S.isWar || App.S.isPol) ? openModal(App.S.isWar ? `<h2>🪖 DULIDANOPOLY WAR</h2><div class="rules"><p>Das klassische Brett, aber jede Straße ist ein Gebiet. Wer zuletzt nicht pleite ist, gewinnt.</p>
+    <h3>Truppen</h3><ul><li>Alle starten mit 12 Truppen. Über LOS gibt es 4 neue, plus 1 pro 3 eigenen Feldern.</li><li>Truppen stationierst du in deinen Gebieten (unten bei deinen Feldern: +1🪖, +3🪖).</li></ul>
+    <h3>Fremdes Gebiet</h3><ul><li>Entweder Tribut zahlen (die normale Miete) oder angreifen.</li><li>Verteidigung = 1 Miliz + Besatzung + 2 pro Haus (Bunker) + 2, wenn die ganze Farbgruppe einer Person gehört.</li>
+    <li>Gekämpft wird wie bei Risiko: bis zu 3 Angriffswürfel gegen 2 Verteidigungswürfel, bei Gleichstand gewinnt die Verteidigung.</li><li>Sieg: Das Gebiet gehört dir, ein Haus wird zerstört, die Überlebenden bleiben als Besatzung. Niederlage: Truppen weg und halbe Miete als Reparationen.</li></ul></div>`
+    : `<h2>🏛️ DULIDANOPOLY POLITICS</h2><div class="rules"><p>Das klassische Brett, aber jede Straße ist ein Wahlkreis. Gewonnen hat, wer zuletzt nicht pleite ist – oder wer drei Wahlen gewinnt.</p>
+    <h3>Wahlen</h3><ul><li>Alle 5 Runden ist Bundestagswahl. Stimmen: jedes Feld 1 (+1 pro Haus, ×1,5 bei ganzer Farbgruppe), 1 pro Ð400 Bargeld, Wahlkampfspenden (1 pro Ð100), +2 wenn April dich liebt.</li>
+    <li>100 Sitze werden verteilt. Mehr als 50: allein regieren. Sonst Koalition mit Platz 2 (Vize).</li><li>Diäten: Kanzler Ð100 pro Runde, Vize Ð50.</li></ul>
+    <h3>Gesetze</h3><ul>${Object.values(E.LAWS).map((L) => `<li>${L.icon} <strong>${L.name}:</strong> ${esc(L.text)}</li>`).join('')}</ul><p>Nach jeder Wahl darf die Regierung aus drei zufälligen Gesetzen eins wählen.</p></div>`) : isReal() ? openModal(realRulesHTML()) : App.S && App.S.isLogi ? openModal(`<h2>🚆 DULIDANOPOLY LOGISTICS</h2><div class="rules">
     <p>Auf dem Brett gibt es nur Bahnhöfe, Flughäfen und Häfen. Wer zuletzt nicht pleite ist, gewinnt.</p>
     <h3>Bahnhöfe & Schienen</h3><ul><li>20 deutsche Bahnhöfe. Allein bringt ein Bahnhof wenig Miete.</li>
       <li>Gehören dir zwei Bahnhöfe, die durch eine echte Strecke verbunden sind, kannst du Schienen legen. Teuer: Ð100 + Ð3 pro Kilometer.</li>
@@ -2703,6 +2720,72 @@
   buildHome();
   runBoot();
   applyTempo();
+
+  // ================= WAR, POLITICS, SPLIT OR STEAL =================
+  function modeNewsHTML(S) {
+    let h = '';
+    if (S.isPol && S.pol) {
+      const pol = S.pol, k = pol.kanzler && P(pol.kanzler), v = pol.vize && P(pol.vize), L = pol.law && E.LAWS[pol.law];
+      const next = pol.every - (S.round % pol.every);
+      h += `<div class="news pol-news"><strong>🏛️ ${k ? `Kanzler: ${esc(k.name)}${v ? ` · Vize: ${esc(v.name)}` : ''}` : 'Noch keine Regierung'} · ${next === pol.every ? `Gerade gewählt · nächste Wahl in ${next} Runden` : `Wahl in ${next} Runde${next > 1 ? 'n' : ''}`}</strong>
+        <span>${L ? `${L.icon} ${L.name}: ${esc(L.text)}` : 'Kein Gesetz in Kraft.'}</span>
+        ${pol.last ? `<div class="seats">${Object.entries(pol.last.seats).map(([id, n]) => (P(id) ? `<i style="flex:${n};background:${P(id).color}" title="${esc(P(id).name)}: ${n} Sitze">${n >= 12 ? n : ''}</i>` : '')).join('')}</div>` : ''}</div>`;
+    }
+    const b = S.battle;
+    if (S.isWar && b && b.turn === S.turnNo) {
+      const A = P(b.att), Dp = P(b.def);
+      h += `<div class="news war-news ${b.win ? 'is-win' : 'is-loss'}"><strong>⚔️ Schlacht um ${esc(SPACES[b.idx].name)}</strong>
+        <span>${esc(A.name)} (${b.n}) gegen ${esc(Dp.name)} (${b.defN}): ${b.win ? `Erobert! ${b.left} bleiben als Besatzung.` : `Abgewehrt. ${esc(Dp.name)} hat noch ${b.left}.`}</span>
+        <div class="war-rolls">${b.rolls.map(([a, d]) => `<span><b>${a.join(' ')}</b> vs <em>${d.join(' ')}</em></span>`).join('')}</div></div>`;
+    }
+    const x = S.sosShow;
+    if (x && x.turn === S.turnNo) {
+      const A = P(x.a), B = P(x.b), ic = (k) => (k === 'split' ? '🤝' : '🗡️');
+      h += `<div class="news sos-news"><strong>🐷 Split or Steal · ${M(x.pot)}</strong>
+        <span>${esc(A.name)} sagte „${x.claim === 'split' ? 'Ich teile' : 'Ich klaue'}“ und wählte ${ic(x.pa)} · ${esc(B.name)} wählte ${ic(x.pb)} · ${x.claim === x.pa ? 'Wahrheit!' : 'GELOGEN!'}</span></div>`;
+    }
+    return h;
+  }
+  function specialSubHTML(S, cur) {
+    if (S.sub === 'sos' && S.sos) {
+      const x = S.sos, A = P(x.a), B = P(x.b);
+      let h = `<div class="sos-box"><span class="rc-kind">🐷 Split or Steal</span><strong>${esc(A.name)} und ${esc(B.name)} spielen um ${M(x.pot)}</strong>`;
+      if (!x.claim) {
+        h += `<p>${esc(A.name)} muss zuerst etwas behaupten. Lügen ist erlaubt.</p>`;
+        h += canControl(A.id) ? `<div class="btn-col">${btn('🗣️ „Ich teile, versprochen!“', { type: 'sosClaim', claim: 'split' }, A.id, 'btn-primary')}${btn('🗣️ „Ich klaue. Ehrlich.“', { type: 'sosClaim', claim: 'steal' }, A.id)}</div>` : `<p class="action-note">${esc(A.name)} überlegt, was er/sie sagt …</p>`;
+        return h + '</div>';
+      }
+      h += `<p class="sos-claim">${esc(A.name)}: „${x.claim === 'split' ? 'Ich teile, versprochen!' : 'Ich klaue. Ehrlich.'}“</p>
+        <p class="action-note">Beide wählen geheim. Beide teilen: halbe-halbe. Eine Person klaut: sie kriegt alles. Beide klauen: niemand.</p>`;
+      const local = App.mode === 'local' && !A.bot && !B.bot;
+      [[A, '🤝 Teilen', '🗡️ Klauen'], [B, '🤝 Ich glaube dir – teilen', '🗡️ Du lügst – ich klaue']].forEach(([q, ls, lk]) => {
+        if (x.pick[q.id]) h += `<p class="action-note">✔ ${esc(q.name)} hat gewählt.</p>`;
+        else if (canControl(q.id)) h += `<div class="sos-pick"><small>${esc(q.name)}${local ? ' (die andere Person kurz wegschauen 🙈)' : ''}:</small><div class="btn-row">${btn(ls, { type: 'sosPick', pick: 'split' }, q.id, 'btn-primary')}${btn(lk, { type: 'sosPick', pick: 'steal' }, q.id, 'btn-danger')}</div></div>`;
+        else h += `<p class="action-note">${esc(q.name)} wählt …</p>`;
+      });
+      return h + '</div>';
+    }
+    if (S.sub === 'law' && S.pol && S.pol.pending) {
+      const k = P(S.pol.kanzler);
+      let h = `<div class="sos-box"><span class="rc-kind">📜 Neues Gesetz</span><strong>${esc(k.name)} regiert und wählt ein Gesetz</strong>`;
+      h += canControl(k.id)
+        ? `<div class="btn-col">${S.pol.pending.opts.map((id) => { const L = E.LAWS[id]; return btn(`${L.icon} ${L.name}<small>${esc(L.text)}</small>`, { type: 'law', id }, k.id); }).join('')}</div>`
+        : `<p class="action-note">${esc(k.name)} schreibt am Gesetz …</p>`;
+      return h + '</div>';
+    }
+    if (S.sub === 'war' && S.war) {
+      const w = S.war, o = P(w.def), d = E.defense(S, w.idx);
+      let h = `<div class="sos-box war-box"><span class="rc-kind">⚔️ Feindliches Gebiet</span><strong>${esc(SPACES[w.idx].name)} gehört ${esc(o.name)}</strong>
+        <p>Verteidigung: <b>🛡️ ${d}</b> (Miliz 1 + Besatzung ${S.props[w.idx].gar || 0} + Bunker ${2 * S.props[w.idx].houses}${E.ownsGroup(S, o.id, SPACES[w.idx].group) ? ' + Farbgruppe 2' : ''}). Du hast <b>🪖 ${cur.troops || 0}</b> Truppen.</p>
+        <p class="action-note">Angriff wie bei Risiko: bis zu 3 Würfel gegen 2, Gleichstand gewinnt die Verteidigung. Verlierst du, zahlst du die halbe Miete als Reparationen.</p>`;
+      if (!canControl(cur.id)) return h + `<p class="action-note">${esc(cur.name)} plant den nächsten Zug …</p></div>`;
+      const ns = [...new Set([Math.ceil(d * 1.5), d * 2, cur.troops || 0].filter((n) => n >= 1 && n <= (cur.troops || 0)))].sort((a, b) => a - b);
+      h += `<div class="btn-col">${btn(`💸 Tribut zahlen: ${M(w.rent)}`, { type: 'warPay' }, cur.id, 'btn-primary', false)}
+        ${ns.map((n) => btn(`⚔️ Mit ${n} Truppen angreifen`, { type: 'warAttack', n }, cur.id, 'btn-danger')).join('') || '<p class="action-note">Keine Truppen zum Angreifen. Neue gibt es über LOS.</p>'}</div>`;
+      return h + '</div>';
+    }
+    return null;
+  }
 
   // ================= LOGISTICS: Schienen und Netze =================
   function logiDeedHTML(i, ownerLine) {

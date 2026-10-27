@@ -1136,3 +1136,21 @@ b.warn { color: #ff7a93; }
 .logi-lines td small { display: block; color: var(--muted); font-size: 11px; }
 .logi-lines td:last-child { text-align: right; }
 .trk-on { display: inline-block; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--pc); color: var(--fg); font-size: 12px; margin-right: 6px; }
+
+/* ================= WAR, POLITICS, SPLIT OR STEAL ================= */
+.sos-box { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line-2); border-radius: var(--radius); background: rgba(192, 32, 184, .06); }
+.sos-box strong { font-size: 16px; }
+.sos-box p { margin: 0; font-size: 14px; }
+.sos-claim { font-size: 17px !important; font-weight: 700; padding: 8px 12px; border-left: 3px solid var(--pink); background: var(--bg-2); }
+.sos-pick { display: grid; gap: 6px; }
+.sos-pick small { color: var(--muted); }
+.war-box { border-color: rgba(255, 61, 94, .5); background: rgba(255, 61, 94, .06); }
+.pol-news .seats { display: flex; height: 16px; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+.pol-news .seats i { display: grid; place-items: center; font: 700 10px var(--mono); color: #0b0812; font-style: normal; }
+.war-news.is-win { border-color: rgba(60, 224, 138, .5); background: rgba(60, 224, 138, .08); }
+.war-news.is-loss { border-color: rgba(255, 61, 94, .5); background: rgba(255, 61, 94, .08); }
+.war-rolls { display: flex; flex-wrap: wrap; gap: 4px 10px; font-family: var(--mono); font-size: 11px; }
+.war-rolls b { color: #ff7a93; }
+.war-rolls em { color: #5fd0ff; font-style: normal; }
+.pol-camp { align-items: center; }
+.pol-camp small { flex-basis: 100%; color: var(--muted); }

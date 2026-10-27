@@ -1068,7 +1068,7 @@
     }
     const lied = x.claim !== pa;
     log(S, `${msg} ${a.name} hat ${lied ? 'gelogen' : 'die Wahrheit gesagt'}.`);
-    S.sosShow = { seq: (S.sosShow ? S.sosShow.seq : 0) + 1, a: x.a, b: x.b, pa, pb, claim: x.claim, pot: x.pot };
+    S.sosShow = { seq: (S.sosShow ? S.sosShow.seq : 0) + 1, turn: S.turnNo, a: x.a, b: x.b, pa, pb, claim: x.claim, pot: x.pot };
     S.sos = null;
     proceed(S);
     return null;
@@ -1112,7 +1112,7 @@
     p.troops -= n;
     p.stats.attacks = (p.stats.attacks || 0) + 1;
     S.war = null;
-    S.battle = { seq: (S.battle ? S.battle.seq : 0) + 1, idx: w.idx, att: p.id, def: o.id, n, defN, win: r.def === 0, left: r.def === 0 ? r.att : r.def, rolls: r.rolls };
+    S.battle = { seq: (S.battle ? S.battle.seq : 0) + 1, turn: S.turnNo, idx: w.idx, att: p.id, def: o.id, n, defN, win: r.def === 0, left: r.def === 0 ? r.att : r.def, rolls: r.rolls };
     if (r.def === 0) {
       st.owner = p.id;
       st.houses = Math.max(0, st.houses - 1);

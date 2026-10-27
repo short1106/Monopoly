@@ -19,10 +19,14 @@ Das Monopoly von **Dulidan Studios**: von Marxloh bis ins DULIDAN HQ. Spielbar i
 - 👑 **DULIDAN THRON:** King of the Hill: Wer auf dem Thron sitzt, kassiert Tribut von allen
 - 🧠 **DULIDAN QUIZ-SHOW:** 40 Quizfragen zu Duisburg, Öhringen, Dulidan und Allgemeinwissen, 50:50-Joker
 - 💣 **DULIDAN BOMBE:** heiße Kartoffel: Bombe weitergeben, bevor die Zündschnur abbrennt
+- 🪖 **DULIDANOPOLY WAR:** jede Straße ist ein Gebiet. Auf fremdem Gebiet zahlst du Tribut oder greifst an (Risiko-Würfel: bis zu 3 gegen 2). Truppen gibt es über LOS, stationiert wird auf eigenen Gebieten, Häuser sind Bunker.
+- 🏛️ **DULIDANOPOLY POLITICS:** alle 5 Runden Bundestagswahl mit 100 Sitzen (Stimmen aus Feldern, Häusern, Bargeld, Wahlkampfspenden und Aprils Laune). Wer regiert, kassiert Diäten und wählt ein Gesetz (Mietpreisbremse, Reichensteuer, Grundeinkommen, Lobbygesetz …). Drei Wahlsiege beenden das Spiel.
 - 🚆 **DULIDANOPOLY LOGISTICS:** nur 20 deutsche Bahnhöfe, 4 Flughäfen und 4 Häfen. Flughäfen und Häfen zählen wie Bahnhöfe im Klassiker. Zwischen eigenen Bahnhöfen legst du teure Schienen auf echten Strecken (Ð100 + Ð3/km). Miete = Grundmiete × Netzgröße², mehrere kleine Netze sind erlaubt. Das Schienennetz leuchtet live in der Brettmitte.
 - 🏢 **DULIDANOPOLY REALISTIC:** Immobilien wie im echten Leben. Eine Runde ist ein Quartal, das klassische Brett hat echte Preise. Kaufnebenkosten (Grunderwerbsteuer NRW/BW, Notar, Grundbuch), Kredite mit SCHUFA-Score und Beleihungsgrenze, 6 Bau-Slots pro Grundstück (Wohnung = 1 Slot, Hotel = 2 Slots, beliebige Reihenfolge), Baugenehmigung und Bauzeit, Mieter mit Mietspiegel und Kappungsgrenze, Mietnomaden und Räumungsklage, Hotels mit Saison, Auslastung, Booking-Provision und Personal (oder verpachten), Quartalsabrechnung mit Grundsteuer, Wasser, Müll und Versicherung, Marktzyklen mit Zinsen, Krisen und Pandemien, Anwälte und Gerichte. Nach jedem Jahr kommt die Steuererklärung: Steuerberaterin bezahlen oder selbst im Rechen-Minigame **STEUER-RUSH** (je mehr du besitzt, desto schwerer). Am Ende gewinnt das höchste Nettovermögen.
 
-Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo, Baulöwe, Neureich, Sudden Death, Konto-Roulette), 17 Hausregeln zum Anklicken, 16 Figuren mit eigenen Fähigkeiten, ein Geldverlauf am Spielende und Erfolge, die auf dem Gerät gespeichert bleiben.
+**🤝 Split or Steal** (Hausregel): Wer auf Aprils Pause landet, spielt mit einer zufälligen Person um die Spardose. Erst behaupten (Lüge erlaubt), dann wählen beide geheim: Teilen oder Klauen.
+
+Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo, Baulöwe, Neureich, Sudden Death, Konto-Roulette), 18 Hausregeln zum Anklicken, 16 Figuren mit eigenen Fähigkeiten, ein Geldverlauf am Spielende und Erfolge, die auf dem Gerät gespeichert bleiben.
 
 **🕹️ Spielhalle (ohne Monopoly):** Kniffel gegen Bots, Vier gewinnt gegen einen Minimax-Bot oder zu zweit, Memory, Döner-Snake, Flappy April und Dulidan 2048 – mit Highscores und XP.
 **📖 Kampagne „Aprils Story“:** 12 Level gegen Bots durch alle Modi, je 3 Sterne, Level schalten sich nacheinander frei.
