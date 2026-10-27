@@ -339,3 +339,6 @@ body::before { display: none; }
 .tower-roof { fill: none; stroke: rgba(192, 32, 184, .45); stroke-width: 2; stroke-dasharray: 4 6; }
 .news.is-storm { background: rgba(255, 61, 94, .1); border-color: rgba(255, 61, 94, .5); }
 .news.is-storm strong { color: #ff7a93; }
+
+/* ---------- Tempo-Schalter ---------- */
+.btn-tempo.is-on { border-color: var(--magenta); color: #fff; background: rgba(192, 32, 184, .2); box-shadow: 0 0 16px -4px var(--magenta); }

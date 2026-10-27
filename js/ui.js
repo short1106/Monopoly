@@ -19,6 +19,20 @@
   let myId = store.get('duli-id');
   if (!myId) { myId = 'u' + Math.random().toString(36).slice(2, 10); store.set('duli-id', myId); }
 
+  // Tempo: normal = Würfel rollen langsam, Figur läuft gemütlich; Blitzmodus = alles schnell
+  let fastMode = false;
+  try { fastMode = localStorage.getItem('duli-fast') === '1'; } catch (e) { /* privat */ }
+  const T = () => (fastMode
+    ? { dice: 450, hop: 70, hopBoard: 100, flight: 300, bot: 400 }
+    : { dice: 1700, hop: 340, hopBoard: 400, flight: 900, bot: 900 });
+  function applyTempo() {
+    document.documentElement.style.setProperty('--roll-ms', T().dice + 'ms');
+    document.documentElement.classList.toggle('is-fast', fastMode);
+    document.querySelectorAll('[data-ui="tempo"]').forEach((b) => {
+      b.textContent = fastMode ? '⚡ Blitzmodus: an' : '⚡ Blitzmodus: aus';
+      b.classList.toggle('is-on', fastMode);
+    });
+  }
   const App = { mode: null, S: null, code: null, lastRoll: 0, lastPhase: null, localSel: null, confirmBankrupt: false, trade: null, conn: 'off', seenSeq: null, lastCurId: null, disp: {}, animT: null, botT: null, chat: [] };
   const REACTIONS = ['😂', '🔥', '💀', '🤡', '😭', '🫡', '🙏', '🥙', 'DIGGA', '67', 'WALLAH', 'NO RIZZ', 'TUNG TUNG'];
   const reactLimit = new Map();
@@ -103,7 +117,7 @@
       const err = ENG().act(App.S, st.pid, st.action);
       if (err) { console.warn('Bot:', err, st.action); return; }
       commit();
-    }, 750);
+    }, T().bot);
   }
   function doAct(action, pid) {
     App.confirmBankrupt = action.type === 'bankruptAsk';
@@ -526,7 +540,7 @@
         tokEl.dataset.key = tokKey;
         tokEl.innerHTML = here.map((p) => tokHTML(p.token, p.color).replace('<span class="tok', `<span data-tokpid="${esc(p.id)}" class="tok`)).join('');
       }
-      el.classList.toggle('is-last', S.lastLand === i);
+      el.classList.toggle('is-last', !isBusy() && S.lastLand === i);
       if (i === 20) {
         el.classList.toggle('has-pot', S.pot > 0);
         el.querySelector('.csub').textContent = S.pot > 0 ? `🐷 Spardose: ${M(S.pot)}` : 'Spardose leer';
@@ -545,7 +559,7 @@
       : `<strong>${esc(cur.name)}</strong> ist dran · Runde ${Math.ceil(S.turnNo / Math.max(1, S.players.filter((p) => !p.bankrupt).length))}`;
 
     const cc = $('#center-card');
-    if (S.card && S.phase === 'play') {
+    if (S.card && S.phase === 'play' && !isBusy()) {
       const c = E.CARDS[S.card.deck][S.card.id];
       cc.className = `center-card deck-${S.card.deck}`;
       cc.innerHTML = `<div class="card-icon">${S.card.deck === 'april' ? aprilIcon('card-april') : TYPE_ICON[S.card.deck]}</div><div class="card-kind">${S.card.deck === 'april' ? 'April-Karte' : 'Studio-Karte'}</div><div class="card-text">${esc(c.text)}</div>`;
@@ -623,6 +637,11 @@
     }
     const cur = curP();
     let h = '';
+    if (isBusy()) {
+      el.innerHTML = `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${esc(cur.name)} ist dran</h3><small>${M(cur.money)}</small></div></div>
+        <p class="action-note rolling">${Date.now() < (App.walkAfter || 0) ? '🎲 Die Würfel rollen …' : '🚶 unterwegs …'}</p>`;
+      return;
+    }
     if (S.event) h += `<div class="news"><strong>📰 April-News · Runde ${S.round}</strong><span>${esc(S.event.t)}</span></div>`;
     else if (S.maxRounds) h += `<div class="news"><strong>⚡ Blitz · Runde ${S.round}/${S.maxRounds}</strong><span>Danach gewinnt der Reichste.</span></div>`;
 
@@ -821,7 +840,12 @@
   }
 
   function renderLog() {
-    $('#log').innerHTML = App.S.log.slice(-40).reverse().map((m) => `<li class="${m.startsWith('April:') ? 'is-april' : ''}">${esc(m)}</li>`).join('');
+    const S = App.S;
+    let lines = S.log;
+    // Während Würfel rollen und Figur läuft, nichts verraten
+    if (isBusy() && App.logHoldSeq != null) lines = S.log.slice(0, Math.max(0, S.log.length - (S.logSeq - App.logHoldSeq)));
+    else App.logHoldSeq = S.logSeq;
+    $('#log').innerHTML = lines.slice(-40).reverse().map((m) => `<li class="${m.startsWith('April:') ? 'is-april' : ''}">${esc(m)}</li>`).join('');
   }
 
   // ---------- Handel ----------
@@ -866,6 +890,13 @@
     const S = App.S;
     if (kind === 'trade') return tradeModal();
     if (kind === 'motion') return enableMotion();
+    if (kind === 'tempo') {
+      fastMode = !fastMode;
+      try { localStorage.setItem('duli-fast', fastMode ? '1' : '0'); } catch (e) { /* privat */ }
+      applyTempo();
+      toast(fastMode ? '⚡ Blitzmodus an: Würfeln und Laufen gehen sofort.' : '🎲 Blitzmodus aus: Würfel rollen langsam, die Figur läuft gemütlich.');
+      return App.S && App.S.phase !== 'lobby' ? render() : null;
+    }
     if (kind === 'cityInfo') return openCity(data.id);
     if (kind === 'tradeTo') { App.trade = { to: data.id }; return tradeModal(); }
     if (kind === 'tradeSend') {
@@ -964,6 +995,7 @@
 
   // April spricht über ihre Begleiter-Sprechblase unten rechts
   function showApril(text, delay = 900) {
+    delay = Math.max(delay, (App.busyUntil || 0) - Date.now() + 250);
     clearTimeout(App.aprilShowT);
     App.aprilShowT = setTimeout(() => aprilSay(text.replace(/^„|“$/g, '')), delay);
   }
@@ -972,6 +1004,11 @@
   function animateTokens() {
     const S = App.S;
     if (!S || S.phase === 'lobby' || isWorld()) return;
+    if (Date.now() < (App.walkAfter || 0)) {
+      renderBoard();
+      App.animT = setTimeout(() => { App.animT = null; animateTokens(); }, App.walkAfter - Date.now());
+      return;
+    }
     let moving = false;
     for (const p of S.players) {
       const d = App.disp[p.id];
@@ -982,8 +1019,38 @@
       else App.disp[p.id] = p.pos;
     }
     renderBoard();
-    if (moving) { FX.play('step'); App.animT = setTimeout(animateTokens, 140); }
+    if (moving) { FX.play('step'); App.animT = setTimeout(animateTokens, T().hop); }
     else App.animT = null;
+  }
+
+  // Neuer Wurf im klassischen Modus: Würfel ausrollen lassen, dann laufen, erst danach Aktionen
+  function planClassicMove() {
+    const S = App.S;
+    if (S.rollId === App.lastClassicRoll) return;
+    const first = App.lastClassicRoll == null;
+    App.lastClassicRoll = S.rollId;
+    if (first) return;
+    const p = curP();
+    const d = App.disp[p.id];
+    let dist = d == null ? 0 : (p.pos - d + 40) % 40;
+    if (dist > 13 || (p.inJail && p.pos === 10)) dist = 0;
+    App.walkAfter = Date.now() + T().dice;
+    clearTimeout(App.animT); App.animT = null;
+    rattle();
+    holdActions(T().dice + dist * T().hop + 150);
+  }
+
+  // Aktionen (Kaufen, Karten, Geldanzeigen) erst zeigen, wenn alles durch ist
+  function holdActions(ms) {
+    App.busyUntil = Math.max(App.busyUntil || 0, Date.now() + ms);
+    clearTimeout(App.busyT);
+    App.busyT = setTimeout(() => { if (App.S) render(); }, App.busyUntil - Date.now() + 40);
+  }
+  const isBusy = () => Date.now() < (App.busyUntil || 0);
+  // Im langsamen Modus klappern die Würfel länger
+  function rattle() {
+    if (fastMode) return;
+    [450, 900, 1300].forEach((t) => setTimeout(() => FX.play('roll'), t));
   }
 
   // ---------- Sounds aus dem Verlauf ----------
@@ -1274,11 +1341,12 @@
     const label = S.rollId ? `<strong>${sum}</strong>${face ? ` · ${face.icon === 'D' ? '💜' : face.icon} ${esc(face.name)}` : ''}` : 'Würfeln!';
     const lab = $('#tray-label');
     if (roll && S.rollId > 0) {
-      App.busyUntil = Math.max(App.busyUntil || 0, Date.now() + 1000);
+      rattle();
+      App.busyUntil = Math.max(App.busyUntil || 0, Date.now() + T().dice);
       clearTimeout(App.diceT);
-      App.diceT = setTimeout(() => { if (App.S) render(); }, 1060);
+      App.diceT = setTimeout(() => { if (App.S) render(); }, T().dice + 60);
     }
-    if (roll) { lab.innerHTML = '…'; setTimeout(() => { lab.innerHTML = label; }, 1000); } else if (lab.innerHTML !== '…') lab.innerHTML = label;
+    if (roll) { lab.innerHTML = '…'; setTimeout(() => { lab.innerHTML = label; }, T().dice); } else if (lab.innerHTML !== '…') lab.innerHTML = label;
     return roll;
   }
 
@@ -1297,7 +1365,8 @@
     const queue = path.slice(i + 1);
     clearTimeout(App.wAnimT);
     // Aktionen erst zeigen, wenn die Figur angekommen ist
-    const total = delay + queue.length * (S.flight ? 600 : 260);
+    const hopMs = S.flight ? T().flight : T().hopBoard;
+    const total = delay + queue.length * hopMs;
     App.busyUntil = Date.now() + total;
     clearTimeout(App.busyT);
     App.busyT = setTimeout(() => { if (App.S) render(); }, total + 60);
@@ -1306,7 +1375,7 @@
       App.wdisp[mover] = queue.shift();
       FX.play(S.flight ? 'card' : 'step');
       renderWorld();
-      App.wAnimT = setTimeout(hop, S.flight ? 600 : 260);
+      App.wAnimT = setTimeout(hop, hopMs);
     };
     App.wAnimT = setTimeout(hop, delay);
   }
@@ -1619,7 +1688,7 @@
     if (!diffs.length) return;
     // erst knallen lassen, wenn Würfel und Figur durch sind
     const busy = Math.max(0, (App.busyUntil || 0) - Date.now());
-    const delay = isWorld() ? busy + 120 : (App.animT ? 1100 : 150);
+    const delay = busy + 120;
     setTimeout(() => {
       let gain = false, loss = false;
       diffs.forEach(({ p, d }, i) => {
@@ -1740,6 +1809,7 @@
     }, 320);
   }
   runBoot();
+  applyTempo();
 
   // ---------- Render ----------
   function render() {
@@ -1760,12 +1830,13 @@
     $('#dice-tray').hidden = !world;
     if (world) {
       const rolled = renderTray();
-      animateWorld(rolled ? 1000 : 0);
+      animateWorld(rolled ? T().dice : 0);
       renderWorld();
       if (S.phase === 'over') renderAction(); else renderWorldAction();
       renderWorldPlayers();
       renderWorldProps();
     } else {
+      planClassicMove();
       if (!App.animT) animateTokens(); else renderBoard();
       renderAction();
       renderPlayers();
