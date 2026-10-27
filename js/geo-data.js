@@ -110,13 +110,25 @@
     ['Heilbronn', 49.1427, 9.2109], ['Neckarsulm, Audi-Werk', 49.1950, 9.2170], ['Weinsberg, Burg Weibertreu', 49.1530, 9.2850], ['Gaildorf', 49.0000, 9.7700],
   ].map((x) => x.concat('de'));
 
+  const pickCC = (list) => WORLD.filter((x) => list.includes(x[3]));
+  const AMERICAS = 'us ca mx cu pa co pe ec cl ar br uy bo ve jm cr'.split(' ');
+  const ASIA = 'ae qa sa il jo lb ir az ge am af uz kz in np lk bd pk th vn kh my sg id ph cn tw kr jp mn kp mv tr'.split(' ');
+  const AFRICA = 'eg ma tn dz ng gh sn ke et za tz rw na mg ao cd ug'.split(' ');
+  // jitter: zufälliger Versatz um den Ausgangsort in km (echte GeoGuessr-Spots statt nur Wahrzeichen)
+  // scale: wie schnell die Punkte mit der Entfernung fallen (km)
   const SETS = {
-    world: { name: 'Welt', list: WORLD, scale: 1500, zoom: 2, center: [20, 10] },
-    europe: { name: 'Europa', list: WORLD.filter((x) => EUROPE_CC.includes(x[3])), scale: 500, zoom: 4, center: [52, 12] },
-    de: { name: 'Deutschland', list: DE, scale: 120, zoom: 6, center: [51.1, 10.4] },
-    ruhr: { name: 'Duisburg & Ruhrpott', list: RUHR, scale: 6, zoom: 10, center: [51.47, 6.95] },
-    hohe: { name: 'Hohenlohe', list: HOHENLOHE, scale: 8, zoom: 10, center: [49.24, 9.6] },
+    world: { name: 'Welt', desc: 'Überall auf der Welt, zufällige Straßen rund um 192 Orte', list: WORLD, jitter: 30, scale: 1500, zoom: 2, center: [20, 10], countries: true },
+    famous: { name: 'Berühmte Orte', desc: 'Genau an Wahrzeichen: Eiffelturm, Pyramiden, Times Square …', list: WORLD, jitter: 0, scale: 1500, zoom: 2, center: [20, 10], countries: true },
+    europe: { name: 'Europa', desc: 'Kreuz und quer durch Europa', list: WORLD.filter((x) => EUROPE_CC.includes(x[3])), jitter: 25, scale: 500, zoom: 4, center: [52, 12], countries: true },
+    americas: { name: 'Amerika', desc: 'Von Alaska bis Feuerland', list: pickCC(AMERICAS), jitter: 30, scale: 1200, zoom: 2, center: [10, -80], countries: true },
+    asia: { name: 'Asien', desc: 'Naher Osten bis Japan', list: pickCC(ASIA), jitter: 30, scale: 1200, zoom: 3, center: [28, 80], countries: true },
+    africa: { name: 'Afrika', desc: 'Von Kairo bis Kapstadt', list: pickCC(AFRICA), jitter: 30, scale: 1000, zoom: 3, center: [3, 20], countries: true },
+    de: { name: 'Deutschland', desc: 'Von Sylt bis zur Zugspitze', list: DE, jitter: 12, scale: 120, zoom: 6, center: [51.1, 10.4] },
+    ruhr: { name: 'Duisburg & Ruhrpott', desc: 'Zechen, Häfen, Stadien, Hinterhöfe', list: RUHR, jitter: 1.5, scale: 6, zoom: 10, center: [51.47, 6.95] },
+    hohe: { name: 'Hohenlohe', desc: 'Öhringen, Künzelsau und jedes Dorf dazwischen', list: HOHENLOHE, jitter: 2.5, scale: 8, zoom: 10, center: [49.24, 9.6] },
   };
+  // Mini-Länder: nie verschieben, sonst landet man im Nachbarland
+  const TINY = ['va', 'mc', 'lu', 'sg', 'mt', 'mv', 'qa', 'lb', 'il', 'jm', 'cr', 'pa', 'rw', 'sv'];
 
   const COUNTRIES = {
     de: 'Deutschland', fr: 'Frankreich', gb: 'Vereinigtes Königreich', ie: 'Irland', nl: 'Niederlande', be: 'Belgien', lu: 'Luxemburg', es: 'Spanien',
@@ -141,7 +153,7 @@
     mv: 'Malediven', au: 'Australien', nz: 'Neuseeland', fj: 'Fidschi', pg: 'Papua-Neuguinea',
   };
 
-  const GEO = { SETS, COUNTRIES };
+  const GEO = { SETS, COUNTRIES, TINY };
   if (typeof module !== 'undefined' && module.exports) module.exports = GEO;
   else root.DULI_GEO_DATA = GEO;
 })(typeof window !== 'undefined' ? window : globalThis);
