@@ -35,8 +35,12 @@
   let fastMode = false;
   try { fastMode = localStorage.getItem('duli-fast') === '1'; } catch (e) { /* privat */ }
   const T = () => (fastMode
-    ? { dice: 450, hop: 70, hopBoard: 100, flight: 300, bot: 400 }
-    : { dice: 1700, hop: 340, hopBoard: 400, flight: 900, bot: 900 });
+    ? { dice: 450, sp: 0, hop: 70, hopBoard: 100, flight: 300, bot: 400 }
+    : { dice: 2700, sp: 1200, hop: 380, hopBoard: 460, flight: 950, bot: 900 });
+  // Kamera folgt der Figur (nicht im Blitzmodus, abschaltbar)
+  let camPref = true;
+  try { camPref = localStorage.getItem('duli-cam') !== '0'; } catch (e) { /* privat */ }
+  const camOn = () => camPref && !fastMode;
   function applyTempo() {
     document.documentElement.style.setProperty('--roll-ms', T().dice + 'ms');
     document.documentElement.classList.toggle('is-fast', fastMode);
@@ -68,10 +72,10 @@
   document.querySelectorAll('[data-logo]').forEach((el) => { el.innerHTML = logoSVG(); });
 
   const aprilIcon = (cls = 'april-ic') => `<svg class="${cls}" viewBox="0 0 100 100" aria-hidden="true"><use href="#april"/></svg>`;
-  function tokHTML(token, color, extraClass = '') {
+  function tokHTML(token, color, extraClass = '', name = '') {
     const t = TOKENS[token];
     const inner = !t ? '?' : token === 'dulidan' ? logoSVG() : token === 'april' ? aprilIcon() : t.emoji;
-    return `<span class="tok ${extraClass}${token === 'april' ? ' is-april-tok' : ''}" style="--pc:${color || 'var(--line)'}">${inner}</span>`;
+    return `<span class="tok ${extraClass}${token === 'april' ? ' is-april-tok' : ''}" style="--pc:${color || 'var(--line)'}">${inner}${name ? `<b class="tok-n">${esc(name.trim()[0] || '?').toUpperCase()}</b>` : ''}</span>`;
   }
 
   // ---------- Allgemeine UI ----------
@@ -895,13 +899,15 @@
         el.classList.toggle('is-mine', !!owner && !!v && owner.id === v.id);
       }
       const here = S.players.filter((p) => !p.bankrupt && (App.disp[p.id] ?? p.pos) === i);
-      const tokKey = here.map((p) => p.id).join(',');
+      const meV = App.mode === 'local' ? null : viewer();
+      const tokKey = here.map((p) => p.id).join(',') + '|' + (meV ? meV.id : '');
       const tokEl = el.querySelector('.cell-tokens');
       if (tokEl.dataset.key !== tokKey) {
         tokEl.dataset.key = tokKey;
-        tokEl.innerHTML = here.map((p) => tokHTML(p.token, p.color).replace('<span class="tok', `<span data-tokpid="${esc(p.id)}" class="tok`)).join('');
+        tokEl.innerHTML = here.map((p) => tokHTML(p.token, p.color, meV && meV.id === p.id ? 'is-me-tok' : '', p.name).replace('<span class="tok', `<span data-tokpid="${esc(p.id)}" title="${esc(p.name)}" class="tok`)).join('');
       }
       tokEl.querySelectorAll('.tok').forEach((t) => t.classList.toggle('is-cur-tok', S.phase === 'play' && t.dataset.tokpid === curP().id));
+      el.classList.toggle('has-cur', S.phase === 'play' && here.some((p) => p.id === curP().id));
       el.classList.toggle('is-last', !isBusy() && S.lastLand === i);
       if (SPACES[i].type === 'parking' && !S.isReal) {
         el.classList.toggle('has-pot', S.pot > 0);
@@ -914,8 +920,8 @@
     const [a, b] = S.dice;
     const fresh = S.rollId !== App.lastRoll;
     App.lastRoll = S.rollId;
-    setCube($('#die1'), a, fresh);
-    setCube($('#die2'), b, fresh);
+    setCube($('#die1'), a, fresh, T().dice - 450);
+    setCube($('#die2'), b, fresh, T().dice);
     const cur = curP();
     $('#center-turn').innerHTML = S.isReal && S.phase !== 'over' ? `<strong>${esc(cur.name)}</strong> ist dran · ${R.qName(S.q)}` : S.phase === 'over'
       ? `🏆 <strong>${esc(P(S.winner).name)}</strong> gewinnt!`
@@ -1580,6 +1586,7 @@
     }
     renderBoard();
     followCam();
+    if (App.cam && App.camMover) camTo(cellAt(App.disp[App.camMover]), App.cam.s);
     if (moving) { FX.play('step'); App.animT = setTimeout(animateTokens, hopMs()); }
     else App.animT = null;
   }
@@ -1595,10 +1602,112 @@
     const d = App.disp[p.id];
     let dist = d == null ? 0 : (p.pos - d + BRD.N) % BRD.N;
     if (dist > 13 * BRD.stepMult || (p.inJail && p.pos === BRD.JAIL)) dist = 0;
-    App.walkAfter = Date.now() + T().dice;
+    const cam = camOn() && dist > 0 && !manualZoom();
+    const lead = cam ? 700 : 0;
+    App.walkAfter = Date.now() + T().dice + lead;
     clearTimeout(App.animT); App.animT = null;
     rattle();
-    holdActions(T().dice + dist * hopMs() + 150);
+    clearTimeout(App.camInT); clearTimeout(App.camOutT2);
+    if (cam) {
+      App.camMover = p.id;
+      App.camInT = setTimeout(() => camTo(cellAt(App.disp[p.id] ?? p.pos), camScale()), T().dice);
+      App.camOutT2 = setTimeout(camOut, T().dice + lead + dist * hopMs() + 1100);
+    }
+    holdActions(T().dice + lead + dist * hopMs() + 150 + (cam ? 1700 : 0));
+  }
+  // ---------- Kamera: fährt beim Laufen an die Figur heran ----------
+  const cellAt = (i) => document.querySelector(`#board .cell[data-i="${i}"]`);
+  const manualZoom = () => $('#board-wrap').classList.contains('is-zoomed');
+  const camScale = () => (BRD.id === 'mega' ? 3.2 : BRD.id === 'mini' ? 1.7 : 2.2);
+  // Handy: Das Brett liegt über dem Aktionsfeld. Während die Kamera läuft, hinscrollen und danach zurück.
+  function camScrollIn(el) {
+    if (!el || App.camScrollY != null || innerWidth > 900) return;
+    const r = el.getBoundingClientRect();
+    if (r.top >= 0 && r.bottom <= innerHeight) return;
+    App.camScrollY = scrollY;
+    scrollTo({ top: Math.max(0, r.top + scrollY - 64), behavior: 'smooth' });
+  }
+  function camScrollBack() {
+    if (App.camScrollY == null) return;
+    const y = App.camScrollY; App.camScrollY = null;
+    scrollTo({ top: y, behavior: 'smooth' });
+  }
+  function camTo(cell, s) {
+    const camEl = $('#board-cam'), board = $('#board');
+    if (!cell || !board || board.hidden || manualZoom()) return;
+    camScrollIn(camEl);
+    const cur = App.cam || { s: 1 };
+    const br = board.getBoundingClientRect(), cr = cell.getBoundingClientRect();
+    const cx = (cr.left + cr.width / 2 - br.left) / cur.s, cy = (cr.top + cr.height / 2 - br.top) / cur.s;
+    const W = board.offsetWidth, H = board.offsetHeight, CW = camEl.clientWidth, CH = camEl.clientHeight;
+    const bx = board.offsetLeft, by = board.offsetTop;
+    let tx = CW / 2 - bx - cx * s, ty = CH / 2 - by - cy * s;
+    tx = Math.max(CW - W * s - bx, Math.min(-bx, tx));
+    ty = Math.max(CH - H * s - by, Math.min(-by, ty));
+    App.cam = { s, tx, ty };
+    $('#board-wrap').classList.add('is-cam');
+    board.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${s})`;
+  }
+  function camOut() {
+    const board = $('#board');
+    App.cam = null; App.camMover = null;
+    if (board) board.style.transform = '';
+    camScrollBack();
+    clearTimeout(App.camOutT);
+    App.camOutT = setTimeout(() => { if (!App.cam) $('#board-wrap').classList.remove('is-cam'); }, 700);
+  }
+  // Kartenbretter (SVG): Ausschnitt per viewBox auf die Stadt der Figur
+  function wcamSvg() {
+    const svg = document.querySelector('#world svg.world-svg');
+    if (svg && !svg.dataset.vb0) svg.dataset.vb0 = svg.getAttribute('viewBox');
+    return svg;
+  }
+  function wcamTween(svg, to, ms) {
+    const b = svg.viewBox.baseVal, from = [b.x, b.y, b.width, b.height], t0 = performance.now();
+    cancelAnimationFrame(App.wcamRaf);
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / ms), e = k < 0.5 ? 2 * k * k : 1 - ((-2 * k + 2) ** 2) / 2;
+      svg.setAttribute('viewBox', from.map((a, i) => (a + (to[i] - a) * e).toFixed(1)).join(' '));
+      if (k < 1) App.wcamRaf = requestAnimationFrame(step);
+    };
+    App.wcamRaf = requestAnimationFrame(step);
+  }
+  function wcamCity(id, zoom, ms) {
+    const svg = wcamSvg(), g = document.querySelector(`#world .city[data-city="${id}"]`);
+    if (!svg || !g || manualZoom()) return;
+    const m = (g.getAttribute('transform') || '').match(/translate\(\s*([-\d.]+)[,\s]+([-\d.]+)/);
+    if (!m) return;
+    const [x0, y0, w0, h0] = svg.dataset.vb0.split(/[\s,]+/).map(Number);
+    const w = w0 / zoom, h = h0 / zoom;
+    const x = Math.max(x0, Math.min(x0 + w0 - w, Number(m[1]) - w / 2)), y = Math.max(y0, Math.min(y0 + h0 - h, Number(m[2]) - h / 2));
+    App.wcam = true;
+    camScrollIn(svg);
+    wcamTween(svg, [x, y, w, h], ms);
+  }
+  function wcamOut(ms) {
+    const svg = wcamSvg();
+    App.wcam = false;
+    camScrollBack();
+    if (svg) wcamTween(svg, svg.dataset.vb0.split(/[\s,]+/).map(Number), ms);
+  }
+  // „Wo bin ich?“: Kamera auf die eigene Figur, Figur blinkt
+  function findMe() {
+    const S = App.S, v = viewer();
+    if (!S || !v || S.phase === 'lobby') return;
+    document.querySelectorAll(`[data-tokpid="${v.id}"]`).forEach((t) => { t.classList.remove('is-ping'); void t.getBoundingClientRect(); t.classList.add('is-ping'); });
+    clearTimeout(App.findT);
+    if (isWorld()) {
+      const loc = App.wdisp && App.wdisp[v.id] != null ? App.wdisp[v.id] : v.loc;
+      wcamCity(loc, 2.6, 700);
+      App.findT = setTimeout(() => { if (!isBusy()) wcamOut(700); }, 2600);
+    } else if (manualZoom()) {
+      const cell = cellAt(App.disp[v.id] ?? v.pos);
+      if (cell) cell.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    } else {
+      camTo(cellAt(App.disp[v.id] ?? v.pos), camScale());
+      App.findT = setTimeout(() => { if (!isBusy() && !App.camMover) camOut(); }, 2600);
+    }
+    toast(`${App.mode === 'local' ? `${v.name} steht` : 'Du stehst'} auf ${isWorld() ? (GB().CITY[v.loc] || {}).name || '?' : SPACES[v.pos].name}.`);
   }
   // Auf dem MEGA-Brett läuft die Figur doppelt so weit, also schneller pro Feld
   const hopMs = () => Math.round(T().hop / BRD.stepMult * 1.1);
@@ -1663,7 +1772,18 @@
     $('#btn-mine').textContent = on ? '🏠 Alle Felder' : '🏠 Meine Felder';
     $('#btn-mine').classList.toggle('is-on', on);
   };
+  $('#btn-me').onclick = findMe;
+  const camLabel = () => { $('#btn-cam').textContent = camPref ? '🎬 Kamera: an' : '🎬 Kamera: aus'; $('#btn-cam').classList.toggle('is-on', camPref); };
+  camLabel();
+  $('#btn-cam').onclick = () => {
+    camPref = !camPref;
+    try { localStorage.setItem('duli-cam', camPref ? '1' : '0'); } catch (e) { /* privat */ }
+    camLabel();
+    toast(camPref ? (fastMode ? 'Kamera an – wirkt aber erst, wenn der Blitzmodus aus ist.' : 'Die Kamera folgt jetzt der Figur beim Laufen.') : 'Kamera aus: Du siehst immer das ganze Brett.');
+    if (!camPref) { camOut(); wcamOut(400); }
+  };
   $('#btn-zoom').onclick = () => {
+    camOut();
     const w = $('#board-wrap');
     w.classList.toggle('is-zoomed');
     const mega = !isWorld() && BRD.id === 'mega';
@@ -1928,9 +2048,10 @@
     return `<div class="die3d${special ? ' special' : ''}" id="${id}"><div class="cube">${faces}</div></div>`;
   }
   // Würfel auf Augenzahl drehen; bei neuem Wurf mit mehreren Überschlägen
-  function setCube(el, value, roll) {
+  function setCube(el, value, roll, dur) {
     if (!el) return;
     const cube = el.querySelector('.cube');
+    if (dur) { el.style.setProperty('--roll-ms', `${dur}ms`); cube.style.setProperty('--roll-ms', `${dur}ms`); }
     const [x, y] = CUBE_ROT[value] || CUBE_ROT[1];
     if (roll) {
       el.spins = (el.spins || 0) + 1;
@@ -1976,30 +2097,33 @@
     t.innerHTML = `<div class="tray-dice">${cubeHTML('wd1')}${cubeHTML('wd2')}${cubeHTML('wd3')}${GB().FACES.length ? cubeHTML('wds', true) : ''}</div><div class="tray-label" id="tray-label"></div>`;
   }
 
+  // Gesamtdauer des Würfelns auf den Kartenbrettern: der Spezialwürfel bleibt als letzter liegen
+  const trayDice = () => T().dice + (GB().FACES.length ? T().sp : 0);
   function renderTray() {
     const S = App.S;
     buildTray();
     const roll = S.rollId !== App.lastWorldRoll;
     App.lastWorldRoll = S.rollId;
     const [a, b] = S.dice;
-    setCube($('#wd1'), a || 1, roll);
+    const td = trayDice();
+    setCube($('#wd1'), a || 1, roll, T().dice - 500);
     $('#wd2').hidden = !b;
-    if (b) setCube($('#wd2'), b, roll);
+    if (b) setCube($('#wd2'), b, roll, T().dice - 150);
     $('#wd3').hidden = !S.die3;
-    if (S.die3) setCube($('#wd3'), S.die3, roll);
+    if (S.die3) setCube($('#wd3'), S.die3, roll, T().dice);
     const fi = GB().FACES.findIndex((f) => f.id === S.face);
-    if ($('#wds') && fi >= 0) setCube($('#wds'), fi + 1, roll);
+    if ($('#wds') && fi >= 0) { setCube($('#wds'), fi + 1, roll, td); $('#wds').classList.toggle('is-late', roll && !fastMode); }
     const face = GB().FACES[fi];
     const sum = (a || 0) + (b || 0) + (S.die3 || 0);
     const label = S.rollId ? `<strong>${sum}</strong>${face ? ` · ${face.icon === 'D' ? '💜' : face.icon} ${esc(face.name)}` : ''}` : 'Würfeln!';
     const lab = $('#tray-label');
     if (roll && S.rollId > 0) {
       rattle();
-      App.busyUntil = Math.max(App.busyUntil || 0, Date.now() + T().dice);
+      App.busyUntil = Math.max(App.busyUntil || 0, Date.now() + td);
       clearTimeout(App.diceT);
-      App.diceT = setTimeout(() => { if (App.S) render(); }, T().dice + 60);
+      App.diceT = setTimeout(() => { if (App.S) render(); }, td + 60);
     }
-    if (roll) { lab.innerHTML = '…'; setTimeout(() => { lab.innerHTML = label; }, T().dice); } else if (lab.innerHTML !== '…') lab.innerHTML = label;
+    if (roll) { lab.innerHTML = '…'; setTimeout(() => { lab.innerHTML = label; }, td); } else if (lab.innerHTML !== '…') lab.innerHTML = label;
     return roll;
   }
 
@@ -2019,18 +2143,28 @@
     clearTimeout(App.wAnimT);
     // Aktionen erst zeigen, wenn die Figur angekommen ist
     const hopMs = S.flight ? T().flight : T().hopBoard;
-    const total = delay + queue.length * hopMs;
+    const cam = camOn() && queue.length > 0 && !manualZoom();
+    const zoom = S.flight ? 1.6 : 2.4;
+    const lead = cam ? 700 : 0;
+    const total = delay + lead + queue.length * hopMs + (cam ? 1700 : 0);
     App.busyUntil = Date.now() + total;
     clearTimeout(App.busyT);
     App.busyT = setTimeout(() => { if (App.S) render(); }, total + 60);
+    clearTimeout(App.wcamT);
+    if (cam) App.wcamT = setTimeout(() => wcamCity(App.wdisp[mover], zoom, 650), delay);
     const hop = () => {
-      if (!queue.length) { App.wAnimT = null; renderWorld(); return; }
+      if (!queue.length) {
+        App.wAnimT = null; renderWorld();
+        if (cam) App.wcamT = setTimeout(() => wcamOut(750), 950);
+        return;
+      }
       App.wdisp[mover] = queue.shift();
       FX.play(S.flight ? 'card' : 'step');
       renderWorld();
+      if (cam) wcamCity(App.wdisp[mover], zoom, Math.round(hopMs * 0.9));
       App.wAnimT = setTimeout(hop, hopMs);
     };
-    App.wAnimT = setTimeout(hop, delay);
+    App.wAnimT = setTimeout(hop, delay + lead);
   }
 
   const rentWord = () => (App.S.mode === 'world' ? 'Maut' : 'Miete');
@@ -2927,6 +3061,7 @@
     const S = App.S, c = $('#center');
     let svg = $('#tracks');
     if (!S || !S.isLogi) { if (svg) svg.remove(); return; }
+    if (App.cam) return;
     const cr = c.getBoundingClientRect();
     if (!cr.width) return;
     const key = JSON.stringify([S.tracks, Math.round(cr.width), Math.round(cr.height), Object.keys(S.props).map((k) => S.props[k].owner)]);
@@ -3410,7 +3545,7 @@
     $('#dice-tray').hidden = !world;
     if (world) {
       const rolled = renderTray();
-      animateWorld(rolled ? T().dice : 0);
+      animateWorld(rolled ? trayDice() : 0);
       renderWorld();
       if (S.phase === 'over') renderAction(); else renderWorldAction();
       renderWorldPlayers();

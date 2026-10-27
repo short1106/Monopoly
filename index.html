@@ -205,6 +205,8 @@
       <button class="btn btn-small btn-ghost btn-tempo" data-ui="tempo" type="button" title="Schnelle Animationen an/aus">⚡ Blitzmodus: aus</button>
       <button id="btn-music" class="btn btn-small btn-ghost" title="Musik an/aus">🎵</button>
       <button id="btn-sound" class="btn btn-small btn-ghost" title="Sound an/aus">🔊</button>
+      <button id="btn-me" class="btn btn-small btn-ghost" title="Zeigt, wo deine Figur steht">🧭 Wo bin ich?</button>
+      <button id="btn-cam" class="btn btn-small btn-ghost" title="Kamera folgt der Figur beim Laufen">🎬 Kamera: an</button>
       <button id="btn-mine" class="btn btn-small btn-ghost" title="Nur deine Felder hervorheben">🏠 Meine Felder</button>
       <button id="btn-zoom" class="btn btn-small btn-ghost" title="Brett vergrößern">Zoom</button>
       <button id="btn-rules" class="btn btn-small btn-ghost">Regeln</button>
@@ -213,7 +215,7 @@
     </header>
     <main class="game">
       <div class="board-wrap" id="board-wrap">
-        <div class="board" id="board">
+        <div class="board-cam" id="board-cam"><div class="board" id="board">
           <div class="center" id="center">
             <div class="center-brand">
               <div class="center-logo" data-logo></div>
@@ -225,7 +227,7 @@
             <div class="center-card" id="center-card" hidden></div>
             <div class="casino-view" id="casino-view" hidden></div>
           </div>
-        </div>
+        </div></div>
         <div class="world" id="world" hidden></div>
         <div class="dice-tray" id="dice-tray" hidden></div>
         <div class="cast" id="cast" hidden><span class="cast-mic">🎙️</span><svg class="cast-april" viewBox="0 0 100 100" aria-hidden="true"><use href="#april"/></svg><span id="cast-text"></span></div>

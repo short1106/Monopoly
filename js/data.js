@@ -82,7 +82,8 @@
     rocket:   { name: 'Rakete',         emoji: '🚀', power: 'Startet mit Ð150 mehr.' },
   };
 
-  const PLAYER_COLORS = ['#da29cf', '#3ad1ff', '#ffd23a', '#36e08a', '#ff7a3a', '#a78bff'];
+  // Klar unterscheidbar und bewusst kein Magenta (das ist die Farbe der Oberfläche)
+  const PLAYER_COLORS = ['#ff3d5e', '#2fc8ff', '#ffd23a', '#2fe08a', '#ff8a1f', '#c58bff'];
 
   const APRIL_CARDS = [
     { t: 'move', to: 0, text: 'TUNG TUNG TUNG SAHUR! 🥁 Rücke vor bis LOS.' },

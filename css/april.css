@@ -1194,3 +1194,47 @@ svg.ico { width: 1.1em; height: 1.1em; vertical-align: -0.18em; fill: currentCol
 svg.ico-map { fill: currentColor; stroke: none; color: var(--fg); overflow: visible; }
 .home-foot small { display: block; margin-top: 6px; font-size: 11px; opacity: .75; }
 .home-foot a { color: inherit; }
+
+/* ===== Übersicht: Figuren in Spielerfarbe, „DU“, Besitz deutlich, Kamera ===== */
+.board-cam { position: relative; overflow: hidden; border-radius: var(--radius); }
+.board-wrap.is-zoomed .board-cam { overflow: visible; border-radius: 0; }
+.board { transform-origin: 0 0; transition: transform .65s cubic-bezier(.3, .7, .25, 1); }
+.board-wrap.is-cam .board { box-shadow: 0 0 0 1px rgba(255, 255, 255, .08); }
+/* Figuren: gefüllt in der Spielerfarbe, dunkles Symbol, Anfangsbuchstabe */
+.tok { position: relative; }
+.cell-tokens .tok, .owner-flag .tok, .players .tok, .wplayers .tok {
+  background: radial-gradient(circle at 35% 28%, color-mix(in srgb, var(--pc) 70%, #fff), var(--pc) 55%, color-mix(in srgb, var(--pc) 60%, #000));
+  border-color: #fff;
+}
+.cell-tokens .tok svg.ico, .owner-flag .tok svg.ico, .players .tok svg.ico, .wplayers .tok svg.ico { color: #120e19; }
+.cell-tokens .tok { border-width: .45cqi; box-shadow: 0 0 0 .3cqi rgba(0, 0, 0, .85), 0 .6cqi 1.4cqi rgba(0, 0, 0, .9); }
+.tok .tok-n { position: absolute; right: -18%; bottom: -14%; min-width: 46%; height: 46%; padding: 0 8%; border-radius: 999px; display: grid; place-items: center; background: #120e19; color: #fff; border: 1px solid var(--pc); font: 800 2.1cqi/1 var(--font); }
+.board.is-mega .tok .tok-n { font-size: .8cqi; }
+.board.is-mini .tok .tok-n { font-size: 3cqi; }
+.players .tok .tok-n, .wplayers .tok .tok-n { font-size: 10px; }
+/* Deine eigene Figur: weißer Ring und „DU“ */
+.cell-tokens .tok.is-me-tok { z-index: 3; box-shadow: 0 0 0 .35cqi #fff, 0 0 0 .7cqi rgba(0, 0, 0, .8), 0 0 2.4cqi #fff; }
+.cell-tokens .tok.is-me-tok::before { content: "DU"; position: absolute; left: 50%; bottom: 112%; transform: translateX(-50%); padding: .15cqi .8cqi; border-radius: .6cqi; background: #fff; color: #120e19; font: 900 1.7cqi/1.2 var(--font); letter-spacing: .05em; box-shadow: 0 .3cqi .8cqi rgba(0, 0, 0, .6); }
+.board.is-mega .cell-tokens .tok.is-me-tok::before { font-size: .75cqi; }
+/* Wer dran ist: Pfeil über der Figur */
+.cell-tokens .tok.is-cur-tok::after { content: ""; position: absolute; left: 50%; top: -62%; transform: translateX(-50%); border: 1.1cqi solid transparent; border-top: 1.4cqi solid var(--pc); filter: drop-shadow(0 0 .6cqi var(--pc)) drop-shadow(0 .2cqi .2cqi #000); animation: curArrow .9s ease-in-out infinite; }
+.cell-tokens .tok.is-me-tok.is-cur-tok::after { top: -125%; }
+@keyframes curArrow { 50% { transform: translate(-50%, -30%); } }
+.cell.has-cur { z-index: 4; overflow: visible; }
+/* „Wo bin ich?“ */
+.tok.is-ping { animation: tokPing 2.4s ease-out; z-index: 6; }
+@keyframes tokPing { 0%, 30%, 60% { box-shadow: 0 0 0 .4cqi #fff, 0 0 0 0 rgba(255, 255, 255, .9); transform: scale(1.35); } 15%, 45%, 75% { box-shadow: 0 0 0 .4cqi #fff, 0 0 0 4cqi rgba(255, 255, 255, 0); transform: scale(1); } }
+.wtok.is-ping .halo { animation: tokHaloW .5s ease-out 4; }
+@keyframes tokHaloW { from { r: 18; opacity: 1; } to { r: 60; opacity: 0; } }
+/* Besitz: ganzes Feld in der Besitzerfarbe getönt, dicker Rahmen */
+.cell.is-owned { background: linear-gradient(170deg, color-mix(in srgb, var(--oc) 30%, var(--surface)), color-mix(in srgb, var(--oc) 12%, var(--surface))); }
+.cell.is-owned::after { border-width: .75cqi; box-shadow: inset 0 0 2cqi -.2cqi var(--oc); }
+.board.is-mega .cell.is-owned::after { border-width: .3cqi; }
+.cell.is-mine { background: linear-gradient(170deg, color-mix(in srgb, var(--oc) 42%, var(--surface)), color-mix(in srgb, var(--oc) 18%, var(--surface))); }
+/* Spieler-Liste: Farbe deutlich */
+.players li { border-left: 5px solid var(--pc, transparent); }
+#btn-cam.is-on { border-color: rgba(255, 255, 255, .35); }
+/* Spezialwürfel: bleibt als letzter liegen und leuchtet kurz */
+.die3d.special.is-late { animation: throw var(--roll-ms, 1.1s) cubic-bezier(.2, .7, .3, 1), dieLand .6s ease-out var(--roll-ms, 1.1s); }
+@keyframes dieLand { 0% { filter: drop-shadow(0 0 0 #ffd83a); } 40% { filter: drop-shadow(0 0 14px #ffd83a); } 100% { filter: none; } }
+@media (prefers-reduced-motion: reduce) { .board { transition: none; } .cell-tokens .tok.is-cur-tok::after { animation: none; } }
