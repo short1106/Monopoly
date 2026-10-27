@@ -95,7 +95,7 @@
     if (!App.S || App.S.phase !== 'play' || !ENG().botStep(App.S)) return;
     App.botT = setTimeout(() => {
       App.botT = null;
-      if (App.animT) return scheduleBots();
+      if (App.animT || Date.now() < (App.busyUntil || 0)) return scheduleBots();
       const st = App.S && ENG().botStep(App.S);
       if (!st) return;
       const err = ENG().act(App.S, st.pid, st.action);
@@ -361,9 +361,9 @@
     const ro = App.mode === 'client' ? 'disabled' : '';
     const world = st.mode === 'world';
     $('#settings').innerHTML = `
-      <label class="row"><span>Spielmodus<small>${world ? 'Weltkarte, kein Würfeln: reisen, kaufen, Zonen erobern' : 'Das Brett mit Duisburg und Öhringen'}</small></span>
+      <label class="row"><span>Spielmodus<small>${world ? 'Weltkarte mit Dulidan-Würfel: um die Welt laufen, Städte kaufen, Maut kassieren' : 'Das Brett mit Duisburg und Öhringen'}</small></span>
         <select id="set-mode" ${ro}><option value="classic" ${!world ? 'selected' : ''}>Klassisch</option><option value="world" ${world ? 'selected' : ''}>🌍 DULIDAN WORLD</option></select></label>
-      ${world ? `<label class="row"><span>Runden-Limit<small>Danach gewinnt der Reichste – oder vorher, wer 3 Zonen komplett hat</small></span>
+      ${world ? `<label class="row"><span>Runden-Limit<small>Danach gewinnt der Reichste – vorher gewinnt, wer als Letzter nicht pleite ist</small></span>
         <select id="set-rounds" ${ro}>${[15, 20, 30, 50, 0].map((r) => `<option value="${r}" ${(st.maxRounds ?? 30) === r ? 'selected' : ''}>${r ? r + ' Runden' : 'Kein Limit'}</option>`).join('')}</select></label>` : ''}
       <label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
         <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
@@ -441,6 +441,7 @@
   const TYPE_ICON = { april: '🤖', studio: '💜' };
 
   function buildBoard() {
+    if (!$('#die1')) $('#dice').innerHTML = cubeHTML('die1') + cubeHTML('die2');
     const board = $('#board');
     if (board.querySelector('.cell')) return;
     SPACES.forEach((sp, i) => {
@@ -513,12 +514,10 @@
 
     // Würfel
     const [a, b] = S.dice;
-    const d1 = $('#die1'), d2 = $('#die2');
-    d1.innerHTML = dieHTML(a); d2.innerHTML = dieHTML(b);
-    if (S.rollId !== App.lastRoll) {
-      App.lastRoll = S.rollId;
-      [d1, d2].forEach((d) => { d.classList.remove('is-rolling'); void d.offsetWidth; d.classList.add('is-rolling'); });
-    }
+    const fresh = S.rollId !== App.lastRoll;
+    App.lastRoll = S.rollId;
+    setCube($('#die1'), a, fresh);
+    setCube($('#die2'), b, fresh);
     const cur = curP();
     $('#center-turn').innerHTML = S.phase === 'over'
       ? `🏆 <strong>${esc(P(S.winner).name)}</strong> gewinnt!`
@@ -658,7 +657,7 @@
             ${btn(`${M(50)} zahlen`, { type: 'payJail' }, pid, '', cur.money < 50)}
             ${cur.jailFree.length ? btn('Freikarte nutzen', { type: 'useJailCard' }, pid) : ''}</div>`;
         } else {
-          h += `<div class="btn-row">${btn(S.rolledDouble ? '🎲 Nochmal würfeln' : '🎲 Würfeln', { type: 'roll' }, pid, 'btn-primary', !!S.trade)}</div>`;
+          h += `<div class="btn-row">${btn(S.rolledDouble ? '🎲 Nochmal würfeln' : '🎲 Würfeln', { type: 'roll' }, pid, 'btn-primary btn-roll', !!S.trade)}</div>${shakeHint()}`;
           if (cur.token === 'berlingo' && !cur.used.berlingo) {
             h += btn(S.berlingoArmed ? '🚐 Berlingo-Manöver ist an' : '🚐 Berlingo-Manöver einschalten', { type: 'armBerlingo' }, pid, S.berlingoArmed ? 'btn-primary btn-small' : 'btn-ghost btn-small');
           }
@@ -834,7 +833,7 @@
   function uiAction(kind, data) {
     const S = App.S;
     if (kind === 'trade') return tradeModal();
-    if (kind === 'fly') { App.flyMode = !App.flyMode; return render(); }
+    if (kind === 'motion') return enableMotion();
     if (kind === 'cityInfo') return openCity(data.id);
     if (kind === 'tradeTo') { App.trade = { to: data.id }; return tradeModal(); }
     if (kind === 'tradeSend') {
@@ -1101,39 +1100,150 @@
     });
   }
 
-  function myWorldTurn() {
+  // ================= 3D-WÜRFEL =================
+  const CUBE_ROT = { 1: [0, 0], 2: [0, -90], 3: [0, 90], 4: [-90, 0], 5: [90, 0], 6: [0, 180] };
+  function cubeHTML(id, special) {
+    let faces = '';
+    for (let f = 1; f <= 6; f++) {
+      let inner;
+      if (special) {
+        const face = WD.FACES[f - 1];
+        inner = face.icon === 'D' ? `<span class="dlogo">${logoSVG()}</span>` : `<span class="ficon">${face.icon}</span>`;
+      } else {
+        inner = '';
+        for (let k = 0; k < 9; k++) inner += PIPS[f].includes(k) ? '<i></i>' : '<span></span>';
+      }
+      faces += `<div class="face f${f}">${inner}</div>`;
+    }
+    return `<div class="die3d${special ? ' special' : ''}" id="${id}"><div class="cube">${faces}</div></div>`;
+  }
+  // Würfel auf Augenzahl drehen; bei neuem Wurf mit mehreren Überschlägen
+  function setCube(el, value, roll) {
+    if (!el) return;
+    const cube = el.querySelector('.cube');
+    const [x, y] = CUBE_ROT[value] || CUBE_ROT[1];
+    if (roll) {
+      el.spins = (el.spins || 0) + 1;
+      el.classList.remove('is-thrown'); void el.offsetWidth; el.classList.add('is-thrown');
+    }
+    const n = el.spins || 0;
+    const tilt = roll ? (Math.random() < 0.5 ? 1 : -1) : 1;
+    cube.style.transform = `rotateX(${x + 720 * n * tilt}deg) rotateY(${y + 1080 * n}deg)`;
+  }
+
+  // Handy schütteln = würfeln
+  let lastShake = 0;
+  window.addEventListener('devicemotion', (e) => {
+    const a = e.accelerationIncludingGravity || e.acceleration;
+    if (!a) return;
+    const mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+    if (mag < 26 || Date.now() - lastShake < 1500) return;
+    const b = document.querySelector('#panel-action [data-act*="\"roll\""]:not([disabled])');
+    if (b) { lastShake = Date.now(); FX.play('roll'); b.click(); }
+  });
+  const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  const needsMotionPermission = typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function';
+  function shakeHint() {
+    if (!coarse) return '';
+    if (needsMotionPermission && !App.motionOk) return uiBtn('📳 Schütteln zum Würfeln aktivieren', 'motion', 'btn-ghost btn-small');
+    return '<p class="action-note shake">📳 Oder schüttel dein Handy!</p>';
+  }
+  async function enableMotion() {
+    try {
+      const r = await DeviceMotionEvent.requestPermission();
+      App.motionOk = r === 'granted';
+      toast(App.motionOk ? 'Schütteln ist an. Schüttel dein Handy zum Würfeln!' : 'Ohne Erlaubnis geht Schütteln nicht. Tippe einfach auf Würfeln.');
+    } catch (e) { toast('Schütteln geht auf diesem Gerät nicht.'); }
+    render();
+  }
+
+  // ================= WELT: Würfel-Tablett, Laufen, Aktionen =================
+  function buildTray() {
+    const t = $('#dice-tray');
+    if (t.dataset.built) return;
+    t.dataset.built = '1';
+    t.innerHTML = `<div class="tray-dice">${cubeHTML('wd1')}${cubeHTML('wd2')}${cubeHTML('wd3')}${cubeHTML('wds', true)}</div><div class="tray-label" id="tray-label"></div>`;
+  }
+
+  function renderTray() {
     const S = App.S;
-    return S.phase === 'play' && canControl(curP().id) && S.sub === 'act' && !S.trade;
+    buildTray();
+    const roll = S.rollId !== App.lastWorldRoll;
+    App.lastWorldRoll = S.rollId;
+    const [a, b] = S.dice;
+    setCube($('#wd1'), a || 1, roll);
+    $('#wd2').hidden = !b;
+    if (b) setCube($('#wd2'), b, roll);
+    $('#wd3').hidden = !S.die3;
+    if (S.die3) setCube($('#wd3'), S.die3, roll);
+    const fi = WD.FACES.findIndex((f) => f.id === S.face);
+    $('#wds').hidden = fi < 0 && !S.rollId;
+    if (fi >= 0) setCube($('#wds'), fi + 1, roll);
+    const face = WD.FACES[fi];
+    const sum = (a || 0) + (b || 0) + (S.die3 || 0);
+    const label = S.rollId ? `<strong>${sum}</strong>${face ? ` · ${face.icon === 'D' ? '💜' : face.icon} ${esc(face.name)}` : ''}` : 'Würfeln!';
+    const lab = $('#tray-label');
+    if (roll && S.rollId > 0) {
+      App.busyUntil = Math.max(App.busyUntil || 0, Date.now() + 1000);
+      clearTimeout(App.diceT);
+      App.diceT = setTimeout(() => { if (App.S) render(); }, 1060);
+    }
+    if (roll) { lab.innerHTML = '…'; setTimeout(() => { lab.innerHTML = label; }, 1000); } else if (lab.innerHTML !== '…') lab.innerHTML = label;
+    return roll;
+  }
+
+  // Figuren laufen Stadt für Stadt den gewürfelten Weg ab
+  function animateWorld(delay) {
+    const S = App.S;
+    if (!S || !isWorld()) return;
+    App.wdisp = App.wdisp || {};
+    for (const p of S.players) if (App.wdisp[p.id] == null || p.id !== S.mover) App.wdisp[p.id] = p.loc;
+    if (S.moveId === App.lastMoveId) return;
+    App.lastMoveId = S.moveId;
+    const mover = S.mover, path = S.path || [];
+    if (!mover || path.length < 2) { App.wdisp[mover] = P(mover) ? P(mover).loc : null; return; }
+    let i = path.lastIndexOf(App.wdisp[mover]);
+    if (i < 0) i = 0;
+    const queue = path.slice(i + 1);
+    clearTimeout(App.wAnimT);
+    // Aktionen erst zeigen, wenn die Figur angekommen ist
+    const total = delay + queue.length * (S.flight ? 600 : 260);
+    App.busyUntil = Date.now() + total;
+    clearTimeout(App.busyT);
+    App.busyT = setTimeout(() => { if (App.S) render(); }, total + 60);
+    const hop = () => {
+      if (!queue.length) { App.wAnimT = null; renderWorld(); return; }
+      App.wdisp[mover] = queue.shift();
+      FX.play(S.flight ? 'card' : 'step');
+      renderWorld();
+      App.wAnimT = setTimeout(hop, S.flight ? 600 : 260);
+    };
+    App.wAnimT = setTimeout(hop, delay);
   }
 
   function worldTargets() {
     const S = App.S, p = curP();
-    const out = { move: [], fly: [] };
-    if (!myWorldTurn()) return out;
-    if (S.ap >= W.moveCost(S, p)) out.move = W.NEIGH[p.loc].slice();
-    const e = S.event || {};
-    if (App.flyMode && W.CITY[p.loc].hub && !e.noFlights && S.ap >= W.flightAp(S) && p.money >= W.flightCost(S)) out.fly = W.HUBS.filter((h) => h !== p.loc);
-    return out;
+    if (S.phase !== 'play' || !canControl(p.id) || S.trade) return { walk: [], fly: [] };
+    if (S.sub === 'walk') return { walk: W.walkOptions(S), fly: [] };
+    if (S.sub === 'jet') return { walk: [], fly: W.HUBS.filter((h) => h !== p.loc) };
+    return { walk: [], fly: [] };
   }
 
   function worldClick(id) {
     const S = App.S;
     if (!S) return;
     const t = worldTargets(), p = curP();
-    if (t.fly.includes(id)) { App.flyMode = false; return doAct({ type: 'fly', to: id }, p.id); }
-    if (t.move.includes(id)) return doAct({ type: 'move', to: id }, p.id);
+    if (t.fly.includes(id)) return doAct({ type: 'fly', to: id }, p.id);
+    if (t.walk.includes(id)) return doAct({ type: 'step', to: id }, p.id);
     openCity(id);
   }
 
   function cityDeedHTML(id) {
     const S = App.S, c = W.CITY[id], z = WD.ZONES[c.zone], st = S.cities[id];
     const owner = P(st.owner);
-    const rows = WD.LEVELS.map((name, i) => `<tr class="${owner && st.level === i ? 'is-now' : ''}"><td>${i === 0 ? 'Maut unbebaut (Zone komplett ×2)' : `Maut mit ${name}`}</td><td>${M(Math.round(c.price * WD.RENT_PCT[i] / 5) * 5)}</td></tr>`).join('');
-    const inc = WD.LEVELS.map((name, i) => `${M(Math.round(c.price * WD.INCOME_PCT[i] / 5) * 5)}`).join(' · ');
+    const rows = WD.LEVELS.map((name, i) => `<tr class="${owner && st.level === i ? 'is-now' : ''}"><td>${i === 0 ? 'Maut unbebaut (ganze Zone: ×2)' : `Maut mit ${name}`}</td><td>${M(Math.round(c.price * WD.RENT_PCT[i] / 5) * 5)}</td></tr>`).join('');
     return `<div class="deed"><div class="deed-head" style="--g:${z.color}">${esc(c.name)}<small>${esc(c.real)} · ${esc(z.name)} (${esc(z.region)})${c.hub ? ' · ✈ Flughafen' : ''}</small></div>
-      <table>${rows}
-      <tr><td>Einnahmen pro Runde (je Stufe)</td><td style="white-space:normal">${inc}</td></tr>
-      <tr><td>Gebäude kostet</td><td>${M(z.build)}</td></tr><tr><td>Kaufpreis</td><td>${M(c.price)}</td></tr></table>
+      <table>${rows}<tr><td>Gebäude kostet</td><td>${M(z.build)}</td></tr><tr><td>Hypothek</td><td>${M(c.price / 2)}</td></tr><tr><td>Kaufpreis</td><td>${M(c.price)}</td></tr></table>
       <div class="deed-foot">${owner ? `Besitzer: <strong>${esc(owner.name)}</strong> · ${WD.LEVELS[st.level]}${st.mort ? ' · mit Hypothek' : ''}` : 'Gehört niemandem'}</div></div>`;
   }
   function openCity(id) { openModal(cityDeedHTML(id)); }
@@ -1143,17 +1253,18 @@
     buildWorld();
     const t = worldTargets();
     const cur = curP();
+    const disp = (p) => (App.wdisp && App.wdisp[p.id] != null ? App.wdisp[p.id] : p.loc);
     document.querySelectorAll('#world .city').forEach((g) => {
       const id = g.dataset.city, st = S.cities[id];
       const owner = P(st.owner);
       g.style.setProperty('--oc', owner ? owner.color : 'transparent');
       g.classList.toggle('is-owned', !!owner);
       g.classList.toggle('is-mort', !!st.mort);
-      g.classList.toggle('can-move', t.move.includes(id));
+      g.classList.toggle('can-move', t.walk.includes(id));
       g.classList.toggle('can-fly', t.fly.includes(id));
-      g.classList.toggle('is-here', S.phase === 'play' && cur.loc === id);
+      g.classList.toggle('is-here', S.phase === 'play' && disp(cur) === id);
       g.querySelector('.lvl').textContent = st.level ? ['', '1', '2', '3', '★'][st.level] : '';
-      const here = S.players.filter((p) => !p.bankrupt && p.loc === id);
+      const here = S.players.filter((p) => !p.bankrupt && disp(p) === id);
       const key = here.map((p) => p.id).join(',');
       const tg = g.querySelector('.ctoks');
       if (tg.dataset.key !== key) {
@@ -1167,14 +1278,16 @@
     });
     document.querySelectorAll('#world .route').forEach((r) => {
       const [a, b] = r.dataset.r.split('-');
-      r.classList.toggle('is-open', S.phase === 'play' && ((a === cur.loc && t.move.includes(b)) || (b === cur.loc && t.move.includes(a))));
+      r.classList.toggle('is-open', (a === cur.loc && t.walk.includes(b)) || (b === cur.loc && t.walk.includes(a)));
     });
   }
 
-  function apPips(n, max) {
-    let h = '';
-    for (let i = 0; i < Math.max(max, n); i++) h += `<i class="${i < n ? 'on' : ''}"></i>`;
-    return `<span class="ap">${h}</span>`;
+  function destBtn(S, cur, to, action) {
+    const s2 = S.cities[to], o = P(s2.owner), cc = W.CITY[to];
+    const toll = o && o.id !== cur.id ? W.rentFor(S, to, cur) : 0;
+    const tag = !o ? `frei · ${M(cc.price)}` : o.id === cur.id ? 'deins' : `Maut ${M(toll)}`;
+    return `<button class="dest ${toll ? 'is-toll' : ''}" data-act='${esc(JSON.stringify(action))}' data-pid="${esc(cur.id)}" style="--g:${WD.ZONES[cc.zone].color}">
+      <span>${esc(cc.name)}</span><small>${tag}</small></button>`;
   }
 
   function renderWorldAction() {
@@ -1196,68 +1309,79 @@
         ${!canControl(to.id) && !canControl(from.id) ? '<p class="action-note">Warte auf Antwort …</p>' : ''}</div></div>`;
     }
     const me = canControl(cur.id);
-    const maxAp = (S.event && S.event.ap) || WD.RULES.ap;
     h += `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${me ? (App.mode === 'local' || cur.id !== myId ? `${esc(cur.name)} ist dran` : 'Du bist dran!') : `${esc(cur.name)} ist dran`}</h3>
-      <small>${M(cur.money)} · ${esc(W.CITY[cur.loc].name)}</small></div></div>
-      <div class="ap-row">Aktionen ${apPips(S.ap, maxAp)}${S.freeStep ? '<span class="chip">🚐 Gratis-Schritt</span>' : ''}</div>`;
-    if (!me) { el.innerHTML = h + `<p class="action-note">${esc(cur.name)} plant den nächsten Zug …</p>`; return; }
-    const pid = cur.id;
-    if (S.sub === 'debt') {
-      const need = S.debt.items[0].amt;
-      h += `<p class="action-note">Du musst <strong>${M(need)}</strong> zahlen, hast aber nur ${M(cur.money)}. Reiß Gebäude ab, nimm Hypotheken auf oder handle.</p>
-        <div class="btn-row">${btn(`${M(need)} bezahlen`, { type: 'payDebt' }, pid, 'btn-primary', cur.money < need)}${uiBtn('Handeln', 'trade', 'btn-ghost')}</div>`;
-      h += App.confirmBankrupt
-        ? `<div class="btn-row">${btn('Ja, ich bin pleite', { type: 'bankrupt' }, pid, 'btn-danger')}${uiBtn('Doch nicht', 'cancelBankrupt', 'btn-ghost')}</div>`
-        : btn('Bankrott erklären', { type: 'bankruptAsk' }, pid, 'btn-ghost btn-small');
-      el.innerHTML = h;
+      <small>${M(cur.money)} · ${esc(W.CITY[cur.loc].name)}</small></div></div>`;
+    if (Date.now() < (App.busyUntil || 0)) {
+      el.innerHTML = h + `<p class="action-note rolling">${S.sub === 'walk' ? '🧭 unterwegs …' : '🎲 Die Würfel rollen …'}</p>`;
       return;
     }
-    const id = cur.loc, c = W.CITY[id], st = S.cities[id], owner = P(st.owner);
-    h += `<div class="here" style="--g:${WD.ZONES[c.zone].color}"><div><strong>${esc(c.name)}</strong><small>${esc(WD.ZONES[c.zone].name)} · ${owner ? `gehört ${esc(owner.name)} · ${WD.LEVELS[st.level]}` : 'frei'}</small></div>${uiBtn('Info', 'cityInfo', 'btn-small btn-ghost', `data-id="${id}"`)}</div>`;
-    const acts = [];
-    if (!owner) {
-      const price = W.buyPrice(cur, id);
-      acts.push(btn(`Kaufen ${M(price)} · 1 Aktion`, { type: 'buy' }, pid, 'btn-primary', S.ap < 1 || cur.money < price));
-    } else if (owner.id === cur.id) {
-      const zone = W.ZONE_CITIES[c.zone];
-      if (W.zoneComplete(S, cur.id, c.zone)) {
-        const min = Math.min(...zone.map((i) => S.cities[i].level));
-        const next = zone.find((i) => S.cities[i].level === min && min < 4);
-        if (next) {
-          const cost = W.buildCost(S, cur, next);
-          acts.push(btn(`Bauen: ${WD.LEVELS[min + 1]} in ${esc(W.CITY[next].name)} ${M(cost)} · 1 Aktion`, { type: 'build', id: next }, pid, 'btn-primary', S.ap < 1 || cur.money < cost || zone.some((i) => S.cities[i].mort)));
-        } else acts.push('<p class="action-note">Alles voll mit Wahrzeichen. 👑</p>');
-      } else {
-        const missing = zone.filter((i) => S.cities[i].owner !== cur.id).map((i) => W.CITY[i].name);
-        acts.push(`<p class="action-note">Bauen erst mit der ganzen Zone. Dir fehlt noch: ${esc(missing.join(', '))}.</p>`);
+    if (!me) {
+      const what = { roll: 'würfelt gleich', pick: 'wählt die Schritte', jet: 'sucht sich einen Flughafen aus', walk: 'navigiert durch die Welt', buy: 'überlegt, ob gekauft wird', end: 'beendet gleich den Zug', debt: 'muss Schulden begleichen' }[S.sub] || '';
+      el.innerHTML = h + `<p class="action-note">${esc(cur.name)} ${what} …</p>`;
+      return;
+    }
+    const pid = cur.id;
+    const canTrade = !S.trade && S.players.filter((p) => !p.bankrupt).length > 1;
+    const face = WD.FACES.find((f) => f.id === S.face);
+    switch (S.sub) {
+      case 'roll': {
+        h += `<div class="btn-row">${btn(S.again ? '🎲 Pasch! Nochmal würfeln' : '🎲 Würfeln', { type: 'roll' }, pid, 'btn-primary btn-roll', !!S.trade)}</div>${shakeHint()}`;
+        h += '<p class="action-note">Du würfelst mit zwei Würfeln und dem lila Dulidan-Würfel. Deine Figur läuft die Augenzahl über die Routen.</p>';
+        if (canTrade) h += uiBtn('Handeln', 'trade', 'btn-ghost');
+        break;
       }
-    } else {
-      const blk = W.takeoverBlock(S, cur, id);
-      if (blk) acts.push(`<p class="action-note">${esc(blk)}</p>`);
-      else {
-        const cost = W.takeoverCost(S, id);
-        acts.push(btn(`🦹 Übernehmen ${M(cost)} · 2 Aktionen`, { type: 'takeover' }, pid, 'btn-danger', S.ap < 2 || cur.money < cost));
+      case 'pick': {
+        const [lo, hi] = S.pickRange;
+        h += `<p class="action-note">${S.face === 'boss' ? '💜 <strong>Dulidan-Power!</strong> Wie weit willst du laufen?' : `🚐 Berlingo-Manöver: Du hast ${lo + 1} gewürfelt. 1 mehr oder weniger?`}</p>`;
+        let nums = '';
+        for (let n = lo; n <= hi; n++) nums += btn(String(n), { type: 'pickSteps', n }, pid, 'btn-num');
+        h += `<div class="btn-row nums">${nums}</div>`;
+        break;
+      }
+      case 'jet': {
+        h += `<p class="action-note">✈️ <strong>Jetset!</strong> Flieg zu einem Flughafen deiner Wahl – oder lauf ganz normal ${S.steps} Schritte.</p>`;
+        h += `<div class="dests">${W.HUBS.filter((x) => x !== cur.loc).map((to) => destBtn(S, cur, to, { type: 'fly', to })).join('')}</div>`;
+        h += btn(`Lieber laufen (${S.steps} Schritte)`, { type: 'walkInstead' }, pid, 'btn-ghost');
+        break;
+      }
+      case 'walk': {
+        h += `<p class="action-note">🧭 <strong>Navigator:</strong> Noch ${S.steps} ${S.steps === 1 ? 'Schritt' : 'Schritte'}. Wohin geht's?</p>`;
+        h += `<div class="dests">${W.walkOptions(S).map((to) => destBtn(S, cur, to, { type: 'step', to })).join('')}</div>`;
+        break;
+      }
+      case 'buy': {
+        const price = W.buyPrice(cur, cur.loc);
+        h += cityDeedHTML(cur.loc);
+        h += `<div class="btn-row">${btn(`Kaufen für ${M(price)}`, { type: 'buy' }, pid, 'btn-primary', cur.money < price)}${btn('Nicht kaufen', { type: 'skip' }, pid, 'btn-ghost')}</div>`;
+        if (cur.money < price) h += '<p class="action-note">Zu wenig Dulis? Nimm unten eine Hypothek auf.</p>';
+        break;
+      }
+      case 'end': {
+        const st = S.cities[cur.loc];
+        if (S.landed && st.owner && st.owner !== cur.id && !S.tookOver) {
+          const blk = W.takeoverBlock(S, cur, cur.loc);
+          if (!blk) {
+            const cost = W.takeoverCost(S, cur.loc);
+            h += `<div class="btn-row">${btn(`🦹 ${W.CITY[cur.loc].name} übernehmen: ${M(cost)}`, { type: 'takeover' }, pid, 'btn-danger', cur.money < cost)}</div>`;
+          }
+        }
+        h += `<div class="btn-row">${btn(S.again ? 'Weiter (Pasch: nochmal würfeln)' : 'Zug beenden', { type: 'endTurn' }, pid, 'btn-primary', !!S.trade)}${canTrade ? uiBtn('Handeln', 'trade', 'btn-ghost') : ''}</div>`;
+        h += '<p class="action-note">Bauen kannst du unten bei deinen Städten, sobald dir eine ganze Zone gehört.</p>';
+        break;
+      }
+      case 'debt': {
+        const need = S.debt.items.reduce((x, y) => x + y.amt, 0);
+        h += `<p class="action-note">Du musst <strong>${M(need)}</strong> zahlen, hast aber nur ${M(cur.money)}. Reiß Gebäude ab, nimm Hypotheken auf oder handle.</p>
+          <div class="btn-row">${btn(`${M(need)} bezahlen`, { type: 'payDebt' }, pid, 'btn-primary', cur.money < need)}${canTrade ? uiBtn('Handeln', 'trade', 'btn-ghost') : ''}</div>`;
+        h += App.confirmBankrupt
+          ? `<div class="btn-row">${btn('Ja, ich bin pleite', { type: 'bankrupt' }, pid, 'btn-danger')}${uiBtn('Doch nicht', 'cancelBankrupt', 'btn-ghost')}</div>`
+          : btn('Bankrott erklären', { type: 'bankruptAsk' }, pid, 'btn-ghost btn-small');
+        break;
       }
     }
-    if (c.hub) {
-      const e = S.event || {};
-      if (e.noFlights) acts.push('<p class="action-note">✈ Flughäfen sind diese Runde zu.</p>');
-      else acts.push(uiBtn(App.flyMode ? '✈ Ziel auf der Karte antippen … (abbrechen)' : `✈ Fliegen · ${W.flightAp(S)} Aktionen + ${M(W.flightCost(S))}`, 'fly', App.flyMode ? 'btn-primary' : '', S.ap < W.flightAp(S) || cur.money < W.flightCost(S) ? 'disabled' : ''));
+    if (face && ['pick', 'jet', 'walk'].includes(S.sub) === false && S.sub !== 'roll' && S.rollId) {
+      h += `<p class="action-note face-note">Dulidan-Würfel: ${face.icon === 'D' ? '💜' : face.icon} <strong>${esc(face.name)}</strong> – ${esc(face.text)}</p>`;
     }
-    h += `<div class="btn-row">${acts.join('')}</div>`;
-    const tg = worldTargets();
-    const dest = (to, type) => {
-      const s2 = S.cities[to], o = P(s2.owner), cc = W.CITY[to];
-      const toll = o && o.id !== cur.id ? W.rentFor(S, to, cur) : 0;
-      const tag = !o ? 'frei' : o.id === cur.id ? 'deins' : `Maut ${M(toll)}`;
-      return `<button class="dest ${toll ? 'is-toll' : ''}" data-act='${esc(JSON.stringify({ type, to }))}' data-pid="${esc(cur.id)}" style="--g:${WD.ZONES[cc.zone].color}">
-        <span>${type === 'fly' ? '✈ ' : ''}${esc(cc.name)}</span><small>${tag}</small></button>`;
-    };
-    if (tg.fly.length) h += `<div class="dests"><p class="dests-title">Flugziele</p>${tg.fly.map((to) => dest(to, 'fly')).join('')}</div>`;
-    else if (tg.move.length) h += `<div class="dests"><p class="dests-title">Reisen · 1 Aktion${S.freeStep ? ' (gratis)' : ''}</p>${tg.move.map((to) => dest(to, 'move')).join('')}</div>`;
-    else h += '<p class="action-note">Keine Aktionen mehr. Beende deinen Zug.</p>';
-    h += `<div class="btn-row">${btn('Zug beenden', { type: 'endTurn' }, pid, S.ap === 0 ? 'btn-primary' : '', !!S.trade)}${S.players.filter((p) => !p.bankrupt).length > 1 && !S.trade ? uiBtn('Handeln', 'trade', 'btn-ghost') : ''}
-      ${cur.token === 'april' && !cur.used.april ? btn('🤖 News neu auslosen', { type: 'aprilReroll' }, pid, 'btn-ghost btn-small') : ''}</div>`;
     el.innerHTML = h;
   }
 
@@ -1267,7 +1391,8 @@
       const owned = Object.keys(S.cities).filter((id) => S.cities[id].owner === p.id);
       const zones = W.completeZones(S, p.id);
       const meta = [];
-      if (!p.bankrupt) meta.push(`<span>+${M(W.incomeOf(S, p))}/Runde</span>`, `<span>${zones.length}/${WD.RULES.winZones} Zonen</span>`);
+      if (!p.bankrupt) meta.push(`<span>${owned.length} Städte</span>`, `<span>${zones.length} Zonen</span>`);
+      if (p.bankrupt) meta.push('<span class="warn">pleite</span>');
       if (App.mode !== 'local' && !p.connected && !p.bankrupt && !p.bot) meta.push('<span class="warn">offline</span>');
       if (p.id === myId && App.mode !== 'local') meta.push('<span>du</span>');
       return `<li class="player ${i === S.cur && S.phase === 'play' ? 'is-cur' : ''} ${p.bankrupt ? 'is-out' : ''}" style="--pc:${p.color}">
@@ -1284,12 +1409,16 @@
     if (!v) { $('#props-title').textContent = 'Städte'; wrap.innerHTML = '<p class="empty">Du schaust zu.</p>'; return; }
     $('#props-title').textContent = App.mode === 'local' || v.id !== myId ? `Städte von ${v.name}` : 'Deine Städte';
     const owned = WD.CITIES.filter((c) => S.cities[c.id].owner === v.id);
-    if (!owned.length) { wrap.innerHTML = '<p class="empty">Noch keine Städte. Reis los und kauf was!</p>'; return; }
-    const manage = S.phase === 'play' && curP().id === v.id && canControl(v.id) && (S.sub === 'act' || S.sub === 'debt');
+    if (!owned.length) { wrap.innerHTML = '<p class="empty">Noch keine Städte. Würfel los und kauf was!</p>'; return; }
+    const myTurn = S.phase === 'play' && curP().id === v.id && canControl(v.id);
+    const manage = myTurn && ['roll', 'end', 'buy', 'debt'].includes(S.sub);
+    const canBuild = myTurn && ['roll', 'end'].includes(S.sub);
     wrap.innerHTML = owned.map((c) => {
       const st = S.cities[c.id];
-      const info = `${WD.LEVELS[st.level]} · Maut ${M(W.rentFor(S, c.id))} · +${M(W.incomeFor(S, c.id))}/Runde${st.mort ? ' · Hypothek' : ''}`;
+      const complete = W.zoneComplete(S, v.id, c.zone);
+      const info = `${WD.LEVELS[st.level]}${complete ? ' · Zone komplett' : ''} · Maut ${M(W.rentFor(S, c.id))}${st.mort ? ' · Hypothek' : ''}`;
       let b = '';
+      if (canBuild && complete && !W.buildBlock(S, v, c.id)) b += btn(`+${WD.LEVELS[st.level + 1]} ${M(W.buildCost(S, v, c.id))}`, { type: 'build', id: c.id }, v.id);
       if (manage) {
         if (st.level) b += btn('Abreißen', { type: 'sell', id: c.id }, v.id, 'btn-ghost', false, 'Stockwerk für den halben Preis verkaufen');
         if (!st.mort && !W.zoneHasBuildings(S, c.zone)) b += btn(`Hypothek +${M(c.price / 2)}`, { type: 'mortgage', id: c.id }, v.id, 'btn-ghost');
@@ -1302,23 +1431,23 @@
 
   function worldRulesHTML() {
     return `<h2>DULIDAN WORLD</h2><div class="rules">
-      <p>Kein Würfeln. Du reist über die Weltkarte, kaufst Städte, eroberst Zonen und baust sie aus.</p>
+      <p>Monopoly auf der Weltkarte. Wer als Letzter nicht pleite ist, gewinnt.</p>
       <h3>Dein Zug</h3><ul>
-        <li>Zu Beginn kassierst du Einnahmen: ${M(WD.RULES.baseIncome)} Grundeinkommen plus alle deine Städte.</li>
-        <li>Du hast ${WD.RULES.ap} Aktionen: zur Nachbarstadt reisen (1), Stadt kaufen (1), bauen (1), feindlich übernehmen (2).</li>
-        <li>✈ Von Flughafen zu Flughafen fliegen kostet ${WD.RULES.flightAp} Aktionen und ${M(WD.RULES.flightCost)}.</li>
-        <li>Wer eine fremde Stadt betritt, zahlt Maut an den Besitzer.</li></ul>
+        <li>Zu Beginn bekommst du ${M(WD.RULES.salary)} Gehalt.</li>
+        <li>Du würfelst mit zwei Würfeln und läufst die Augenzahl Stadt für Stadt über die Routen. An Kreuzungen entscheidet der Zufall.</li>
+        <li>Landest du in einer freien Stadt, kannst du sie kaufen. In fremden Städten zahlst du Maut.</li>
+        <li>Pasch: nochmal würfeln.</li></ul>
+      <h3>💜 Der Dulidan-Würfel</h3><ul>${WD.FACES.map((f) => `<li>${f.icon === 'D' ? '💜' : f.icon} <strong>${esc(f.name)}:</strong> ${esc(f.text)}</li>`).join('')}</ul>
       <h3>Zonen & Bauen</h3><ul>
-        <li>10 Zonen mit je 3 Städten. Eine komplette Zone verdoppelt Maut und Einnahmen der unbebauten Städte.</li>
-        <li>Mit kompletter Zone baust du gleichmäßig: Studio → Büro → Tower → Wahrzeichen. Dafür musst du in der Zone sein.</li>
-        <li>Mehr Gebäude = viel mehr Maut und mehr Einnahmen jede Runde.</li></ul>
-      <h3>Feindliche Übernahme</h3><ul>
-        <li>Stehst du in einer fremden Stadt, kannst du sie für 1,5× (Preis + Gebäude) übernehmen. Das Geld bekommt der Besitzer.</li>
-        <li>Geschützt sind komplette Zonen und Wahrzeichen.</li></ul>
-      <h3>Gewinnen</h3><ul>
-        <li>🌍 Weltherrschaft: Wer zuerst ${WD.RULES.winZones} komplette Zonen besitzt, gewinnt sofort.</li>
-        <li>Sonst gewinnt nach dem Runden-Limit der Reichste. Pleite heißt raus.</li></ul>
-      <h3>📰 April-News</h3><ul><li>Jede Runde gibt es eine Weltnachricht: Ölkrise, Bahnstreik, Tourismus-Boom, Rezession und mehr.</li></ul>
+        <li>10 Zonen mit je 3 Städten. Eine ganze Zone verdoppelt die Maut der unbebauten Städte.</li>
+        <li>Mit ganzer Zone baust du gleichmäßig: Studio → Büro → Tower → Wahrzeichen. Jede Stufe macht die Maut viel teurer.</li>
+        <li>Bauen geht vor dem Würfeln oder am Ende deines Zuges, egal wo du stehst.</li></ul>
+      <h3>🦹 Feindliche Übernahme</h3><ul>
+        <li>Landest du in einer fremden Stadt, kannst du sie dem Besitzer für 1,5× (Preis + Gebäude) wegkaufen.</li>
+        <li>Geschützt sind ganze Zonen und Wahrzeichen.</li></ul>
+      <h3>Geld knapp?</h3><ul>
+        <li>Gebäude abreißen (halber Preis zurück) oder Hypotheken aufnehmen. Kannst du nicht zahlen, bist du pleite und raus.</li></ul>
+      <h3>📰 April-News</h3><ul><li>Jede Runde eine Weltnachricht: Maut-Party, Stau, drei Würfel, Rezession und mehr.</li></ul>
       <h3>Figuren</h3><ul>${Object.entries(WD.POWERS).map(([k, t]) => `<li><strong>${esc(TOKENS[k].name)}:</strong> ${esc(t)}</li>`).join('')}</ul></div>`;
   }
 
@@ -1338,8 +1467,10 @@
     $('#board').hidden = world;
     $('#world').hidden = !world;
     $('#board-wrap').classList.toggle('is-world', world);
+    $('#dice-tray').hidden = !world;
     if (world) {
-      if (S.sub !== 'act' || !canControl(curP().id)) App.flyMode = false;
+      const rolled = renderTray();
+      animateWorld(rolled ? 1000 : 0);
       renderWorld();
       if (S.phase === 'over') renderAction(); else renderWorldAction();
       renderWorldPlayers();

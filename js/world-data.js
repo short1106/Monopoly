@@ -1,4 +1,4 @@
-// DULIDAN WORLD – Weltkarte, Zonen, Städte, Routen, Weltnachrichten
+// DULIDAN WORLD – Weltkarte, Zonen, Städte, Routen, Dulidan-Würfel, Weltnachrichten
 (function (root) {
   // Zonen sind die "Farbgruppen": wer alle 3 Städte hat, darf bauen.
   const ZONES = {
@@ -66,34 +66,47 @@
 
   // Stufen: 0 = nur gekauft, 1 Studio, 2 Büro, 3 Tower, 4 Wahrzeichen
   const LEVELS = ['Unbebaut', 'Studio', 'Büro', 'Tower', 'Wahrzeichen'];
-  const RENT_PCT = [0.1, 0.5, 1.1, 2.0, 3.2];
-  const INCOME_PCT = [0.04, 0.1, 0.18, 0.28, 0.4];
+  const RENT_PCT = [0.15, 0.8, 2.2, 4.5, 7];
 
-  const RULES = {
-    startMoney: 1500, baseIncome: 100, ap: 3, flightAp: 2, flightCost: 100,
-    takeoverMult: 1.5, winZones: 3,
-  };
+  const RULES = { startMoney: 1500, salary: 50, takeoverMult: 1.5 };
+
+  // Der lila Dulidan-Würfel – sechs Spezialseiten
+  const FACES = [
+    { id: 'nav', icon: '🧭', name: 'Navigator', text: 'Du wählst an jeder Kreuzung selbst, wohin es geht.' },
+    { id: 'jet', icon: '✈️', name: 'Jetset', text: 'Statt zu laufen darfst du zu einem beliebigen Flughafen fliegen.' },
+    { id: 'pay', icon: '💰', name: 'Zahltag', text: 'Du bekommst Ð150 von der Bank.' },
+    { id: 'april', icon: '🤖', name: 'April-Chaos', text: 'April macht irgendwas. Gut oder schlecht.' },
+    { id: 'shield', icon: '🛡️', name: 'Schutzschild', text: 'Diesen Zug zahlst du keine Maut.' },
+    { id: 'boss', icon: 'D', name: 'Dulidan-Power', text: 'Du bestimmst selbst, wie weit du läufst (2–12).' },
+  ];
+
+  // Was April beim April-Chaos anstellt
+  const CHAOS = [
+    { t: 'April schenkt dir Ð100. Einfach so. Sie hatte einen guten Tag.', money: 100, good: true },
+    { t: 'April hatte Zugriff auf deine Karte. −Ð100.', money: -100 },
+    { t: 'April macht für dich Werbung: Jeder Mitspieler zahlt dir Ð30.', collect: 30, good: true },
+    { t: 'April hat in deinem Namen eine Runde Döner ausgegeben. Du zahlst jedem Ð30.', payEach: 30 },
+    { t: 'April gibt dir Red Bull. Du läufst doppelt so weit!', stepMult: 2, good: true },
+    { t: 'April hat ihre Periode und will nicht laufen. Du läufst nur halb so weit.', stepMult: 0.5 },
+  ];
 
   const POWERS = {
     dulidan: 'Boss-Rabatt: kauft Städte 10 % günstiger.',
-    april: 'Einmal pro Spiel die Weltnachricht der Runde neu auslosen.',
-    zebra: 'Bekommt jede Runde Ð50 mehr Grundeinkommen.',
+    april: 'April-Chaos trifft sie nur positiv.',
+    zebra: 'Bekommt jede Runde Ð50 mehr Gehalt.',
     ship: 'Zahlt in Flughafen-Städten nur die halbe Maut.',
-    berlingo: 'Der erste Schritt jedes Zuges kostet keine Aktion.',
+    berlingo: 'Darf nach jedem Wurf 1 Schritt mehr oder weniger laufen.',
     pen: 'Gebäude kosten Ð25 weniger.',
     helmet: 'Übernahmen seiner Städte kosten 2× statt 1,5×.',
-    doener: 'Street-Food-Tour: Ð30 für jede Stadt, die er zum ersten Mal besucht.',
+    doener: 'Street-Food-Tour: Ð30 für jede Stadt, in der er zum ersten Mal landet.',
   };
 
   // Weltnachrichten von April – eine pro Runde
   const EVENTS = [
     { t: 'Ruhige Woche. April schläft, die Welt auch.' },
-    { t: 'Ölkrise! Flüge kosten diese Runde Ð250.', flightCost: 250 },
-    { t: 'Billigflieger-Woche: Flüge kosten nur 1 Aktion und Ð50.', flightAp: 1, flightCost: 50 },
-    { t: 'Bahnstreik weltweit. Alle haben diese Runde nur 2 Aktionen.', ap: 2 },
-    { t: 'Turbo-Runde! Alle haben 4 Aktionen.', ap: 4 },
-    { t: 'Rezession. Alle Einnahmen diese Runde halbiert.', incomeMult: 0.5 },
-    { t: 'Wirtschaftswunder! Einnahmen diese Runde ×1,5.', incomeMult: 1.5 },
+    { t: 'Maut-Party! Alle Mauten diese Runde ×1,5.', rentMult: 1.5 },
+    { t: 'Rezession. Diese Runde gibt es kein Gehalt.', salaryMult: 0 },
+    { t: 'Wirtschaftswunder! Diese Runde dreifaches Gehalt.', salaryMult: 3 },
     { t: 'Baurausch: Gebäude kosten diese Runde die Hälfte.', buildMult: 0.5 },
     { t: 'Grenzen dicht: Diese Runde keine Übernahmen.', noTakeover: true },
     { t: 'Tourismus-Boom in ZONE! Die Maut dort ist diese Runde doppelt.', boom: true },
@@ -101,7 +114,8 @@
     { t: 'Steuer-Chaos: Alle zahlen 10 % ihres Geldes an die Bank.', taxPct: 0.1 },
     { t: 'Ein Dulidan-Reel geht viral: Alle bekommen Ð100.', gift: 100 },
     { t: 'Übernahme-Saison: Feindliche Übernahmen kosten nur 1,2×.', takeoverMult: 1.2 },
-    { t: 'April hat ihre Periode und blockiert alle Flughäfen. Keine Flüge diese Runde.', noFlights: true },
+    { t: 'Stau weltweit: Diese Runde würfelt jeder nur mit einem Würfel.', oneDie: true },
+    { t: 'April verteilt Energy-Drinks: Diese Runde würfelt jeder mit drei Würfeln!', threeDice: true },
   ];
 
   // Grobe Kontinent-Umrisse (lon, lat) für die Punktkarte
@@ -148,6 +162,6 @@
     lag: 's', nbo: 'e', cpt: 's', lim: 'w', sao: 'e', bue: 's',
   };
 
-  root.DULI_WORLD_DATA = { ZONES, CITIES, ROUTES, LEVELS, RENT_PCT, INCOME_PCT, RULES, POWERS, EVENTS, LAND, VIEW, LABELS };
+  root.DULI_WORLD_DATA = { ZONES, CITIES, ROUTES, LEVELS, RENT_PCT, RULES, FACES, CHAOS, POWERS, EVENTS, LAND, VIEW, LABELS };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DULI_WORLD_DATA;
 })(typeof window !== 'undefined' ? window : globalThis);

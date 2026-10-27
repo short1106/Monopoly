@@ -349,24 +349,6 @@ button, input, select { font: inherit; color: inherit; }
 .center-word { font-size: 6.4cqi; }
 .center-sub { font-size: 1.6cqi; letter-spacing: .5em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
 .dice { display: flex; gap: 2cqi; }
-.die {
-  width: 8cqi; height: 8cqi;
-  background: #f6f1fc;
-  border-radius: 1.6cqi;
-  display: grid;
-  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
-  padding: 1.1cqi;
-  box-shadow: 0 .8cqi 0 #b9a8d4, 0 1.5cqi 3cqi -1cqi rgba(0, 0, 0, .8);
-}
-.die i { width: 1.6cqi; height: 1.6cqi; border-radius: 50%; background: var(--purple); place-self: center; }
-.die.is-rolling { animation: shake .55s ease-out; }
-@keyframes shake {
-  0% { transform: rotate(0) translateY(0); }
-  25% { transform: rotate(-25deg) translateY(-30%); }
-  50% { transform: rotate(18deg) translateY(-10%); }
-  75% { transform: rotate(-8deg); }
-  100% { transform: rotate(0); }
-}
 .center-turn { font-size: max(11px, 1.9cqi); text-align: center; color: var(--muted); max-width: 80%; }
 .center-turn strong { color: var(--fg); }
 .center-card {
@@ -575,6 +557,7 @@ button, input, select { font: inherit; color: inherit; }
 
 /* ---------- DULIDAN WORLD ---------- */
 .world {
+  position: relative;
   width: 100%; max-width: 1400px; margin: 0 auto;
   border-radius: var(--radius); border: 1px solid var(--line);
   background: radial-gradient(120% 90% at 50% 40%, #1a1030, var(--bg) 70%);
@@ -634,6 +617,74 @@ button, input, select { font: inherit; color: inherit; }
 .here { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--bg); border-left: 5px solid var(--g); }
 .here > div { flex: 1; min-width: 0; }
 .here small { display: block; color: var(--muted); font-size: 12px; }
+
+/* ---------- 3D-Würfel ---------- */
+.die3d { --s: 8cqi; width: var(--s); height: var(--s); perspective: calc(var(--s) * 6); flex: none; }
+.die3d .cube {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 1.1s cubic-bezier(.15, .85, .25, 1.04);
+}
+.die3d .face {
+  position: absolute; inset: 0;
+  display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: 13%;
+  border-radius: 20%;
+  background: radial-gradient(circle at 30% 25%, #ffffff, #e9dff7 70%);
+  box-shadow: inset 0 0 0 1px rgba(129, 34, 181, .25), inset 0 -.4em .8em rgba(129, 34, 181, .18);
+  backface-visibility: hidden;
+}
+.die3d .face i { width: 72%; height: 72%; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #b44be0, #5a1690); place-self: center; }
+.die3d .f1 { transform: translateZ(calc(var(--s) / 2)); }
+.die3d .f2 { transform: rotateY(90deg) translateZ(calc(var(--s) / 2)); }
+.die3d .f3 { transform: rotateY(-90deg) translateZ(calc(var(--s) / 2)); }
+.die3d .f4 { transform: rotateX(90deg) translateZ(calc(var(--s) / 2)); }
+.die3d .f5 { transform: rotateX(-90deg) translateZ(calc(var(--s) / 2)); }
+.die3d .f6 { transform: rotateY(180deg) translateZ(calc(var(--s) / 2)); }
+.die3d.special .face {
+  display: grid; place-items: center; grid-template: 1fr / 1fr; padding: 12%;
+  background: radial-gradient(circle at 30% 25%, #e54cf2, #6a1aa8 75%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25), inset 0 -.4em .8em rgba(0, 0, 0, .25);
+}
+.die3d.special .ficon { font-size: calc(var(--s) * .5); line-height: 1; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35)); }
+.die3d.special .dlogo { width: 70%; filter: brightness(1.6) drop-shadow(0 2px 2px rgba(0, 0, 0, .4)); }
+.die3d.is-thrown { animation: throw 1.1s cubic-bezier(.2, .7, .3, 1); }
+@keyframes throw {
+  0% { transform: translate(-60%, -90%) scale(1.25); }
+  35% { transform: translate(10%, 8%) scale(1); }
+  55% { transform: translate(-4%, -18%); }
+  75% { transform: translate(2%, 0); }
+  88% { transform: translate(0, -5%); }
+  100% { transform: none; }
+}
+.dice { gap: 3cqi; }
+
+.dice-tray {
+  width: fit-content; max-width: 100%; margin: 12px auto 0;
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 14px;
+  background: rgba(14, 11, 19, .82); backdrop-filter: blur(6px);
+  border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .8);
+  pointer-events: none;
+}
+.tray-dice { display: flex; gap: 10px; }
+.dice-tray .die3d { --s: 52px; }
+.tray-label { font-weight: 800; font-size: 14px; white-space: nowrap; min-width: 4ch; }
+.rolling { font-size: 16px; font-weight: 700; color: var(--fg); animation: blink 1s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .45; } }
+.tray-label strong { font-size: 22px; font-stretch: 120%; margin-right: 4px; }
+@media (max-width: 600px) {
+  .dice-tray { padding: 8px 10px; gap: 10px; border-radius: 12px; }
+  .dice-tray .die3d { --s: 40px; }
+  .tray-dice { gap: 6px; }
+  .tray-label { font-size: 11px; }
+  .tray-label strong { font-size: 15px; }
+}
+.btn-roll { font-size: 18px; padding-block: 14px; letter-spacing: .02em; }
+.btn-row.nums .btn { flex: 1 0 44px; padding-inline: 0; font-size: 17px; font-weight: 900; }
+.shake { text-align: center; }
+.face-note strong { color: var(--fg); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

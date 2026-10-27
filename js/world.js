@@ -1,8 +1,9 @@
-// DULIDAN WORLD – Strategie-Modus ohne Würfel. Läuft wie die klassische Engine nur beim Host.
+// DULIDAN WORLD – Monopoly auf der Weltkarte: würfeln, über Routen laufen, Städte kaufen, Maut kassieren.
+// Wer als Letzter nicht pleite ist, gewinnt. Läuft wie die klassische Engine nur beim Host.
 (function (root) {
   const isNode = typeof module !== 'undefined' && module.exports;
   const WD = isNode ? require('./world-data.js') : root.DULI_WORLD_DATA;
-  const { ZONES, CITIES, ROUTES, LEVELS, RENT_PCT, INCOME_PCT, RULES, EVENTS } = WD;
+  const { ZONES, CITIES, ROUTES, LEVELS, RENT_PCT, RULES, FACES, CHAOS, EVENTS } = WD;
   const CITY = Object.fromEntries(CITIES.map(c => [c.id, c]));
   const NEIGH = {};
   for (const c of CITIES) NEIGH[c.id] = [];
@@ -10,8 +11,11 @@
   const HUBS = CITIES.filter(c => c.hub).map(c => c.id);
   const ZONE_CITIES = {};
   for (const c of CITIES) (ZONE_CITIES[c.zone] = ZONE_CITIES[c.zone] || []).push(c.id);
+  const BUILD_ART = ['', 'ein Studio', 'ein Büro', 'einen Tower', 'ein Wahrzeichen'];
 
   let rng = Math.random;
+  const d6 = () => 1 + Math.floor(rng() * 6);
+  const pick = (a) => a[Math.floor(rng() * a.length)];
   const M = (n) => 'Ð' + n;
   const r5 = (n) => Math.round(n / 5) * 5;
   const P = (S, id) => S.players.find(p => p.id === id);
@@ -36,20 +40,13 @@
     let r = c.price * RENT_PCT[st.level];
     if (st.level === 0 && zoneComplete(S, st.owner, c.zone)) r *= 2;
     if (ev(S).boom && ev(S).zone === c.zone) r *= 2;
+    if (ev(S).rentMult) r *= ev(S).rentMult;
     if (payer && payer.token === 'ship' && c.hub) r /= 2;
     return r5(r);
   }
-  function incomeFor(S, id) {
-    const c = CITY[id], st = S.cities[id];
-    if (!st.owner || st.mort) return 0;
-    let r = c.price * INCOME_PCT[st.level];
-    if (st.level === 0 && zoneComplete(S, st.owner, c.zone)) r *= 2;
-    return r5(r);
-  }
-  function incomeOf(S, p) {
-    let sum = RULES.baseIncome + (p.token === 'zebra' ? 50 : 0);
-    for (const id in S.cities) if (S.cities[id].owner === p.id) sum += incomeFor(S, id);
-    return Math.round(sum * (ev(S).incomeMult || 1));
+  function salaryOf(S, p) {
+    const base = RULES.salary + (p.token === 'zebra' ? 50 : 0);
+    return Math.round(base * (ev(S).salaryMult ?? 1));
   }
   function buyPrice(p, id) { return p.token === 'dulidan' ? r5(CITY[id].price * 0.9) : CITY[id].price; }
   function buildCost(S, p, id) {
@@ -61,10 +58,7 @@
     const mult = owner && owner.token === 'helmet' ? 2 : (ev(S).takeoverMult || RULES.takeoverMult);
     return r5((c.price + st.level * ZONES[c.zone].build) * mult);
   }
-  function flightCost(S) { return ev(S).flightCost ?? RULES.flightCost; }
-  function flightAp(S) { return ev(S).flightAp ?? RULES.flightAp; }
   function unmortgageCost(id) { return Math.ceil(CITY[id].price * 0.55); }
-  function moveCost(S, p) { return S.freeStep ? 0 : 1; }
 
   function netWorth(S, p) {
     let w = p.money;
@@ -86,6 +80,24 @@
     return null;
   }
 
+  function buildBlock(S, p, id) {
+    const c = CITY[id], st = S.cities[id];
+    if (!c || st.owner !== p.id) return 'Die Stadt gehört dir nicht.';
+    if (!zoneComplete(S, p.id, c.zone)) return 'Erst die ganze Zone besitzen.';
+    if (ZONE_CITIES[c.zone].some(i => S.cities[i].mort)) return 'In der Zone ist noch eine Hypothek.';
+    if (st.level >= 4) return 'Hier steht schon ein Wahrzeichen.';
+    if (st.level > Math.min(...ZONE_CITIES[c.zone].map(i => S.cities[i].level))) return 'Gleichmäßig bauen! Erst die anderen Städte der Zone.';
+    if (p.money < buildCost(S, p, id)) return 'Nicht genug Dulis.';
+    return null;
+  }
+
+  // Nächste mögliche Städte beim Laufen (nicht direkt zurück, außer Sackgasse)
+  function walkOptions(S) {
+    const p = curP(S);
+    const opts = NEIGH[p.loc].filter(n => n !== S.prevLoc);
+    return opts.length ? opts : NEIGH[p.loc].slice();
+  }
+
   // ---------- Start ----------
   function start(S) {
     if (S.players.length < 2) return 'Ihr braucht mindestens 2 Spieler.';
@@ -96,36 +108,37 @@
     for (const c of CITIES) S.cities[c.id] = { owner: null, level: 0, mort: false };
     const starts = ['dui', 'nyc', 'tyo', 'lag', 'sao', 'syd'];
     S.players.forEach((p, i) => {
+      const home = starts[i % starts.length];
       Object.assign(p, {
-        money: st.startMoney || RULES.startMoney, loc: starts[i % starts.length], bankrupt: false,
-        used: { april: false }, visited: [starts[i % starts.length]],
-        stats: { rentPaid: 0, rentGot: 0, maxRent: 0, built: 0, bought: 0, takeovers: 0, flights: 0, km: 0 },
+        money: st.startMoney || RULES.startMoney, loc: home, bankrupt: false, visited: [home],
+        stats: { rentPaid: 0, rentGot: 0, maxRent: 0, built: 0, bought: 0, takeovers: 0, flights: 0, km: 0, doubles: 0 },
       });
     });
-    S.maxRounds = st.maxRounds || 30;
+    S.maxRounds = st.maxRounds ?? 30;
     S.phase = 'play'; S.cur = 0; S.round = 1; S.turnNo = 1;
     S.event = { ...EVENTS[0] };
+    S.dice = [1, 1]; S.die3 = null; S.face = null; S.rollId = 0;
+    S.path = []; S.moveId = 0; S.mover = null;
     S.debt = null; S.trade = null; S.log = []; S.winner = null; S.ranking = null;
-    log(S, `DULIDAN WORLD startet! Ziel: ${RULES.winZones} komplette Zonen.`);
+    log(S, 'DULIDAN WORLD startet! Würfeln, um die Welt reisen, Städte kaufen – wer zuletzt nicht pleite ist, gewinnt.');
     beginTurn(S);
     return null;
   }
 
   function beginTurn(S) {
     const p = curP(S);
-    const inc = incomeOf(S, p);
-    p.money += inc;
-    S.ap = ev(S).ap || RULES.ap;
-    S.freeStep = p.token === 'berlingo';
-    S.sub = 'act';
-    log(S, `${p.name} ist dran und kassiert ${M(inc)} Einnahmen.`);
+    const sal = salaryOf(S, p);
+    p.money += sal;
+    S.sub = 'roll';
+    S.doubles = 0; S.again = false; S.shield = false; S.landed = false;
+    log(S, `${p.name} ist dran${sal ? ` und bekommt ${M(sal)} Gehalt` : ''}.`);
   }
 
   function drawEvent(S) {
     const e = { ...EVENTS[1 + Math.floor(rng() * (EVENTS.length - 1))] };
     if (e.boom) {
       const zs = Object.keys(ZONES);
-      e.zone = zs[Math.floor(rng() * zs.length)];
+      e.zone = pick(zs);
       e.t = e.t.replace('ZONE', ZONES[e.zone].name);
     }
     S.event = e;
@@ -168,52 +181,119 @@
     S.winner = S.ranking[0].id;
     log(S, `${why || 'Spiel beendet.'} 🏆 ${P(S, S.winner).name} ist am reichsten!`);
   }
-  function checkWin(S, p) {
-    const z = completeZones(S, p.id);
-    if (z.length >= RULES.winZones) {
-      S.ranking = rank(S);
-      S.phase = 'over';
-      S.winner = p.id;
-      log(S, `🌍 WELTHERRSCHAFT! ${p.name} kontrolliert ${z.length} komplette Zonen und gewinnt!`);
-      return true;
-    }
-    return false;
-  }
 
   // ---------- Bezahlen ----------
-  function charge(S, p, to, amt) {
-    if (p.money >= amt) {
-      p.money -= amt;
-      if (to) P(S, to).money += amt;
+  function charge(S, p, items) {
+    const total = items.reduce((a, b) => a + b.amt, 0);
+    if (p.money >= total) {
+      for (const it of items) { p.money -= it.amt; if (it.to) P(S, it.to).money += it.amt; }
       return true;
     }
-    S.debt = { pid: p.id, items: [{ to, amt }] };
+    S.debt = { pid: p.id, items };
     S.sub = 'debt';
-    log(S, `${p.name} fehlen ${M(amt - p.money)}. Gebäude verkaufen, Hypotheken aufnehmen oder handeln!`);
+    log(S, `${p.name} fehlen ${M(total - p.money)}. Gebäude abreißen, Hypotheken aufnehmen oder handeln!`);
     return false;
   }
 
-  function arrive(S, p, id) {
-    p.loc = id;
+  // ---------- Würfeln & Laufen ----------
+  function roll(S) {
+    const p = curP(S);
+    const e = ev(S);
+    const a = d6(), b = e.oneDie ? 0 : d6(), c = e.threeDice ? d6() : 0;
+    S.dice = [a, b]; S.die3 = c || null;
+    let face = FACES[Math.floor(rng() * FACES.length)];
+    S.face = face.id;
+    S.rollId++;
+    const dbl = b && a === b;
+    let steps = a + b + c;
+    log(S, `🎲 ${p.name} würfelt ${[a, b, c].filter(Boolean).join(' + ')} = ${steps}${dbl ? ' (Pasch)' : ''} · Dulidan-Würfel: ${face.icon === 'D' ? '💜' : face.icon} ${face.name}`);
+    if (dbl) { S.doubles++; p.stats.doubles++; }
+    S.again = !!dbl && S.doubles < 3;
+
+    S.shield = false;
+    S.boss = false;
+    switch (face.id) {
+      case 'pay':
+        p.money += 150;
+        log(S, `💰 Zahltag! ${p.name} bekommt ${M(150)}.`);
+        break;
+      case 'shield':
+        S.shield = true;
+        break;
+      case 'april': {
+        const pool = p.token === 'april' ? CHAOS.filter(x => x.good) : CHAOS;
+        const x = pick(pool);
+        log(S, `🤖 April-Chaos: ${x.t}`);
+        const others = active(S).filter(o => o.id !== p.id);
+        if (x.money > 0) p.money += x.money;
+        if (x.collect) for (const o of others) { const v = Math.min(o.money, x.collect); o.money -= v; p.money += v; }
+        if (x.stepMult) steps = Math.max(1, Math.round(steps * x.stepMult));
+        if (x.money < 0 && !charge(S, p, [{ to: null, amt: -x.money }])) { S.pendingSteps = steps; return; }
+        if (x.payEach && !charge(S, p, others.map(o => ({ to: o.id, amt: x.payEach })))) { S.pendingSteps = steps; return; }
+        break;
+      }
+    }
+    afterRoll(S, steps);
+  }
+
+  function afterRoll(S, steps) {
+    const p = curP(S);
+    S.steps = steps;
+    S.pendingSteps = null;
+    if (S.face === 'boss') { S.sub = 'pick'; S.pickRange = [2, 12]; return; }
+    if (p.token === 'berlingo') { S.sub = 'pick'; S.pickRange = [Math.max(1, steps - 1), steps + 1]; return; }
+    startWalk(S);
+  }
+
+  function startWalk(S) {
+    if (S.face === 'jet') { S.sub = 'jet'; return; }
+    S.prevLoc = null;
+    S.path = [curP(S).loc];
+    S.mover = curP(S).id;
+    if (S.face === 'nav') { S.sub = 'walk'; return; }
+    while (S.steps > 0) stepTo(S, pick(walkOptions(S)));
+    finishWalk(S);
+  }
+
+  function stepTo(S, to) {
+    const p = curP(S);
+    S.prevLoc = p.loc;
+    p.loc = to;
     p.stats.km++;
-    const c = CITY[id], st = S.cities[id];
-    log(S, `${p.name} reist nach ${c.name}.`);
+    S.path.push(to);
+    S.steps--;
+  }
+
+  function finishWalk(S) {
+    S.moveId++;
+    land(S);
+  }
+
+  function land(S) {
+    const p = curP(S), id = p.loc, c = CITY[id], st = S.cities[id];
+    S.landed = true;
+    log(S, `${p.name} landet in ${c.name}.`);
+    if (c.quip && rng() < 0.5) log(S, `April: „${c.quip}“`);
     if (p.token === 'doener' && !p.visited.includes(id)) {
       p.visited.push(id);
       p.money += 30;
       log(S, `Street-Food-Tour! ${p.name} bekommt ${M(30)}. 🥙`);
     }
-    if (c.quip && rng() < 0.45) log(S, `April: „${c.quip}“`);
-    if (st.owner && st.owner !== p.id && !st.mort) {
+    if (!st.owner) { S.sub = 'buy'; return; }
+    if (st.owner !== p.id && !st.mort) {
       const owner = P(S, st.owner);
+      if (S.shield) { log(S, `🛡️ Schutzschild! ${p.name} zahlt keine Maut an ${owner.name}.`); return finishTurnStep(S); }
       const toll = rentFor(S, id, p);
-      if (toll > 0) {
-        log(S, `${p.name} zahlt ${M(toll)} Maut an ${owner.name}.`);
-        p.stats.rentPaid += toll; p.stats.maxRent = Math.max(p.stats.maxRent, toll);
-        owner.stats.rentGot += toll;
-        charge(S, p, owner.id, toll);
-      }
+      log(S, `${p.name} zahlt ${M(toll)} Maut an ${owner.name}.`);
+      p.stats.rentPaid += toll; p.stats.maxRent = Math.max(p.stats.maxRent, toll);
+      owner.stats.rentGot += toll;
+      if (!charge(S, p, [{ to: owner.id, amt: toll }])) return;
     }
+    finishTurnStep(S);
+  }
+
+  function finishTurnStep(S) {
+    S.sub = 'end';
   }
 
   // ---------- Aktionen ----------
@@ -222,9 +302,7 @@
     const p = P(S, pid);
     if (!p || p.bankrupt) return 'Du spielst nicht mit.';
     if (!a || !a.type) return 'Ungültige Aktion.';
-    const isCur = curP(S).id === pid;
 
-    // Handel & Schulden zuerst
     switch (a.type) {
       case 'tradeAccept':
         if (!S.trade || S.trade.to !== pid) return 'Kein Angebot für dich.';
@@ -236,12 +314,13 @@
         return null;
       case 'payDebt': {
         if (S.sub !== 'debt' || S.debt.pid !== pid) return 'Du hast keine Schulden.';
-        const d = S.debt, it = d.items[0];
-        if (p.money < it.amt) return `Dir fehlen noch ${M(it.amt - p.money)}.`;
-        p.money -= it.amt;
-        if (it.to) P(S, it.to).money += it.amt;
-        S.debt = null; S.sub = 'act';
+        const total = S.debt.items.reduce((x, y) => x + y.amt, 0);
+        if (p.money < total) return `Dir fehlen noch ${M(total - p.money)}.`;
+        for (const it of S.debt.items) { p.money -= it.amt; if (it.to) P(S, it.to).money += it.amt; }
+        S.debt = null;
         log(S, `${p.name} hat die Schulden bezahlt.`);
+        if (S.pendingSteps != null) afterRoll(S, S.pendingSteps);
+        else S.sub = S.landed ? 'end' : 'roll';
         return null;
       }
       case 'bankrupt':
@@ -249,95 +328,103 @@
         return bankrupt(S, p);
     }
 
-    if (!isCur) return 'Du bist nicht dran.';
+    if (curP(S).id !== pid) return 'Du bist nicht dran.';
+    const manage = ['roll', 'end', 'buy', 'debt'].includes(S.sub);
     const here = p.loc, st = S.cities[here], city = CITY[here];
-    const inAct = S.sub === 'act';
-    const inManage = S.sub === 'act' || S.sub === 'debt';
 
     switch (a.type) {
-      case 'move': {
-        if (!inAct) return 'Erst die Schulden klären.';
-        const to = String(a.to);
-        if (!NEIGH[here].includes(to)) return 'Dahin gibt es keine direkte Route.';
-        const cost = moveCost(S, p);
-        if (S.ap < cost) return 'Keine Aktionen mehr übrig.';
-        S.ap -= cost;
-        S.freeStep = false;
-        arrive(S, p, to);
+      case 'roll':
+        if (S.sub !== 'roll') return 'Gerade kannst du nicht würfeln.';
+        if (S.trade) return 'Erst das offene Angebot klären.';
+        roll(S);
+        return null;
+      case 'pickSteps': {
+        if (S.sub !== 'pick') return 'Geht gerade nicht.';
+        const n = Math.round(Number(a.n));
+        if (!(n >= S.pickRange[0] && n <= S.pickRange[1])) return 'Ungültige Schrittzahl.';
+        S.steps = n;
+        if (S.face === 'boss') log(S, `💜 Dulidan-Power! ${p.name} läuft genau ${n} Schritte.`);
+        else if (n !== S.pickRange[0] + 1) log(S, `🚐 Berlingo-Manöver: ${p.name} läuft ${n} Schritte.`);
+        startWalk(S);
         return null;
       }
       case 'fly': {
-        if (!inAct) return 'Erst die Schulden klären.';
+        if (S.sub !== 'jet') return 'Geht gerade nicht.';
         const to = String(a.to);
-        if (ev(S).noFlights) return 'Diese Runde sind alle Flughäfen zu.';
-        if (!city.hub || !CITY[to] || !CITY[to].hub || to === here) return 'Flüge gehen nur von Flughafen zu Flughafen.';
-        if (S.ap < flightAp(S)) return `Ein Flug braucht ${flightAp(S)} Aktionen.`;
-        const fc = flightCost(S);
-        if (p.money < fc) return 'Das Ticket ist zu teuer für dich.';
-        S.ap -= flightAp(S);
-        p.money -= fc;
+        if (!CITY[to] || !CITY[to].hub || to === here) return 'Wähle einen anderen Flughafen.';
+        p.loc = to;
         p.stats.flights++;
-        log(S, `✈️ ${p.name} fliegt für ${M(fc)} nach ${CITY[to].name}.`);
-        arrive(S, p, to);
+        S.path = [here, to]; S.mover = p.id; S.moveId++; S.flight = true;
+        log(S, `✈️ Jetset! ${p.name} fliegt nach ${CITY[to].name}.`);
+        land(S);
+        return null;
+      }
+      case 'walkInstead': {
+        if (S.sub !== 'jet') return 'Geht gerade nicht.';
+        S.face = null;
+        startWalk(S);
+        return null;
+      }
+      case 'step': {
+        if (S.sub !== 'walk') return 'Geht gerade nicht.';
+        const to = String(a.to);
+        if (!walkOptions(S).includes(to)) return 'Da geht es nicht lang.';
+        stepTo(S, to);
+        S.flight = false;
+        if (S.steps <= 0) finishWalk(S);
+        else S.moveId++;
         return null;
       }
       case 'buy': {
-        if (!inAct) return 'Erst die Schulden klären.';
-        if (st.owner) return 'Die Stadt gehört schon jemandem.';
-        if (S.ap < 1) return 'Keine Aktionen mehr übrig.';
+        if (S.sub !== 'buy') return 'Geht gerade nicht.';
         const price = buyPrice(p, here);
         if (p.money < price) return 'Nicht genug Dulis.';
-        S.ap -= 1;
         p.money -= price;
         st.owner = p.id;
         p.stats.bought++;
         log(S, `${p.name} kauft ${city.name} für ${M(price)}.`);
-        if (zoneComplete(S, p.id, city.zone)) log(S, `🔥 ${p.name} kontrolliert jetzt die ganze Zone ${ZONES[city.zone].name}!`);
-        checkWin(S, p);
+        if (zoneComplete(S, p.id, city.zone)) log(S, `🔥 ${p.name} hat die ganze Zone ${ZONES[city.zone].name}! Jetzt darf gebaut werden.`);
+        finishTurnStep(S);
         return null;
       }
-      case 'build': {
-        if (!inAct) return 'Erst die Schulden klären.';
-        const id = String(a.id || here);
-        const c = CITY[id], s2 = S.cities[id];
-        if (!c || s2.owner !== p.id) return 'Die Stadt gehört dir nicht.';
-        if (CITY[here].zone !== c.zone) return 'Du musst dafür in dieser Zone sein.';
-        if (!zoneComplete(S, p.id, c.zone)) return 'Erst die ganze Zone besitzen.';
-        if (ZONE_CITIES[c.zone].some(i => S.cities[i].mort)) return 'In der Zone ist noch eine Hypothek.';
-        if (s2.level >= 4) return 'Hier steht schon ein Wahrzeichen.';
-        if (s2.level > Math.min(...ZONE_CITIES[c.zone].map(i => S.cities[i].level))) return 'Gleichmäßig bauen! Erst die anderen Städte der Zone.';
-        if (S.ap < 1) return 'Keine Aktionen mehr übrig.';
-        const cost = buildCost(S, p, id);
-        if (p.money < cost) return 'Nicht genug Dulis.';
-        S.ap -= 1;
-        p.money -= cost;
-        s2.level++;
-        p.stats.built++;
-        log(S, `🏗️ ${p.name} baut ${['', 'ein Studio', 'ein Büro', 'einen Tower', 'ein Wahrzeichen'][s2.level]} in ${c.name}.`);
+      case 'skip':
+        if (S.sub !== 'buy') return 'Geht gerade nicht.';
+        log(S, `${p.name} lässt ${city.name} links liegen.`);
+        finishTurnStep(S);
         return null;
-      }
       case 'takeover': {
-        if (!inAct) return 'Erst die Schulden klären.';
+        if (S.sub !== 'end' || !S.landed) return 'Übernehmen geht nach der Landung in einer fremden Stadt.';
+        if (S.tookOver) return 'Nur eine Übernahme pro Zug.';
         const blk = takeoverBlock(S, p, here);
         if (blk) return blk;
-        if (S.ap < 2) return 'Eine Übernahme braucht 2 Aktionen.';
         const cost = takeoverCost(S, here);
         if (p.money < cost) return 'Nicht genug Dulis für die Übernahme.';
         const old = P(S, st.owner);
-        S.ap -= 2;
         p.money -= cost; old.money += cost;
         st.owner = p.id;
-        p.stats.takeovers = (p.stats.takeovers || 0) + 1;
+        S.tookOver = true;
+        p.stats.takeovers++;
         log(S, `🦹 Feindliche Übernahme! ${p.name} schnappt ${old.name} ${city.name} für ${M(cost)} weg.`);
-        if (zoneComplete(S, p.id, city.zone)) log(S, `🔥 ${p.name} kontrolliert jetzt die ganze Zone ${ZONES[city.zone].name}!`);
-        checkWin(S, p);
+        if (zoneComplete(S, p.id, city.zone)) log(S, `🔥 ${p.name} hat die ganze Zone ${ZONES[city.zone].name}!`);
+        return null;
+      }
+      case 'build': {
+        if (!['roll', 'end'].includes(S.sub)) return 'Bauen geht vor dem Würfeln oder am Ende deines Zuges.';
+        const id = String(a.id);
+        const blk = buildBlock(S, p, id);
+        if (blk) return blk;
+        const cost = buildCost(S, p, id);
+        p.money -= cost;
+        S.cities[id].level++;
+        p.stats.built++;
+        log(S, `🏗️ ${p.name} baut ${BUILD_ART[S.cities[id].level]} in ${CITY[id].name}.`);
         return null;
       }
       case 'sell': {
-        if (!inManage) return 'Geht gerade nicht.';
+        if (!manage) return 'Geht gerade nicht.';
         const id = String(a.id), c = CITY[id], s2 = S.cities[id];
         if (!c || s2.owner !== p.id || !s2.level) return 'Hier gibt es nichts zu verkaufen.';
-        if (s2.level < Math.max(...ZONE_CITIES[c.zone].map(i => S.cities[i].level))) return 'Gleichmäßig verkaufen!';
+        if (s2.level < Math.max(...ZONE_CITIES[c.zone].map(i => S.cities[i].level))) return 'Gleichmäßig abreißen!';
         s2.level--;
         const back = Math.floor(ZONES[c.zone].build / 2);
         p.money += back;
@@ -345,17 +432,17 @@
         return null;
       }
       case 'mortgage': {
-        if (!inManage) return 'Geht gerade nicht.';
+        if (!manage) return 'Geht gerade nicht.';
         const id = String(a.id), c = CITY[id], s2 = S.cities[id];
         if (!c || s2.owner !== p.id || s2.mort) return 'Geht nicht.';
-        if (zoneHasBuildings(S, c.zone)) return 'Erst alle Gebäude der Zone verkaufen.';
+        if (zoneHasBuildings(S, c.zone)) return 'Erst alle Gebäude der Zone abreißen.';
         s2.mort = true;
         p.money += c.price / 2;
         log(S, `${p.name} nimmt eine Hypothek auf ${c.name} auf (+${M(c.price / 2)}).`);
         return null;
       }
       case 'unmortgage': {
-        if (!inManage) return 'Geht gerade nicht.';
+        if (!manage) return 'Geht gerade nicht.';
         const id = String(a.id), c = CITY[id], s2 = S.cities[id];
         if (!c || s2.owner !== p.id || !s2.mort) return 'Keine Hypothek vorhanden.';
         const cost = unmortgageCost(id);
@@ -365,20 +452,19 @@
         log(S, `${p.name} löst die Hypothek auf ${c.name} ab.`);
         return null;
       }
-      case 'aprilReroll': {
-        if (p.token !== 'april' || p.used.april) return 'Geht nicht.';
-        p.used.april = true;
-        log(S, `🤖 April legt die Nachricht zurück und erfindet eine neue.`);
-        drawEvent(S);
-        return null;
-      }
       case 'tradePropose':
-        if (!inManage) return 'Geht gerade nicht.';
+        if (!['roll', 'end', 'debt'].includes(S.sub)) return 'Handeln geht vor dem Würfeln oder am Ende deines Zuges.';
         if (S.trade) return 'Es gibt schon ein offenes Angebot.';
         return proposeTrade(S, pid, a.trade || {});
       case 'endTurn':
-        if (S.sub !== 'act') return 'Erst die Schulden klären.';
+        if (S.sub !== 'end') return 'Du kannst deinen Zug noch nicht beenden.';
         if (S.trade) return 'Erst das offene Angebot klären.';
+        S.tookOver = false;
+        if (S.again) {
+          S.sub = 'roll'; S.again = false; S.landed = false; S.shield = false;
+          log(S, `Pasch! ${p.name} darf nochmal würfeln.`);
+          return null;
+        }
         nextTurn(S);
         return null;
     }
@@ -386,8 +472,8 @@
   }
 
   function bankrupt(S, p) {
-    const to = S.debt.items[0].to;
-    const heir = to ? P(S, to) : null;
+    const creditors = [...new Set(S.debt.items.map(i => i.to).filter(Boolean))];
+    const heir = creditors.length === 1 ? P(S, creditors[0]) : null;
     for (const id in S.cities) {
       const st = S.cities[id];
       if (st.owner !== p.id) continue;
@@ -395,17 +481,17 @@
       else { st.owner = null; st.level = 0; st.mort = false; }
     }
     if (heir) heir.money += p.money;
-    log(S, `${p.name} ist pleite! ${heir ? `Alles geht an ${heir.name}.` : 'Alles geht zurück an die Bank.'}`);
+    log(S, `💀 ${p.name} ist pleite! ${heir ? `Alles geht an ${heir.name}.` : 'Alles geht zurück an die Bank.'}`);
+    log(S, 'April: „F. Pleite. Ich hab nichts gesehen.“');
     p.money = 0; p.bankrupt = true;
-    S.debt = null;
+    S.debt = null; S.pendingSteps = null;
     if (S.trade && (S.trade.from === p.id || S.trade.to === p.id)) S.trade = null;
     const left = active(S);
     if (left.length === 1) {
       S.ranking = rank(S); S.phase = 'over'; S.winner = left[0].id;
-      log(S, `🏆 ${left[0].name} gewinnt DULIDAN WORLD!`);
+      log(S, `🏆 ${left[0].name} ist als Letzter übrig und gewinnt DULIDAN WORLD!`);
       return null;
     }
-    if (heir && checkWin(S, heir)) return null;
     nextTurn(S);
     return null;
   }
@@ -445,32 +531,15 @@
     b.money += t.give.money - t.get.money;
     S.trade = null;
     log(S, `Deal! ${a.name} und ${b.name} haben gehandelt. 🤝`);
-    if (!checkWin(S, a)) checkWin(S, b);
     return null;
   }
 
   // ---------- Bots ----------
-  function bfs(S, p, from) {
-    // Distanz in Schritten, Kosten = Maut auf dem Weg (fremde Städte)
-    const dist = { [from]: 0 }, toll = { [from]: 0 }, prev = {};
-    const q = [from];
-    while (q.length) {
-      const x = q.shift();
-      for (const y of NEIGH[x]) {
-        if (dist[y] != null) continue;
-        dist[y] = dist[x] + 1;
-        const st = S.cities[y];
-        toll[y] = toll[x] + (st.owner && st.owner !== p.id ? rentFor(S, y, p) : 0);
-        prev[y] = x;
-        q.push(y);
-      }
-    }
-    return { dist, toll, prev };
-  }
-  function firstStep(prev, from, to) {
-    let x = to;
-    while (prev[x] && prev[x] !== from) x = prev[x];
-    return x;
+  function cityValue(S, p, id) {
+    const st = S.cities[id], c = CITY[id];
+    if (!st.owner) return c.price * (1 + 0.7 * ZONE_CITIES[c.zone].filter(i => S.cities[i].owner === p.id).length);
+    if (st.owner === p.id) return 50;
+    return -rentFor(S, id, p) * 2;
   }
 
   function botStep(S) {
@@ -483,74 +552,58 @@
     if (!p.bot) return null;
     const go = (action) => ({ pid: p.id, action });
     const owned = Object.keys(S.cities).filter(id => S.cities[id].owner === p.id);
-    const reserve = 200;
+    const reserve = 250;
 
-    if (S.sub === 'debt') {
-      const need = S.debt.items[0].amt;
-      if (p.money >= need) return go({ type: 'payDebt' });
-      for (const id of owned) {
-        const st = S.cities[id];
-        if (st.level && st.level === Math.max(...ZONE_CITIES[CITY[id].zone].map(i => S.cities[i].level))) return go({ type: 'sell', id });
-      }
-      const m = owned.filter(id => !S.cities[id].mort && !zoneHasBuildings(S, CITY[id].zone)).sort((a, b) => CITY[a].price - CITY[b].price)[0];
-      return go(m ? { type: 'mortgage', id: m } : { type: 'bankrupt' });
-    }
-
-    for (const id of owned) if (S.cities[id].mort && p.money - unmortgageCost(id) > 600) return go({ type: 'unmortgage', id });
-
-    const here = p.loc, st = S.cities[here], c = CITY[here];
-    // Bauen in der aktuellen Zone
-    if (S.ap >= 1 && zoneComplete(S, p.id, c.zone) && !ZONE_CITIES[c.zone].some(i => S.cities[i].mort)) {
-      const min = Math.min(...ZONE_CITIES[c.zone].map(i => S.cities[i].level));
-      const target = ZONE_CITIES[c.zone].find(i => S.cities[i].level === min && min < 4);
-      if (target && p.money - buildCost(S, p, target) >= reserve) return go({ type: 'build', id: target });
-    }
-    // Kaufen
-    if (S.ap >= 1 && !st.owner) {
-      const price = buyPrice(p, here);
-      const mineInZone = ZONE_CITIES[c.zone].filter(i => S.cities[i].owner === p.id).length;
-      if (p.money - price >= 120 || (mineInZone >= 1 && p.money >= price)) return go({ type: 'buy' });
-    }
-    // Übernehmen, wenn es hilft
-    if (S.ap >= 2 && st.owner && st.owner !== p.id && !takeoverBlock(S, p, here)) {
-      const cost = takeoverCost(S, here);
-      const mineInZone = ZONE_CITIES[c.zone].filter(i => S.cities[i].owner === p.id).length;
-      if (mineInZone >= 1 && p.money - cost >= reserve) return go({ type: 'takeover' });
-    }
-    // Ziel suchen
-    if (S.ap >= 1 || S.freeStep) {
-      const { dist, toll, prev } = bfs(S, p, here);
-      let best = null;
-      for (const id in dist) {
-        if (id === here) continue;
-        const s2 = S.cities[id], cc = CITY[id];
-        let score = 0;
-        const mine = ZONE_CITIES[cc.zone].filter(i => S.cities[i].owner === p.id).length;
-        if (!s2.owner && p.money > buyPrice(p, id)) score = cc.price * (1 + mine * 0.8);
-        else if (s2.owner === p.id && zoneComplete(S, p.id, cc.zone) && p.money > 500) score = 250 + cc.price * 0.3;
-        else if (s2.owner && s2.owner !== p.id && mine >= 1 && !takeoverBlock(S, p, id) && p.money - takeoverCost(S, id) > reserve) score = cc.price * 0.9;
-        if (!score) continue;
-        score = score / (dist[id] + 1) - toll[id] * 1.5;
-        if (toll[id] > p.money - 50) continue;
-        if (!best || score > best.score) best = { id, score };
-      }
-      if (best && best.score > 0) {
-        if (dist[best.id] > 3 && CITY[here].hub && !ev(S).noFlights && S.ap >= flightAp(S) && p.money > flightCost(S) + 400) {
-          const hub = HUBS.filter(h => h !== here).map(h => ({ h, d: bfs(S, p, h).dist[best.id] ?? 99 })).sort((a, b) => a.d - b.d)[0];
-          if (hub && hub.d + 1 < dist[best.id]) return go({ type: 'fly', to: hub.h });
+    switch (S.sub) {
+      case 'debt': {
+        const need = S.debt.items.reduce((x, y) => x + y.amt, 0);
+        if (p.money >= need) return go({ type: 'payDebt' });
+        for (const id of owned) {
+          const st = S.cities[id];
+          if (st.level && st.level === Math.max(...ZONE_CITIES[CITY[id].zone].map(i => S.cities[i].level))) return go({ type: 'sell', id });
         }
-        const step = firstStep(prev, here, best.id);
-        const s3 = S.cities[step];
-        if (!(s3.owner && s3.owner !== p.id && rentFor(S, step, p) > p.money - 50)) return go({ type: 'move', to: step });
+        const m = owned.filter(id => !S.cities[id].mort && !zoneHasBuildings(S, CITY[id].zone)).sort((a, b) => CITY[a].price - CITY[b].price)[0];
+        return go(m ? { type: 'mortgage', id: m } : { type: 'bankrupt' });
+      }
+      case 'roll':
+      case 'end': {
+        for (const id of owned) if (S.cities[id].mort && p.money - unmortgageCost(id) > 700) return go({ type: 'unmortgage', id });
+        const b = owned.filter(id => !buildBlock(S, p, id) && p.money - buildCost(S, p, id) >= reserve)
+          .sort((x, y) => S.cities[x].level - S.cities[y].level || CITY[y].price - CITY[x].price)[0];
+        if (b) return go({ type: 'build', id: b });
+        if (S.sub === 'end' && S.landed && !S.tookOver && !takeoverBlock(S, p, p.loc)) {
+          const z = CITY[p.loc].zone;
+          const mine = ZONE_CITIES[z].filter(i => S.cities[i].owner === p.id).length;
+          if (mine >= 1 && p.money - takeoverCost(S, p.loc) >= reserve + 100) return go({ type: 'takeover' });
+        }
+        return go({ type: S.sub === 'roll' ? 'roll' : 'endTurn' });
+      }
+      case 'pick': {
+        const [lo, hi] = S.pickRange;
+        return go({ type: 'pickSteps', n: S.face === 'boss' ? 7 : Math.min(hi, Math.max(lo, S.steps)) });
+      }
+      case 'jet': {
+        const best = HUBS.filter(h => h !== p.loc).map(h => ({ h, v: cityValue(S, p, h) })).sort((a, b) => b.v - a.v)[0];
+        return go(best && best.v > 0 ? { type: 'fly', to: best.h } : { type: 'walkInstead' });
+      }
+      case 'walk': {
+        const opts = walkOptions(S);
+        const choice = S.steps === 1 ? opts.slice().sort((a, b) => cityValue(S, p, b) - cityValue(S, p, a))[0] : pick(opts);
+        return go({ type: 'step', to: choice });
+      }
+      case 'buy': {
+        const c = CITY[p.loc], price = buyPrice(p, p.loc);
+        const mine = ZONE_CITIES[c.zone].filter(i => S.cities[i].owner === p.id).length;
+        return go({ type: p.money - price >= 150 || (mine >= 1 && p.money >= price) ? 'buy' : 'skip' });
       }
     }
-    return go({ type: 'endTurn' });
+    return null;
   }
 
   const WORLD = {
-    start, act, botStep, endGame, rentFor, incomeFor, incomeOf, buyPrice, buildCost, takeoverCost, takeoverBlock,
-    flightCost, flightAp, unmortgageCost, netWorth, zoneComplete, completeZones, zoneHasBuildings, moveCost,
-    CITY, NEIGH, HUBS, ZONE_CITIES, setRng: (f) => { rng = f; },
+    start, act, botStep, endGame, rentFor, salaryOf, buyPrice, buildCost, buildBlock, takeoverCost, takeoverBlock,
+    unmortgageCost, netWorth, zoneComplete, completeZones, zoneHasBuildings, walkOptions,
+    CITY, NEIGH, HUBS, ZONE_CITIES, FACES, setRng: (f) => { rng = f; },
   };
   if (isNode) module.exports = WORLD;
   else root.DULI_WORLD = WORLD;
