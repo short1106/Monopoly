@@ -17,7 +17,7 @@ Das Monopoly von **Dulidan Studios**: von Marxloh bis ins DULIDAN HQ. Spielbar i
 - 🎪 **DULIDAN FESTIVAL:** Rundgang übers Festivalgelände, jede Runde ein Headliner mit dreifacher Miete
 - 🏁 **DULIDAN RACE:** kein Kaufen, nur Rennen: 3 Runden, Boost-Pads, Ölflecken, Boxengasse mit Upgrades
 - 👑 **DULIDAN THRON:** King of the Hill: Wer auf dem Thron sitzt, kassiert Tribut von allen
-- 🧠 **DULIDAN QUIZ-SHOW:** 40 Quizfragen zu Duisburg, Öhringen, Dulidan und Allgemeinwissen, 50:50-Joker
+- 🧠 **DULIDAN QUIZ-SHOW:** 40 eigene Quizfragen zu Duisburg, Öhringen, Dulidan und Allgemeinwissen, oder 50 frische Fragen pro Spiel aus der [Open Trivia Database](https://opentdb.com) (Englisch, Lizenz [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)), auch gemischt. 50:50-Joker
 - 💣 **DULIDAN BOMBE:** heiße Kartoffel: Bombe weitergeben, bevor die Zündschnur abbrennt
 - 🪖 **DULIDANOPOLY WAR:** jede Straße ist ein Gebiet. Auf fremdem Gebiet zahlst du Tribut oder greifst an (Risiko-Würfel: bis zu 3 gegen 2). Truppen gibt es über LOS, stationiert wird auf eigenen Gebieten, Häuser sind Bunker.
 - 🏛️ **DULIDANOPOLY POLITICS:** alle 5 Runden Bundestagswahl mit 100 Sitzen (Stimmen aus Feldern, Häusern, Bargeld, Wahlkampfspenden und Aprils Laune). Wer regiert, kassiert Diäten und wählt ein Gesetz (Mietpreisbremse, Reichensteuer, Grundeinkommen, Lobbygesetz …). Drei Wahlsiege beenden das Spiel.

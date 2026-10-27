@@ -702,8 +702,9 @@
         S.king = p.id;
         break;
       case 'quiz': {
-        if (!g.QUESTIONS.length) break;
-        if (!S.quizDeck || !S.quizDeck.length) S.quizDeck = g.QUESTIONS.map((_, i) => i).sort(() => rng() - 0.5);
+        const QS = questions(S);
+        if (!QS.length) break;
+        if (!S.quizDeck || !S.quizDeck.length) S.quizDeck = QS.map((_, i) => i).sort(() => rng() - 0.5);
         S.quiz = { i: S.quizDeck.shift(), order: [0, 1, 2, 3].sort(() => rng() - 0.5), hidden: [] };
         S.sub = 'quiz';
         log(S, `🧠 Quizfrage für ${p.name}!`);
@@ -998,7 +999,7 @@
         if (S.sub !== 'quiz' || !S.quiz) return 'Gerade gibt es keine Frage.';
         const k = Math.floor(Number(a.k));
         if (!(k >= 0 && k < 4) || S.quiz.hidden.includes(k)) return 'Ungültige Antwort.';
-        const q = g.QUESTIONS[S.quiz.i], ok = S.quiz.order[k] === 0;
+        const q = questions(S)[S.quiz.i], ok = S.quiz.order[k] === 0;
         S.quizResult = { seq: (S.quizResult ? S.quizResult.seq : 0) + 1, i: S.quiz.i, order: S.quiz.order, k, ok, pid: p.id };
         S.quiz = null;
         S.sub = 'end';
@@ -1191,8 +1192,10 @@
     return null;
   }
 
+  // Fragen aus dem Internet (Open Trivia Database), sonst die eigenen des Bretts
+  function questions(S) { return S.qbank && S.qbank.length ? S.qbank : board(S.mode).QUESTIONS; }
   const WORLD = {
-    start, act, botStep, endGame, rentFor, fareFor, salaryOf, buyPrice, buildCost, buildBlock, takeoverCost, takeoverBlock,
+    questions, start, act, botStep, endGame, rentFor, fareFor, salaryOf, buyPrice, buildCost, buildBlock, takeoverCost, takeoverBlock,
     unmortgageCost, netWorth, zoneComplete, completeZones, zoneHasBuildings, walkOptions, board, MODES,
     setRng: (f) => { rng = f; MOOD.setRng(f); },
   };

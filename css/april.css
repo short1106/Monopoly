@@ -1155,3 +1155,4 @@ b.warn { color: #ff7a93; }
 .pol-camp { align-items: center; }
 .pol-camp small { flex-basis: 100%; color: var(--muted); }
 .rc-new { font-style: normal; font: 700 9px var(--mono); letter-spacing: .1em; padding: 1px 5px; border-radius: 3px; background: var(--grad); color: #fff; vertical-align: middle; }
+.mc-src { margin-top: 4px; font: 500 max(8px, 1.1cqi) var(--mono); color: var(--dim); opacity: .8; }

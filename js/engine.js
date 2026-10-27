@@ -225,6 +225,7 @@
       S.settings.boardName = String(o.boardName || 'Eigenes Brett').trim().slice(0, 24);
     }
     if (typeof o.mood === 'boolean') S.settings.mood = o.mood;
+    if (['own', 'net', 'mix'].includes(o.qsource)) S.settings.qsource = o.qsource;
     if (VARIANTS.includes(o.variant)) S.settings.variant = o.variant;
     if ([0, 15, 20, 30, 50].includes(Number(o.maxRounds))) S.settings.maxRounds = Number(o.maxRounds);
     if (o.rule && RL.RULES.some(r => r.id === o.rule)) S.settings.rules = Object.assign({}, S.settings.rules, { [o.rule]: !!o.on });

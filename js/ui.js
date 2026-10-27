@@ -593,12 +593,37 @@
     if (t.id === 'set-mood') o.mood = t.checked;
     if (t.id === 'set-size') o.size = t.value;
     if (t.id === 'set-years') o.years = Number(t.value);
+    if (t.id === 'set-qsource') o.qsource = t.value;
     E.setSettings(App.S, o);
     commit();
   });
 
-  $('#btn-start').onclick = () => {
+  // Quiz-Show: Fragen aus der Open Trivia Database holen (CC BY-SA 4.0), sonst eigene Fragen
+  async function fetchTrivia() {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 8000);
+    try {
+      const r = await fetch('https://opentdb.com/api.php?amount=50&type=multiple&encode=url3986', { signal: ctl.signal });
+      const j = await r.json();
+      if (j.response_code !== 0 || !Array.isArray(j.results)) return null;
+      const dec = (x) => decodeURIComponent(x);
+      return j.results.map((x) => ({ q: dec(x.question), a: [dec(x.correct_answer), ...x.incorrect_answers.map(dec)].slice(0, 4), cat: dec(x.category), src: 'opentdb' })).filter((x) => x.a.length === 4);
+    } catch (e) { return null; } finally { clearTimeout(t); }
+  }
+  $('#btn-start').onclick = async () => {
+    const st = App.S.settings || {};
+    let qbank = null;
+    if (st.mode === 'quiz' && ['net', 'mix'].includes(st.qsource)) {
+      const b = $('#btn-start');
+      b.disabled = true;
+      toast('🌐 Hole Fragen aus der Open Trivia Database …');
+      const net = await fetchTrivia();
+      b.disabled = false;
+      if (!net || !net.length) toast('Die Fragen-Datenbank ist gerade nicht erreichbar. Wir spielen mit den eigenen Fragen.');
+      else qbank = st.qsource === 'mix' ? W.board('quiz').QUESTIONS.concat(net) : net;
+    }
     const err = startByMode(App.S);
+    if (!err && qbank) { App.S.qbank = qbank; App.S.quizDeck = null; }
     if (err) return toast(err);
     commit();
     enterRoom();
@@ -606,7 +631,7 @@
 
   const VARIANTS = RL.VARIANTS;
   const varIcon = (v) => (v.icon === 'april' ? aprilIcon('v-april') : v.icon);
-  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['40 Fragen', 'Joker'], bomb: ['Heiße Kartoffel'], realistic: ['Quartale', 'Steuern', 'NEU'], logistics: ['Schienen', 'Netze', 'NEU'], war: ['Truppen', 'Eroberung', 'NEU'], politics: ['Wahlen', 'Gesetze', 'NEU'] };
+  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['Fragen-Datenbank', 'Joker'], bomb: ['Heiße Kartoffel'], realistic: ['Quartale', 'Steuern', 'NEU'], logistics: ['Schienen', 'Netze', 'NEU'], war: ['Truppen', 'Eroberung', 'NEU'], politics: ['Wahlen', 'Gesetze', 'NEU'] };
   function modeList() {
     return [
       { id: 'classic', icon: '🎲', name: 'Klassisch', text: 'Das Brett mit Duisburg und Öhringen. Als MINI, Normal oder MEGA-Weltreise.' },
@@ -708,6 +733,8 @@
         ${ro ? '' : uiBtn('Editor', 'editor', 'btn-small btn-ghost')}</span></label>` : ''}
       <label class="row"><span>🎨 Brett-Skin<small>Nur auf deinem Gerät</small></span>
         <select id="set-skin">${SKINS.map(([id, n, ic]) => `<option value="${id}" ${document.documentElement.dataset.skin === id ? 'selected' : ''}>${ic} ${n}</option>`).join('')}</select></label>
+      ${mode === 'quiz' ? `<label class="row"><span>🧠 Fragen<small>${{ own: '40 eigene Fragen zu Duisburg, Öhringen, Dulidan und Allgemeinwissen (Deutsch).', net: '50 frische Fragen aus der Open Trivia Database (Englisch, opentdb.com, CC BY-SA 4.0). Jedes Spiel neue Fragen.', mix: 'Die 40 eigenen Fragen gemischt mit 50 aus der Open Trivia Database (Englisch, CC BY-SA 4.0).' }[st.qsource || 'own']}</small></span>
+        <select id="set-qsource" ${ro}>${[['own', 'Eigene (Deutsch)'], ['net', '🌐 Internet-Datenbank'], ['mix', '🌐 Gemischt']].map(([v, l]) => `<option value="${v}" ${(st.qsource || 'own') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
       ${world ? `<p class="row"><span>Spielende<small>${endText(W.board(mode))}</small></span></p>` : ''}`;
 
     $('#lobby-players').innerHTML = S.players.map((p, i) => `
@@ -1448,6 +1475,7 @@
       App.czSeq = null; App.castKey = null; App.qrInit = false;
       App.S = N;
       startByMode(N);
+      if (S.qbank) N.qbank = S.qbank;
       closeModal();
       return commit();
     }
@@ -2102,15 +2130,15 @@
     }
     const opts = (q, order, cls) => `<div class="quiz-opts">${order.map((o, k) => `<span class="${cls(o, k)}"><b>${'ABCD'[k]}</b>${esc(q.a[o])}</span>`).join('')}</div>`;
     if (S.sub === 'quiz' && S.quiz && S.phase === 'play' && !isBusy()) {
-      const q = gb.QUESTIONS[S.quiz.i], k = `q|${S.turnNo}|${S.quiz.i}|${S.quiz.hidden.join(',')}`;
+      const q = W.questions(S)[S.quiz.i], k = `q|${S.turnNo}|${S.quiz.i}|${S.quiz.hidden.join(',')}`;
       if (mc.dataset.key !== k || mc.hidden) {
         mc.dataset.key = k;
         mc.className = 'map-card deck-quiz';
-        mc.innerHTML = `<div class="mc-icon">🧠</div><div class="mc-kind">Quizfrage · +${M(gb.RULES.quiz.win)} / −${M(gb.RULES.quiz.lose)}</div><div class="mc-text">${esc(q.q)}</div>${opts(q, S.quiz.order, (o, j) => (S.quiz.hidden.includes(j) ? 'is-hidden' : ''))}<div class="mc-who">${esc(cur.name)} antwortet …</div>`;
+        mc.innerHTML = `<div class="mc-icon">🧠</div><div class="mc-kind">Quizfrage · +${M(gb.RULES.quiz.win)} / −${M(gb.RULES.quiz.lose)}</div><div class="mc-text">${esc(q.q)}</div>${opts(q, S.quiz.order, (o, j) => (S.quiz.hidden.includes(j) ? 'is-hidden' : ''))}<div class="mc-who">${esc(cur.name)} antwortet …</div>${q.src ? `<div class="mc-src">${esc(q.cat || '')} · Quelle: Open Trivia Database (opentdb.com), CC BY-SA 4.0</div>` : ''}`;
         mc.hidden = false;
       }
     } else if (qr && Date.now() < (App.qrUntil || 0)) {
-      const q = gb.QUESTIONS[qr.i], k = `r|${qr.seq}`;
+      const q = W.questions(S)[qr.i], k = `r|${qr.seq}`;
       if (mc.dataset.key !== k || mc.hidden) {
         mc.dataset.key = k;
         mc.className = `map-card deck-quiz ${qr.ok ? 'is-right' : 'is-wrong'}`;
@@ -2249,7 +2277,7 @@
         break;
       }
       case 'quiz': {
-        const q = GB().QUESTIONS[S.quiz.i];
+        const q = W.questions(S)[S.quiz.i];
         h += `<div class="card-mini deck-quiz"><span class="ck">🧠 Quizfrage</span><p>${esc(q.q)}</p></div>`;
         h += `<div class="quiz-btns">${S.quiz.order.map((o, k) => btn(`<b>${'ABCD'[k]}</b> ${esc(q.a[o])}`, { type: 'answer', k }, pid, 'btn-quiz', S.quiz.hidden.includes(k))).join('')}</div>`;
         const canJoker = !S.quiz.hidden.length && (!cur.used.joker || (cur.items && cur.items.joker > 0));
