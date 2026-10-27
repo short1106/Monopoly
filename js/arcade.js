@@ -391,7 +391,7 @@
       g.strokeStyle = 'rgba(129,34,181,.12)';
       for (let i = 0; i <= N; i++) { g.beginPath(); g.moveTo(i * S, 0); g.lineTo(i * S, 400); g.moveTo(0, i * S); g.lineTo(400, i * S); g.stroke(); }
       g.font = `${S * 0.9}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText('🥙', food[0] * S + S / 2, food[1] * S + S / 2 + 1);
+      g.fillStyle = '#ffb02e'; g.beginPath(); g.arc(food[0] * S + S / 2, food[1] * S + S / 2, S * 0.38, 0, Math.PI * 2); g.fill();
       snakeB.forEach(([x, y], i) => {
         g.fillStyle = i === 0 ? '#ff7ae6' : `hsl(${285 - i * 2},70%,${55 - Math.min(i, 20)}%)`;
         g.fillRect(x * S + 1, y * S + 1, S - 2, S - 2);

@@ -1182,3 +1182,13 @@ b.warn { color: #ff7a93; }
 .odds-bar { flex: 1; height: 10px; border-radius: 5px; background: #4a6bff; overflow: hidden; }
 .odds-bar b { display: block; height: 100%; background: #ff3d5e; }
 .war-row { margin-top: 6px; }
+
+/* Symbole (Lucide) statt Emojis */
+svg.ico { width: 1.05em; height: 1.05em; vertical-align: -0.16em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.tok svg.ico { width: 62%; height: 62%; vertical-align: middle; color: var(--fg); stroke-width: 2.2; }
+.cicon svg.ico, .mc-ic svg.ico, .rc-ic svg.ico, .ach-ic svg.ico, .card-icon svg.ico, .mc-icon svg.ico { width: 1em; height: 1em; vertical-align: middle; color: var(--pink); }
+.ico-heart, .ico-heart-crack { color: #ff4fd8; }
+.ico-skull, .ico-flame, .ico-triangle-alert, .ico-circle-x, .ico-bomb { color: #ff7a93; }
+.ico-trophy, .ico-crown, .ico-star, .ico-coins, .ico-circle-dollar-sign, .ico-medal { color: #ffd83a; }
+.ico-circle-check, .ico-trending-up { color: #3ce08a; }
+svg.ico-map { stroke: currentColor; color: var(--fg); overflow: visible; }
