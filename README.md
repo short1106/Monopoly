@@ -7,7 +7,7 @@ Das Monopoly von **Dulidan Studios**: von Marxloh bis ins DULIDAN HQ. Spielbar i
 - **Ein Gerät:** „Auf einem Gerät spielen“. Alle Spieler wechseln sich ab.
 
 ## Spielmodi
-- 🎲 **Klassisch:** das Brett mit Duisburg und Öhringen
+- 🎲 **Klassisch:** das Brett mit Duisburg und Öhringen. Optional als 🚀 **MEGA-Brett** mit 120 Feldern und 19 Straßengruppen von Duisburg über das Ruhrgebiet bis Heilbronn und Hohenlohe (doppelte Schritte, Kamera folgt der Figur).
 - 🎰 **DULIDAN CASINO:** das normale Brett, aber jede Straße ist ein Casino. Wer bei dir landet, spielt gegen deine Bank (Münzwurf, Würfelduell, Höher/Tiefer, Glücksrad, Roulette, Blackjack, Pferderennen, Slotmaschine). Ausbauen macht das Casino korrupter.
 - 🌍 **DULIDAN WORLD:** Weltkarte, Dulidan-Würfel mit Spezialseiten, Jetset-Flüge
 - 🌀 **DULIDAN ROYALE:** drei Ringe im All, Portale, Loot-Kisten, der April-Sturm zerstört Ring für Ring

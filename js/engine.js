@@ -4,11 +4,17 @@
   const D = isNode ? require('./data.js') : root.DULI_DATA;
   const MOOD = isNode ? require('./mood.js') : root.DULI_MOOD;
   const CASINO = isNode ? require('./casino.js') : root.DULI_CASINO;
-  const { SPACES, GROUPS, RAILS, UTILS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, GO_MONEY, PLAYER_COLORS, APRIL_SAYS, APRIL_FIELD } = D;
+  const { GROUPS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, PLAYER_COLORS, APRIL_SAYS, BOARDS } = D;
+  // Normales Brett oder MEGA-Brett: wird vor jeder Aktion passend zum Spielstand gesetzt
+  let BD, SPACES, RAILS, UTILS, APRIL_FIELD, N, JAIL;
+  function useBoard(S) {
+    BD = BOARDS[(S && S.size) || 'normal'] || BOARDS.normal;
+    ({ SPACES, RAILS, UTILS, APRIL_FIELD, N, JAIL } = BD);
+  }
+  useBoard(null);
   const CARDS = { april: APRIL_CARDS, studio: STUDIO_CARDS };
   const DECK_NAME = { april: 'April-Karte', studio: 'Studio-Karte' };
-  const MAX_HOUSES = 32, MAX_HOTELS = 12;
-  const BUYABLE = ['prop', 'rail', 'util'];
+    const BUYABLE = ['prop', 'rail', 'util'];
 
   let rng = Math.random;
   const d6 = () => 1 + Math.floor(rng() * 6);
@@ -90,7 +96,7 @@
       const h = S.props[k].houses;
       if (h === 5) hotels++; else houses += h;
     }
-    return { houses: MAX_HOUSES - houses, hotels: MAX_HOTELS - hotels };
+    return { houses: BD.maxHouses - houses, hotels: BD.maxHotels - hotels };
   }
 
   function calcRent(S, idx, payer) {
@@ -174,6 +180,7 @@
     if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
     if (['classic', 'casino', 'world', 'royale', 'metro', 'tower'].includes(o.mode)) S.settings.mode = o.mode;
+    if (['normal', 'mega'].includes(o.size)) S.settings.size = o.size;
     if (typeof o.mood === 'boolean') S.settings.mood = o.mood;
     if (VARIANTS.includes(o.variant)) S.settings.variant = o.variant;
     if ([0, 15, 20, 30, 50].includes(Number(o.maxRounds))) S.settings.maxRounds = Number(o.maxRounds);
@@ -193,9 +200,11 @@
     if (S.players.length < 2) return 'Ihr braucht mindestens 2 Spieler.';
     if (S.players.some(p => !p.token)) return 'Jeder muss zuerst eine Figur wählen.';
     if (!S.settings) S.settings = { startMoney: START_MONEY, pot: true, goDouble: false };
+    S.size = (S.settings.mode || 'classic') === 'classic' && S.settings.size === 'mega' ? 'mega' : 'normal';
+    useBoard(S);
     S.players.forEach((p, i) => {
       p.stats = newStats();
-      Object.assign(p, { money: S.settings.startMoney, pos: 0, inJail: false, jailTries: 0, jailFree: [], bankrupt: false, skip: 0, used: { april: false, berlingo: false } });
+      Object.assign(p, { money: Math.round(S.settings.startMoney * BD.moneyMult), pos: 0, inJail: false, jailTries: 0, jailFree: [], bankrupt: false, skip: 0, used: { april: false, berlingo: false } });
       p.color = PLAYER_COLORS[i % PLAYER_COLORS.length];
     });
     S.props = {};
@@ -208,13 +217,13 @@
     const variant = S.settings.variant || 'normal';
     S.maxRounds = variant === 'blitz' ? 20 : 0;
     S.goal = variant === 'million' ? GOAL_WORTH : 0;
-    if (variant === 'hardcore') S.players.forEach(p => { p.money = 800; });
+    if (variant === 'hardcore') S.players.forEach(p => { p.money = Math.round(800 * BD.moneyMult); });
     if (variant === 'blitz') {
       const idx = shuffle(Object.keys(S.props).map(Number));
       idx.forEach((k, i) => { S.props[k].owner = S.players[i % S.players.length].id; });
     }
     S.log = [];
-    log(S, S.isCasino ? `🎰 DULIDAN CASINO öffnet! ${S.players[0].name} beginnt.` : `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
+    log(S, S.isCasino ? `🎰 DULIDAN CASINO öffnet! ${S.players[0].name} beginnt.` : S.size === 'mega' ? `🚀 MEGA-Dulidanopoly startet! 120 Felder, doppelte Schritte. ${S.players[0].name} beginnt.` : `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
     const intro = { blitz: '⚡ Blitz: Alle Felder sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: `💸 Millionär: Wer zuerst ${money(GOAL_WORTH)} Vermögen hat, gewinnt!`, chaos: '💖 April-Chaos: Jede Runde passiert irgendwas. Ihr wurdet gewarnt.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5. Viel Glück.' }[variant];
     if (intro) log(S, intro);
     return null;
@@ -222,14 +231,14 @@
 
   // ---------- Zugablauf ----------
   function passGo(S, p) {
-    const amt = GO_MONEY + (p.token === 'zebra' ? 50 : 0) + MOOD.salaryBonus(S);
+    const amt = BD.go + (p.token === 'zebra' ? 50 : 0) + MOOD.salaryBonus(S);
     p.money += amt;
     log(S, `${p.name} zieht über LOS und kassiert ${money(amt)}.`);
     quip(S, 'go', 0.2);
   }
   function moveBy(S, p, n) {
     const old = p.pos;
-    const np = ((old + n) % 40 + 40) % 40;
+    const np = ((old + n) % N + N) % N;
     if (n > 0 && np < old) passGo(S, p);
     p.pos = np;
   }
@@ -238,7 +247,7 @@
     p.pos = target;
   }
   function sendJail(S, p) {
-    p.pos = 10; p.inJail = true; p.jailTries = 0;
+    p.pos = JAIL; p.inJail = true; p.jailTries = 0;
     if (p.stats) p.stats.jail++;
     S.rolledDouble = false; S.doublesCount = 0;
     log(S, `${p.name} muss nach Düsseldorf. 😱`);
@@ -325,8 +334,8 @@
         return proceed(S);
       case 'go':
         if (S.settings && S.settings.goDouble) {
-          p.money += GO_MONEY;
-          log(S, `Genau auf LOS! ${p.name} bekommt nochmal ${money(GO_MONEY)}. 💸`);
+          p.money += BD.go;
+          log(S, `Genau auf LOS! ${p.name} bekommt nochmal ${money(BD.go)}. 💸`);
         }
         return proceed(S);
       default:
@@ -335,7 +344,7 @@
   }
 
   function doMove(S, p, n) {
-    moveBy(S, p, n);
+    moveBy(S, p, n * BD.stepMult);
     land(S, p);
   }
 
@@ -344,7 +353,7 @@
     const a = d6(), b = d6();
     S.dice = [a, b]; S.rollId++;
     const dbl = a === b, sum = a + b;
-    log(S, `${p.name} würfelt ${a} + ${b} = ${sum}${dbl ? ' (Pasch)' : ''}.`);
+    log(S, `${p.name} würfelt ${a} + ${b} = ${sum}${dbl ? ' (Pasch)' : ''}${BD.stepMult > 1 ? ` · Mega: ${sum * BD.stepMult} Felder` : ''}.`);
 
     if (p.inJail) {
       if (dbl) {
@@ -460,7 +469,7 @@
     }
     if (e.swap) {
       const pos = shuffle(act.map(p => p.pos));
-      act.forEach((p, i) => { if (!p.inJail) p.pos = pos[i]; else p.pos = 10; });
+      act.forEach((p, i) => { if (!p.inJail) p.pos = pos[i]; else p.pos = JAIL; });
     }
     if (e.freeJail) act.forEach(p => { if (p.inJail) { p.inJail = false; p.jailTries = 0; } });
     if (e.houseBonus) {
@@ -513,7 +522,7 @@
   function applyCard(S, p, c, deck) {
     const others = active(S).filter(o => o.id !== p.id);
     switch (c.t) {
-      case 'move': moveTo(S, p, c.to); return land(S, p);
+      case 'move': moveTo(S, p, BD.moveMap ? (BD.moveMap[c.to] ?? c.to) : c.to); return land(S, p);
       case 'money':
         if (c.amt >= 0) { p.money += c.amt; return proceed(S); }
         if (charge(S, p, [{ to: null, amt: Math.round(-c.amt * MOOD.badMult(S)) }])) proceed(S);
@@ -1092,9 +1101,13 @@
     return null;
   }
 
+  // Alles, was einen Spielstand bekommt, stellt vorher das richtige Brett ein
+  const withBoard = (f) => function (S, ...rest) { useBoard(S); return f(S, ...rest); };
   const ENGINE = {
-    newGame, addPlayer, addBot, removePlayer, setSettings, botStep, pickToken, startGame, act, endGame, bankrupt, calcRent, netWorth, GOAL_WORTH,
-    buyPrice, houseCost, unmortgageCost, ownsGroup, groupIdx, groupHasHouses, bankSupply, CARDS,
+    newGame, addPlayer, addBot, removePlayer, setSettings: withBoard(setSettings), botStep: withBoard(botStep), pickToken, startGame,
+    act: withBoard(act), endGame: withBoard(endGame), bankrupt: withBoard(bankrupt), calcRent: withBoard(calcRent), netWorth: withBoard(netWorth), GOAL_WORTH,
+    buyPrice, houseCost, unmortgageCost, ownsGroup: withBoard(ownsGroup), groupIdx, groupHasHouses: withBoard(groupHasHouses), bankSupply: withBoard(bankSupply), CARDS,
+    useBoard, board: (S) => BOARDS[(S && S.size) || 'normal'] || BOARDS.normal,
     setRng: (f) => { rng = f; MOOD.setRng(f); CASINO.setRng(f); },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = ENGINE;

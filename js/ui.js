@@ -6,7 +6,14 @@
   const isWorld = () => !!(App.S && W.MODES.includes(App.S.mode));
   const GB = () => W.board(App.S.mode);
   const ENG = () => (isWorld() ? W : E);
-  const { SPACES, GROUPS, TOKENS, RAILS, UTILS } = D;
+  const { GROUPS, TOKENS } = D;
+  // Normales Brett oder MEGA-Brett (wird bei jedem Rendern zum Spielstand passend gesetzt)
+  let BRD = D.BOARDS.normal, SPACES = BRD.SPACES, RAILS = BRD.RAILS, UTILS = BRD.UTILS;
+  function syncBoard() {
+    BRD = E.board(App.S);
+    ({ SPACES, RAILS, UTILS } = BRD);
+    E.useBoard(App.S);
+  }
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const M = (n) => 'Ð' + n;
@@ -341,6 +348,7 @@
     if (t.id === 'set-mode') o.mode = t.value;
     if (t.id === 'set-rounds') o.maxRounds = Number(t.value);
     if (t.id === 'set-mood') o.mood = t.checked;
+    if (t.id === 'set-size') o.size = t.value;
     E.setSettings(App.S, o);
     commit();
   });
@@ -401,6 +409,8 @@
     $('#settings').innerHTML = variantsHTML + `
       <label class="row"><span>Spielmodus<small>${world ? esc(W.board(st.mode).tagline) : st.mode === 'casino' ? 'Jede Straße ist ein Casino. Wer bei dir landet, muss gegen deine Bank zocken. Ausbauen macht dein Casino korrupter.' : 'Das Brett mit Duisburg und Öhringen'}</small></span>
         <select id="set-mode" ${ro}>${[['classic', '🎲 Klassisch'], ['casino', '🎰 DULIDAN CASINO'], ['world', '🌍 DULIDAN WORLD'], ['royale', '🌀 DULIDAN ROYALE'], ['metro', '🚇 DULIDAN METRO'], ['tower', '🏙️ DULIDAN TOWER']].map(([v, l]) => `<option value="${v}" ${(st.mode || 'classic') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${!world && st.mode !== 'casino' ? `<label class="row"><span>Brettgröße<small>${st.size === 'mega' ? 'MEGA: 120 Felder, 19 Straßengruppen von Duisburg bis Heilbronn, doppelte Schritte, 1,5× Startgeld' : 'Normal: 40 Felder'}</small></span>
+        <select id="set-size" ${ro}>${[['normal', 'Normal (40 Felder)'], ['mega', '🚀 MEGA (120 Felder)']].map(([v, l]) => `<option value="${v}" ${(st.size || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
       <label class="row"><span>💖 Aprils Laune<small>April mag jede Person anders, lässt sich bestechen, macht Geschenke – und rächt sich, wenn sie dich hasst</small></span>
         <input type="checkbox" class="switch" id="set-mood" ${st.mood !== false ? 'checked' : ''} ${ro}></label>
       ${world ? `<p class="row"><span>Spielende<small>Kein Runden-Limit: Es gewinnt, wer zuletzt noch nicht pleite ist.${st.mode === 'royale' ? ' Der April-Sturm sorgt dafür.' : ` Ab Runde ${W.board(st.mode).RULES.crisis.from} steigen alle Mieten jede Runde (Krise).`}</small></span></p>` : ''}
@@ -472,10 +482,11 @@
 
   // ---------- Brett ----------
   function cellPos(i) {
-    if (i <= 10) return { r: 11, c: 11 - i, side: 'bottom' };
-    if (i <= 20) return { r: 11 - (i - 10), c: 1, side: 'left' };
-    if (i <= 30) return { r: 1, c: i - 19, side: 'top' };
-    return { r: i - 29, c: 11, side: 'right' };
+    const L = BRD.N / 4, G = L + 1;
+    if (i <= L) return { r: G, c: G - i, side: 'bottom' };
+    if (i <= 2 * L) return { r: G - (i - L), c: 1, side: 'left' };
+    if (i <= 3 * L) return { r: 1, c: i - 2 * L + 1, side: 'top' };
+    return { r: i - 3 * L + 1, c: G, side: 'right' };
   }
   const CORNER_ICON = { go: '⟵', jail: '😱', parking: '🐷', gotojail: '👉' };
   const TYPE_ICON = { april: '💖', studio: '💜' };
@@ -484,17 +495,23 @@
     if (!$('#die1')) $('#dice').innerHTML = cubeHTML('die1') + cubeHTML('die2');
     const board = $('#board');
     const casino = !!(App.S && App.S.isCasino);
-    const kind = casino ? 'casino' : 'classic';
+    const kind = casino ? 'casino' : BRD.id;
     if (board.dataset.kind === kind && board.querySelector('.cell')) return;
     board.querySelectorAll('.cell').forEach((c) => c.remove());
     board.dataset.kind = kind;
     board.classList.toggle('is-casino', casino);
+    const mega = BRD.id === 'mega', L = BRD.N / 4;
+    board.classList.toggle('is-mega', mega);
+    board.style.gridTemplateColumns = board.style.gridTemplateRows = mega ? `1.55fr repeat(${L - 1}, 1fr) 1.55fr` : '';
+    $('#center').style.gridArea = mega ? `2 / 2 / ${L + 1} / ${L + 1}` : '';
+    // Das MEGA-Brett startet gezoomt, die Kamera folgt der Figur
+    if (mega && !App.megaZoomInit) { App.megaZoomInit = true; $('#board-wrap').classList.add('is-zoomed'); $('#btn-zoom').textContent = 'Übersicht'; }
     $('.center-sub').textContent = casino ? 'Casino Night · Duisburg' : 'Duisburg · Öhringen';
     SPACES.forEach((sp, i) => {
       const { r, c, side } = cellPos(i);
       const el = document.createElement('div');
-      const corner = i % 10 === 0;
-      el.className = `cell s-${side} t-${sp.type}${corner ? ' corner' : ''}${i === 39 ? ' is-hq' : ''}`;
+      const corner = i % L === 0;
+      el.className = `cell s-${side} t-${sp.type}${corner ? ' corner' : ''}${sp.name === 'DULIDAN HQ' ? ' is-hq' : ''}`;
       el.style.gridArea = `${r} / ${c}`;
       el.dataset.i = i;
       el.tabIndex = 0;
@@ -512,7 +529,7 @@
       } else if (sp.type === 'tax') {
         body = `<div class="cicon">${sp.icon}</div><div class="cname">${esc(sp.name)}</div><div class="cprice">${M(sp.amount)}</div>`;
       } else {
-        body = `<div class="cicon">${sp.type === 'april' ? aprilIcon() : TYPE_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>`;
+        body = `<div class="cicon">${sp.type === 'april' ? aprilIcon() : TYPE_ICON[sp.type] || sp.icon || ''}</div><div class="cname">${esc(sp.name)}</div>`;
       }
       el.innerHTML = (sp.type === 'prop' ? `<div class="band" style="--g:${GROUPS[sp.group].color}"></div>` : '')
         + `<div class="cell-body">${body}</div>${['prop', 'rail', 'util'].includes(sp.type) ? '<div class="owner-flag"></div>' : ''}<div class="cell-tokens"></div>`;
@@ -563,7 +580,7 @@
       }
       tokEl.querySelectorAll('.tok').forEach((t) => t.classList.toggle('is-cur-tok', S.phase === 'play' && t.dataset.tokpid === curP().id));
       el.classList.toggle('is-last', !isBusy() && S.lastLand === i);
-      if (i === 20) {
+      if (SPACES[i].type === 'parking') {
         el.classList.toggle('has-pot', S.pot > 0);
         el.querySelector('.csub').textContent = S.pot > 0 ? `🐷 Spardose: ${M(S.pot)}` : 'Spardose leer';
       }
@@ -587,6 +604,14 @@
       cc.innerHTML = `<div class="card-icon">${S.card.deck === 'april' ? aprilIcon('card-april') : TYPE_ICON[S.card.deck]}</div><div class="card-kind">${S.card.deck === 'april' ? 'April-Karte' : 'Studio-Karte'}</div><div class="card-text">${esc(c.text)}</div>`;
       cc.hidden = false;
     } else cc.hidden = true;
+    // MEGA-Brett im Zoom: Karte schwebt über dem Bildschirm, sonst wäre sie irgendwo in der Brettmitte
+    const fc = $('#float-card');
+    if (BRD.id === 'mega' && $('#board-wrap').classList.contains('is-zoomed') && !cc.hidden) {
+      if (fc.dataset.k !== cc.innerHTML) { fc.dataset.k = cc.innerHTML; fc.innerHTML = cc.innerHTML; }
+      fc.className = cc.className.replace('center-card', 'float-card');
+      fc.hidden = false;
+      cc.hidden = true;
+    } else fc.hidden = true;
   }
 
   // ---------- Seitenleiste ----------
@@ -632,7 +657,8 @@
         <table><tr><td>1 Werk</td><td>4× Augen</td></tr><tr><td>Beide Werke</td><td>10× Augen</td></tr><tr><td>Hypothek</td><td>${M(75)}</td></tr><tr><td>Kaufpreis</td><td>${M(150)}</td></tr></table>${ownerLine}</div>`;
     }
     const desc = {
-      go: 'Jedes Mal, wenn du hier vorbeiziehst, bekommst du Ð200 (das Zebra Ð250).',
+      go: `Jedes Mal, wenn du hier vorbeiziehst, bekommst du ${M(BRD.go)} (das Zebra ${M(BRD.go + 50)}).`,
+      free: `${sp.sub || ''} Hier passiert nichts. Kurz durchatmen.`,
       jail: 'Wer hierher geschickt wird, sitzt fest. Raus kommst du mit einem Pasch, mit Ð50 oder mit einer Freikarte. Wer nur draufkommt, ist nur zu Besuch.',
       parking: 'Aprils Pause mit Aprils Spardose: Alle Steuern und Strafen an die Bank sammeln sich hier. Wer draufkommt, bekommt alles.',
       gotojail: 'Deadline verpasst! Du gehst direkt nach Düsseldorf, ohne über LOS zu ziehen.',
@@ -754,7 +780,7 @@
       }
       case 'berlingo': {
         const base = S.pendingMove;
-        const target = (d) => SPACES[(cur.pos + base + d) % 40].name;
+        const target = (d) => SPACES[(cur.pos + (base + d) * BRD.stepMult) % BRD.N].name;
         h += `<p class="action-note">Du hast ${base} gewürfelt. Berlingo-Manöver: 1 Feld vor oder zurück?</p>
           <div class="btn-row">${btn(`−1 · ${esc(target(-1))}`, { type: 'berlingoMove', d: -1 }, pid)}
           ${btn(`Normal · ${esc(target(0))}`, { type: 'berlingoMove', d: 0 }, pid, 'btn-ghost')}
@@ -1069,12 +1095,13 @@
       const d = App.disp[p.id];
       if (d == null || p.bankrupt) { App.disp[p.id] = p.pos; continue; }
       if (d === p.pos) continue;
-      const fwd = (p.pos - d + 40) % 40;
-      if (fwd > 0 && fwd <= 13 && !(p.inJail && p.pos === 10)) { App.disp[p.id] = (d + 1) % 40; moving = true; }
+      const fwd = (p.pos - d + BRD.N) % BRD.N;
+      if (fwd > 0 && fwd <= 13 * BRD.stepMult && !(p.inJail && p.pos === BRD.JAIL)) { App.disp[p.id] = (d + 1) % BRD.N; moving = true; }
       else App.disp[p.id] = p.pos;
     }
     renderBoard();
-    if (moving) { FX.play('step'); App.animT = setTimeout(animateTokens, T().hop); }
+    followCam();
+    if (moving) { FX.play('step'); App.animT = setTimeout(animateTokens, hopMs()); }
     else App.animT = null;
   }
 
@@ -1087,12 +1114,26 @@
     if (first) return;
     const p = curP();
     const d = App.disp[p.id];
-    let dist = d == null ? 0 : (p.pos - d + 40) % 40;
-    if (dist > 13 || (p.inJail && p.pos === 10)) dist = 0;
+    let dist = d == null ? 0 : (p.pos - d + BRD.N) % BRD.N;
+    if (dist > 13 * BRD.stepMult || (p.inJail && p.pos === BRD.JAIL)) dist = 0;
     App.walkAfter = Date.now() + T().dice;
     clearTimeout(App.animT); App.animT = null;
     rattle();
-    holdActions(T().dice + dist * T().hop + 150);
+    holdActions(T().dice + dist * hopMs() + 150);
+  }
+  // Auf dem MEGA-Brett läuft die Figur doppelt so weit, also schneller pro Feld
+  const hopMs = () => Math.round(T().hop / BRD.stepMult * 1.1);
+
+  // MEGA-Brett gezoomt: Kamera folgt der Figur, die gerade dran ist
+  function followCam() {
+    const wrap = $('#board-wrap');
+    if (BRD.id !== 'mega' || !wrap.classList.contains('is-zoomed') || !App.S) return;
+    const p = curP(), cell = document.querySelector(`#board .cell[data-i="${App.disp[p.id] ?? p.pos}"]`);
+    if (!cell) return;
+    const wr = wrap.getBoundingClientRect(), cr = cell.getBoundingClientRect();
+    const left = wrap.scrollLeft + cr.left - wr.left - wr.width / 2 + cr.width / 2;
+    const top = wrap.scrollTop + cr.top - wr.top - wr.height / 2 + cr.height / 2;
+    if (Math.abs(left - wrap.scrollLeft) > 4 || Math.abs(top - wrap.scrollTop) > 4) wrap.scrollTo({ left, top, behavior: fastMode ? 'auto' : 'smooth' });
   }
 
   // Aktionen (Kaufen, Karten, Geldanzeigen) erst zeigen, wenn alles durch ist
@@ -1146,14 +1187,17 @@
   $('#btn-zoom').onclick = () => {
     const w = $('#board-wrap');
     w.classList.toggle('is-zoomed');
-    $('#btn-zoom').textContent = w.classList.contains('is-zoomed') ? 'Normal' : 'Zoom';
+    const mega = !isWorld() && BRD.id === 'mega';
+    $('#btn-zoom').textContent = w.classList.contains('is-zoomed') ? (mega ? 'Übersicht' : 'Normal') : 'Zoom';
+    followCam();
   };
   $('#btn-rules').onclick = () => (isWorld() ? openModal(worldRulesHTML()) : openModal(`<h2>Regeln</h2><div class="rules">
-    <p>Alle starten mit ${M(D.START_MONEY)}. Wer zuletzt nicht pleite ist, gewinnt. Bezahlt wird in Dulis (Ð).</p>
+    <p>Alle starten mit ${M(Math.round(((App.S && App.S.settings && App.S.settings.startMoney) || D.START_MONEY) * BRD.moneyMult))}. Wer zuletzt nicht pleite ist, gewinnt. Bezahlt wird in Dulis (Ð).</p>
+    ${BRD.id === 'mega' ? '<h3>🚀 MEGA-Brett</h3><ul><li>120 Felder, 19 Straßengruppen von Duisburg über das Ruhrgebiet bis Heilbronn und Hohenlohe.</li><li>Du läufst doppelt so weit, wie du würfelst. Startgeld ×1,5, über LOS gibt es Ð300.</li><li>Gebaut wird erst, wenn dir die ganze Gruppe gehört – meistens 4 Straßen. Handeln lohnt sich!</li><li>„Übersicht“ zeigt das ganze Brett, im Zoom folgt die Kamera der Figur.</li></ul>' : ''}
     <h3>Dein Zug</h3><ul>
       <li>Würfeln und ziehen. Bei einem Pasch darfst du nochmal. Drei Pasch hintereinander: ab nach Düsseldorf.</li>
       <li>Freies Feld: kaufen oder versteigern lassen. Fremdes Feld: Miete zahlen.</li>
-      <li>Über LOS gibt es ${M(D.GO_MONEY)}.</li>
+      <li>Über LOS gibt es ${M(BRD.go)}.</li>
       <li>🐷 Aprils Spardose: Alle Steuern und Strafen an die Bank landen im Topf. Wer auf „Aprils Pause“ kommt, bekommt alles.</li></ul>
     <h3>Bauen</h3><ul>
       <li>Häuser baust du, wenn dir die ganze Farbgruppe gehört. Gleichmäßig bauen, nach 4 Häusern kommt das Hotel.</li>
@@ -2083,6 +2127,7 @@
   // ---------- Render ----------
   function render() {
     const S = App.S;
+    if (S && S.phase !== 'lobby' && !isWorld()) syncBoard();
     if (!S || S.phase === 'lobby') {
       if (!$('#screen-lobby').hidden || !S) renderLobby();
       if (S && S.phase !== 'lobby') enterRoom();

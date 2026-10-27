@@ -556,3 +556,50 @@ body::before { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .coin-spin, .die-flat, .pcard.flip, .wheel, .roul-wheel, .horse, .strip, .cz-big, .cast.on { animation-duration: .01s; }
 }
+
+/* ---------- MEGA-Brett (31 × 31) ---------- */
+.board-wrap.is-zoomed .board.is-mega { width: 2600px; }
+@media (max-width: 900px) { .board-wrap.is-zoomed .board.is-mega { width: 2000px; } }
+.board.is-mega { gap: 1px; }
+.board.is-mega .cname { font-size: .46cqi; }
+.board.is-mega .csub { font-size: .36cqi; }
+.board.is-mega .cprice { font-size: .42cqi; }
+.board.is-mega .cicon { font-size: 1.1cqi; }
+.board.is-mega .cell-body { padding: .2cqi; gap: .12cqi; }
+.board.is-mega .cell.corner .cname { font-size: .62cqi; }
+.board.is-mega .cell.corner .cicon { font-size: 1.7cqi; }
+.board.is-mega .cell.t-go .cname { font-size: 1.3cqi; }
+.board.is-mega .cell-tokens { bottom: 4%; }
+.board.is-mega .cell-tokens .tok { width: 2cqi; height: 2cqi; font-size: 1.15cqi; border-width: .18cqi; }
+.board.is-mega .cell-tokens .tok + .tok { margin-left: -.8cqi; }
+.board.is-mega .owner-flag { top: .15cqi; right: .15cqi; }
+.board.is-mega .s-top .owner-flag { bottom: .15cqi; }
+.board.is-mega .s-left .owner-flag { left: .15cqi; }
+.board.is-mega .owner-flag .tok { width: .95cqi; height: .95cqi; font-size: .52cqi; border-width: .1cqi; }
+.board.is-mega .cell.is-owned::after { border-width: .22cqi; }
+.board.is-mega .house { width: .45cqi; height: .45cqi; }
+.board.is-mega .hotel { width: .9cqi; height: .55cqi; }
+.board.is-mega .cell.is-last { animation: none; box-shadow: inset 0 0 0 .3cqi var(--magenta); }
+.board.is-mega .center-word { font-size: 5cqi; }
+@container (max-width: 1400px) {
+  .board.is-mega .cell:not(.corner) .cname, .board.is-mega .cprice, .board.is-mega .csub { display: none; }
+}
+.board-wrap.is-zoomed .cast { position: fixed; top: 70px; }
+
+.float-card {
+  position: fixed; left: 50%; top: 50%; z-index: 80;
+  width: min(420px, calc(100vw - 32px)); padding: 26px 22px;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+  border-radius: 16px; border: 1px solid rgba(255, 255, 255, .15); color: #fff;
+  box-shadow: 0 30px 80px -10px rgba(0, 0, 0, .9);
+  pointer-events: none;
+  animation: mapCardIn .45s cubic-bezier(.2, 1.4, .4, 1);
+}
+.float-card.deck-april { background: linear-gradient(150deg, #c020b8, #5b1782); }
+.float-card.deck-studio { background: linear-gradient(150deg, #8122b5, #2a1050); }
+.float-card .card-icon { font-size: 44px; line-height: 1; }
+.float-card .card-april { width: 64px; height: 64px; }
+.float-card .card-kind { font: 800 11px/1 var(--mono); letter-spacing: .3em; text-transform: uppercase; opacity: .85; }
+.float-card .card-text { font-weight: 700; font-size: 17px; line-height: 1.35; text-wrap: balance; }
+@media (max-width: 900px) { .board-wrap.is-zoomed:has(.board.is-mega) { max-height: 62vh; } }
