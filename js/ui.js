@@ -523,7 +523,7 @@
       const tokEl = el.querySelector('.cell-tokens');
       if (tokEl.dataset.key !== tokKey) {
         tokEl.dataset.key = tokKey;
-        tokEl.innerHTML = here.map((p) => tokHTML(p.token, p.color)).join('');
+        tokEl.innerHTML = here.map((p) => tokHTML(p.token, p.color).replace('<span class="tok', `<span data-tokpid="${esc(p.id)}" class="tok`)).join('');
       }
       el.classList.toggle('is-last', S.lastLand === i);
       if (i === 20) {
@@ -764,7 +764,7 @@
       if (p.jailFree.length) meta.push(`<span>${p.jailFree.length}× Freikarte</span>`);
       if (App.mode !== 'local' && !p.connected && !p.bankrupt && !p.bot) meta.push('<span class="warn">offline</span>');
       if (p.id === myId && App.mode !== 'local') meta.push('<span>du</span>');
-      return `<li class="player ${i === S.cur && S.phase === 'play' ? 'is-cur' : ''} ${p.bankrupt ? 'is-out' : ''}" style="--pc:${p.color}">
+      return `<li class="player ${i === S.cur && S.phase === 'play' ? 'is-cur' : ''} ${p.bankrupt ? 'is-out' : ''}" data-pid="${esc(p.id)}" style="--pc:${p.color}">
         ${tokHTML(p.token, p.color)}
         <div style="min-width:0"><div class="pname">${esc(p.name)} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</div>
           <div class="swatches">${owned.map((k) => `<i class="${S.props[k].mort ? 'is-mort' : ''}" style="--g:${SPACES[k].group ? GROUPS[SPACES[k].group].color : '#cfc3e6'}" title="${esc(SPACES[k].name)}"></i>`).join('')}</div>
@@ -986,8 +986,8 @@
 
   // ---------- Sounds aus dem Verlauf ----------
   const SOUND_RULES = [
-    ['win', /gewinnt/], ['pot', /Spardose/], ['jail', /nach Düsseldorf/], ['pay', /zahlt|fehlen/],
-    ['jail', /Übernahme/], ['cash', /kassiert|Erhalte|ersteigert|kauft/], ['build', /baut/], ['card', /zieht eine|April-News|fliegt/], ['roll', /würfelt/], ['step', /reist nach/],
+    ['win', /gewinnt/], ['pot', /Spardose/], ['jail', /nach Düsseldorf/],
+    ['jail', /Übernahme/], ['build', /baut/], ['card', /zieht eine|April-News|fliegt/], ['roll', /würfelt/], ['step', /reist nach/],
   ];
   function playSounds() {
     const S = App.S;
@@ -1303,7 +1303,7 @@
         tg.innerHTML = here.map((p, i) => {
           const tk = TOKENS[p.token];
           const ox = (i - (here.length - 1) / 2) * 20;
-          return `<g class="wtok" transform="translate(${ox},-30)"><circle r="10" style="stroke:${p.color}"/>${p.token === 'april' ? '<use href="#april" x="-10" y="-10" width="20" height="20"/>' : `<text y="4.5">${p.token === 'dulidan' ? 'D' : tk.emoji}</text>`}</g>`;
+          return `<g class="wtok" data-tokpid="${esc(p.id)}" transform="translate(${ox},-30)"><circle r="10" style="stroke:${p.color}"/>${p.token === 'april' ? '<use href="#april" x="-10" y="-10" width="20" height="20"/>' : `<text y="4.5">${p.token === 'dulidan' ? 'D' : tk.emoji}</text>`}</g>`;
         }).join('');
       }
     });
@@ -1426,7 +1426,7 @@
       if (p.bankrupt) meta.push('<span class="warn">pleite</span>');
       if (App.mode !== 'local' && !p.connected && !p.bankrupt && !p.bot) meta.push('<span class="warn">offline</span>');
       if (p.id === myId && App.mode !== 'local') meta.push('<span>du</span>');
-      return `<li class="player ${i === S.cur && S.phase === 'play' ? 'is-cur' : ''} ${p.bankrupt ? 'is-out' : ''}" style="--pc:${p.color}">
+      return `<li class="player ${i === S.cur && S.phase === 'play' ? 'is-cur' : ''} ${p.bankrupt ? 'is-out' : ''}" data-pid="${esc(p.id)}" style="--pc:${p.color}">
         ${tokHTML(p.token, p.color)}
         <div style="min-width:0"><div class="pname">${esc(p.name)} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</div>
           <div class="swatches">${owned.map((id) => `<i class="${S.cities[id].mort ? 'is-mort' : ''}" style="--g:${WD.ZONES[W.CITY[id].zone].color}" title="${esc(W.CITY[id].name)}"></i>`).join('')}</div>
@@ -1483,6 +1483,64 @@
       <h3>Figuren</h3><ul>${Object.entries(WD.POWERS).map(([k, t]) => `<li><strong>${esc(TOKENS[k].name)}:</strong> ${esc(t)}</li>`).join('')}</ul></div>`;
   }
 
+
+
+  // ================= GELD LIVE: +Ð / −Ð fliegt hoch =================
+  function moneyPops() {
+    const S = App.S;
+    if (!S || S.phase === 'lobby') { App.prevMoney = null; return; }
+    const seq = S.logSeq || 0;
+    const fresh = !App.prevMoney || seq < (App.prevSeq || 0);
+    App.prevSeq = seq;
+    const now = {};
+    S.players.forEach((p) => { now[p.id] = p.money; });
+    if (fresh) { App.prevMoney = now; return; }
+    const diffs = [];
+    for (const p of S.players) {
+      const before = App.prevMoney[p.id];
+      if (before != null && before !== p.money) diffs.push({ p, d: p.money - before });
+    }
+    App.prevMoney = now;
+    if (!diffs.length) return;
+    // erst knallen lassen, wenn Würfel und Figur durch sind
+    const busy = Math.max(0, (App.busyUntil || 0) - Date.now());
+    const delay = isWorld() ? busy + 120 : (App.animT ? 1100 : 150);
+    setTimeout(() => {
+      let gain = false, loss = false;
+      diffs.forEach(({ p, d }, i) => {
+        setTimeout(() => popMoney(p, d), i * 120);
+        if (d > 0) gain = true; else loss = true;
+      });
+      const big = diffs.some(({ d }) => Math.abs(d) >= 500);
+      if (loss) FX.play(big ? 'bigLoss' : 'coinDown');
+      if (gain) setTimeout(() => FX.play(big ? 'bigGain' : 'coinUp'), loss ? 180 : 0);
+    }, delay);
+  }
+
+  function popMoney(p, d) {
+    const txt = `${d > 0 ? '+' : '−'}Ð${Math.abs(d).toLocaleString('de-DE')}`;
+    const big = Math.abs(d) >= 500;
+    const spawn = (el, cls) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width && !r.height) return;
+      const pop = document.createElement('div');
+      pop.className = `money-pop ${d > 0 ? 'is-up' : 'is-down'} ${big ? 'is-big' : ''} ${cls}`;
+      pop.textContent = txt + (big && d < 0 ? ' 💀' : big ? ' 🔥' : '');
+      pop.style.left = (r.left + r.width / 2) + 'px';
+      pop.style.top = (r.top + r.height / 2) + 'px';
+      document.body.appendChild(pop);
+      setTimeout(() => pop.remove(), 1900);
+    };
+    spawn(document.querySelector(`[data-tokpid="${CSS.escape(p.id)}"]`), 'at-token');
+    const row = document.querySelector(`#players [data-pid="${CSS.escape(p.id)}"]`);
+    spawn(row && row.querySelector('.pmoney'), 'at-list');
+    if (row) {
+      row.classList.remove('flash-up', 'flash-down', 'shake'); void row.offsetWidth;
+      row.classList.add(d > 0 ? 'flash-up' : 'flash-down');
+      if (big && d < 0) row.classList.add('shake');
+    }
+  }
 
   // ================= APRIL: Begleiterin, Boot, Easter Eggs =================
   function aprilSay(text, ms = 5200) {
@@ -1600,6 +1658,7 @@
     }
     renderLog();
     playSounds();
+    moneyPops();
     if (S.phase === 'over' && App.lastPhase !== 'over') {
       FX.confetti();
       const w = P(S.winner);

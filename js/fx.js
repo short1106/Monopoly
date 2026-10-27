@@ -55,6 +55,10 @@
     win() { [523, 523, 523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.13, 0.24, 'square', 0.06)); },
     pop() { tone(1200, 0, 0.07, 'sine', 0.1, 600); },
     step() { tone(1500, 0, 0.03, 'square', 0.025); },
+    coinUp() { tone(988, 0, 0.08, 'square', 0.07); tone(1319, 0.07, 0.22, 'square', 0.07); noise(0.02, 0.05, 0.08); },
+    coinDown() { tone(523, 0, 0.12, 'triangle', 0.16, 392); tone(392, 0.1, 0.22, 'triangle', 0.16, 262); },
+    bigGain() { [784, 988, 1175, 1568, 1976].forEach((f, i) => tone(f, i * 0.06, 0.18, 'square', 0.06)); noise(0.3, 0.12, 0.1); },
+    bigLoss() { tone(300, 0, 0.7, 'sawtooth', 0.09, 70); tone(150, 0.05, 0.7, 'square', 0.05, 50); noise(0, 0.18, 0.2); },
   };
 
   function confetti() {
