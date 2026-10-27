@@ -22,14 +22,14 @@
   }
 
   const Net = {
-    mode: null, code: null, peer: null, conns: new Map(), conn: null,
+    mode: null, code: null, peer: null, conns: new Map(), conn: null, prefix: null,
     handlers: { message() {}, status() {}, peerLeft() {} },
 
     // ----- Host -----
     host(code, onReady) {
       this.mode = 'host';
       this.code = code;
-      const peer = new Peer(PREFIX + code, peerOptions());
+      const peer = new Peer((this.prefix || PREFIX) + code, peerOptions());
       this.peer = peer;
       let opened = false;
       peer.on('open', () => { opened = true; this.handlers.status('online'); onReady(null, code); });
@@ -78,7 +78,7 @@
         const peer = new Peer(peerOptions());
         this.peer = peer;
         peer.on('open', () => {
-          const conn = peer.connect(PREFIX + code, { reliable: true });
+          const conn = peer.connect((this.prefix || PREFIX) + code, { reliable: true });
           this.conn = conn;
           conn.on('open', () => { this.handlers.status('online'); conn.send(hello()); });
           conn.on('data', (msg) => this.handlers.message(msg, conn));

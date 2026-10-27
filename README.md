@@ -35,6 +35,11 @@ Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo,
 
 **💖 Aprils Laune** (in der Lobby abschaltbar): April mag jede Person anders, lässt sich bestechen, macht ihrem Liebling Geschenke und rächt sich bei Hass (Haus abreißen, Straße in Hypothek). Dazu Tageslaune und Live-Kommentar über dem Brett.
 
+## Andere Spiele (oben rechts)
+- 🃏 **DULIDAN UNO** (`uno.html`): 2–6 Personen online oder gegen Bots. Vier Dulidan-Farben, Aussetzen, Richtungswechsel, +2, Farbwahl, +4 und die April-Karte (Farbe wählen und Hand tauschen). +2/+4 stapeln, „UNO!“ rufen, sonst kann man dich erwischen. Punkte über mehrere Runden.
+- 🚢 **SCHIFFE VERSENKEN** (`schiffe.html`): zu zweit online oder gegen einen Bot. Flotte selbst setzen oder zufällig, Treffer = nochmal, je einmal Radar (3×3 zählen) und Luftschlag (3 Felder).
+- Beide nutzen `js/party.js` (Lobby, Raum-Code, Bots, Host schickt jeder Person nur ihre eigene Sicht).
+
 ## Technik
 - Symbole: [game-icons.net](https://game-icons.net) von Lorc, Delapouite und weiteren Autor:innen, Lizenz [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). `js/icons.js` ersetzt beim Anzeigen jedes Emoji durch eines dieser Symbole.
 - Reine statische Webseite (HTML/CSS/JS), keine Build-Schritte.
