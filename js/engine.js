@@ -208,7 +208,7 @@
     }
     S.log = [];
     log(S, `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
-    const intro = { blitz: '⚡ Blitz: Alle Felder sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: `💸 Millionär: Wer zuerst ${money(GOAL_WORTH)} Vermögen hat, gewinnt!`, chaos: '🤖 April-Chaos: Jede Runde passiert irgendwas. Ihr wurdet gewarnt.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5. Viel Glück.' }[variant];
+    const intro = { blitz: '⚡ Blitz: Alle Felder sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: `💸 Millionär: Wer zuerst ${money(GOAL_WORTH)} Vermögen hat, gewinnt!`, chaos: '💖 April-Chaos: Jede Runde passiert irgendwas. Ihr wurdet gewarnt.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5. Viel Glück.' }[variant];
     if (intro) log(S, intro);
     return null;
   }
@@ -467,7 +467,7 @@
     p.used.april = true;
     const id2 = S.decks[deck].shift();
     S.card = { deck, id: id2, redrawn: true };
-    log(S, `April legt die Karte zurück und zieht neu. 🤖`);
+    log(S, `April legt die Karte zurück und zieht neu. 💖`);
   }
 
   function applyCard(S, p, c, deck) {

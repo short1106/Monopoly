@@ -273,3 +273,9 @@ body::before { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .fx-scan { display: none; }
 }
+
+/* April-Avatar statt Roboter */
+.v-april { width: 26px; height: 26px; display: block; }
+.btn-april { width: 18px; height: 18px; display: inline-block; vertical-align: -4px; margin-right: 4px; }
+.die3d.special .dlogo .die-april { width: 100%; height: 100%; display: block; filter: none; }
+.die3d.special .dlogo:has(.die-april) { filter: none; width: 86%; }

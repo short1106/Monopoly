@@ -65,7 +65,7 @@
 
   const TOKENS = {
     dulidan:  { name: 'Dulidan-D',      emoji: 'D',  power: 'Boss-Rabatt: kauft Felder von der Bank 10 % günstiger.' },
-    april:    { name: 'April',          emoji: '🤖', power: 'Einmal pro Spiel eine gezogene Karte zurücklegen und neu ziehen.' },
+    april:    { name: 'April',          emoji: '💖', power: 'Einmal pro Spiel eine gezogene Karte zurücklegen und neu ziehen.' },
     zebra:    { name: 'Zebra',          emoji: '🦓', power: 'Bekommt Ð50 extra, wenn es über LOS läuft.' },
     ship:     { name: 'Containerschiff', emoji: '🚢', power: 'Zahlt auf Bahnhöfen nur die halbe Miete.' },
     berlingo: { name: 'Berlingo',       emoji: '🚐', power: 'Einmal pro Spiel nach dem Würfeln 1 Feld vor oder zurück fahren.' },

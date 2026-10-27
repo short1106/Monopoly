@@ -339,7 +339,7 @@
     { id: 'normal', ic: '🎲', name: 'Klassisch', text: 'Die normalen Regeln.' },
     { id: 'blitz', ic: '⚡', name: 'Blitz', text: 'Alles wird am Start verteilt. Nach 20 Runden gewinnt der Reichste.' },
     { id: 'million', ic: '💸', name: 'Millionär', text: 'Wer zuerst Ð5.000 Vermögen hat, gewinnt.' },
-    { id: 'chaos', ic: '🤖', name: 'April-Chaos', text: 'April wirft ständig Chaos-Events rein. Nichts ist sicher.' },
+    { id: 'chaos', ic: aprilIcon('v-april'), name: 'April-Chaos', text: 'April wirft ständig Chaos-Events rein. Nichts ist sicher.' },
     { id: 'hardcore', ic: '💀', name: 'Hardcore', text: 'Nur Ð800 Startgeld, alle Mieten ×1,5.' },
   ];
   $('#settings').addEventListener('click', (e) => {
@@ -458,7 +458,7 @@
     return { r: i - 29, c: 11, side: 'right' };
   }
   const CORNER_ICON = { go: '⟵', jail: '😱', parking: '🐷', gotojail: '👉' };
-  const TYPE_ICON = { april: '🤖', studio: '💜' };
+  const TYPE_ICON = { april: '💖', studio: '💜' };
 
   function buildBoard() {
     if (!$('#die1')) $('#dice').innerHTML = cubeHTML('die1') + cubeHTML('die2');
@@ -708,7 +708,7 @@
       case 'card': {
         const c = E.CARDS[S.card.deck][S.card.id];
         h += `<p class="action-note">${esc(c.text)}</p><div class="btn-row">${btn('OK', { type: 'cardOk' }, pid, 'btn-primary')}
-          ${cur.token === 'april' && !cur.used.april ? btn('🤖 Neu ziehen (1× pro Spiel)', { type: 'cardRedraw' }, pid) : ''}</div>`;
+          ${cur.token === 'april' && !cur.used.april ? btn(`${aprilIcon('btn-april')} Neu ziehen (1× pro Spiel)`, { type: 'cardRedraw' }, pid) : ''}</div>`;
         break;
       }
       case 'debt': {
@@ -998,7 +998,7 @@
     if (n <= 0) return;
     const freshLines = S.log.slice(-n);
     const fresh = freshLines.join('\n');
-    const aprilLine = freshLines.filter((l) => l.startsWith('April:') || /April-News|April-Chaos|^(⚡|💸|🤖|💀) /.test(l)).pop();
+    const aprilLine = freshLines.filter((l) => l.startsWith('April:') || /April-News|April-Chaos|^(⚡|💸|💖|💀) /.test(l)).pop();
     if (aprilLine) showApril(aprilLine.replace(/^April:\s*/, '').replace(/^📰 April-News, Runde \d+: /, '📰 '));
     const hit = SOUND_RULES.find(([, re]) => re.test(fresh));
     if (hit) FX.play(hit[0]);
@@ -1139,7 +1139,7 @@
       let inner;
       if (special) {
         const face = WD.FACES[f - 1];
-        inner = face.icon === 'D' ? `<span class="dlogo">${logoSVG()}</span>` : `<span class="ficon">${face.icon}</span>`;
+        inner = face.icon === 'D' ? `<span class="dlogo">${logoSVG()}</span>` : face.id === 'april' ? `<span class="dlogo">${aprilIcon('die-april')}</span>` : `<span class="ficon">${face.icon}</span>`;
       } else {
         inner = '';
         for (let k = 0; k < 9; k++) inner += PIPS[f].includes(k) ? '<i></i>' : '<span></span>';

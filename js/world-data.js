@@ -75,7 +75,7 @@
     { id: 'nav', icon: '🧭', name: 'Navigator', text: 'Du wählst an jeder Kreuzung selbst, wohin es geht.' },
     { id: 'jet', icon: '✈️', name: 'Jetset', text: 'Statt zu laufen darfst du zu einem beliebigen Flughafen fliegen.' },
     { id: 'pay', icon: '💰', name: 'Zahltag', text: 'Du bekommst Ð150 von der Bank.' },
-    { id: 'april', icon: '🤖', name: 'April-Chaos', text: 'April macht irgendwas. Gut oder schlecht.' },
+    { id: 'april', icon: '💖', name: 'April-Chaos', text: 'April macht irgendwas. Gut oder schlecht.' },
     { id: 'shield', icon: '🛡️', name: 'Schutzschild', text: 'Diesen Zug zahlst du keine Maut.' },
     { id: 'boss', icon: 'D', name: 'Dulidan-Power', text: 'Du bestimmst selbst, wie weit du läufst (2–12).' },
   ];

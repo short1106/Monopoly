@@ -130,7 +130,7 @@
     S.path = []; S.moveId = 0; S.mover = null;
     S.debt = null; S.trade = null; S.log = []; S.winner = null; S.ranking = null;
     log(S, 'DULIDAN WORLD startet! Würfeln, um die Welt reisen, Städte kaufen – wer zuletzt nicht pleite ist, gewinnt.');
-    const intro = { blitz: '⚡ Blitz: Alle Städte sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: '💸 Millionär: Wer zuerst Ð5000 Vermögen hat, gewinnt!', chaos: '🤖 April-Chaos: Jeden Zug eine neue Weltnachricht.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mauten ×1,5.' }[variant];
+    const intro = { blitz: '⚡ Blitz: Alle Städte sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: '💸 Millionär: Wer zuerst Ð5000 Vermögen hat, gewinnt!', chaos: '💖 April-Chaos: Jeden Zug eine neue Weltnachricht.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mauten ×1,5.' }[variant];
     if (intro) log(S, intro);
     beginTurn(S);
     return null;
@@ -234,7 +234,7 @@
       case 'april': {
         const pool = p.token === 'april' ? CHAOS.filter(x => x.good) : CHAOS;
         const x = pick(pool);
-        log(S, `🤖 April-Chaos: ${x.t}`);
+        log(S, `💖 April-Chaos: ${x.t}`);
         const others = active(S).filter(o => o.id !== p.id);
         if (x.money > 0) p.money += x.money;
         if (x.collect) for (const o of others) { const v = Math.min(o.money, x.collect); o.money -= v; p.money += v; }
