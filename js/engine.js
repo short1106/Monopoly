@@ -4,10 +4,12 @@
   const D = isNode ? require('./data.js') : root.DULI_DATA;
   const MOOD = isNode ? require('./mood.js') : root.DULI_MOOD;
   const CASINO = isNode ? require('./casino.js') : root.DULI_CASINO;
+  const RL = isNode ? require('./rules.js') : root.DULI_RULES;
   const { GROUPS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, PLAYER_COLORS, APRIL_SAYS, BOARDS } = D;
   // Normales Brett oder MEGA-Brett: wird vor jeder Aktion passend zum Spielstand gesetzt
-  let BD, SPACES, RAILS, UTILS, APRIL_FIELD, N, JAIL;
+  let BD, SPACES, RAILS, UTILS, APRIL_FIELD, N, JAIL, RS = null;
   function useBoard(S) {
+    RS = S;
     BD = BOARDS[(S && S.size) || 'normal'] || BOARDS.normal;
     ({ SPACES, RAILS, UTILS, APRIL_FIELD, N, JAIL } = BD);
   }
@@ -38,10 +40,19 @@
     };
   }
 
-  const VARIANTS = ['normal', 'blitz', 'million', 'chaos', 'hardcore'];
+  const VARIANTS = RL.VARIANTS.map(v => v.id);
   const GOAL_WORTH = 5000;
   // April-Chaos im klassischen Modus: ein Event pro Runde
   const CHAOS_EVENTS = [
+    { t: 'Mietfrei! Diese Runde zahlt niemand Miete.', rentMult: 0 },
+    { t: 'Häuser im Sale: Diese Runde kosten Häuser nur ein Viertel.', buildMult: 0.25 },
+    { t: 'Lotto-Gewinn! Die ärmste Person bekommt Ð300.', poorGift: 300 },
+    { t: 'Reichensteuer: Die reichste Person zahlt Ð200 in Aprils Spardose.', richTax: 200 },
+    { t: 'Pasch-Fieber: Jeder Pasch bringt diese Runde Ð100.', doubleBonus: 100 },
+    { t: 'Bankenpleite: Alle verlieren 15 % ihres Geldes an die Spardose.', taxPct: 0.15 },
+    { t: 'Konfetti-Regen: Alle bekommen Ð75.', gift: 75 },
+    { t: 'Mietparty XXL: Alle Mieten diese Runde ×3.', rentMult: 3 },
+    { t: 'Spardosen-Explosion: Aprils Spardose wird an alle verteilt.', potSplit: true },
     { t: 'Mietparty! Alle Mieten diese Runde ×2.', rentMult: 2 },
     { t: 'Mietstreik: Diese Runde gibt es nur halbe Miete.', rentMult: 0.5 },
     { t: 'Baurausch: Häuser kosten diese Runde die Hälfte.', buildMult: 0.5 },
@@ -83,13 +94,13 @@
   function groupHasHouses(S, g) { return groupIdx(g).some(i => S.props[i].houses > 0); }
   function houseCost(p, g, S) {
     const mult = (S && S.event && S.event.buildMult) || 1;
-    return Math.round((GROUPS[g].house - (p.token === 'pen' ? 25 : 0)) * mult);
+    return Math.max(5, Math.round((GROUPS[g].house - (p.token === 'pen' ? 25 : 0)) * mult * RL.buildFactor(S) / 5) * 5);
   }
   function buyPrice(p, idx) {
     const base = SPACES[idx].price;
     return p.token === 'dulidan' ? Math.round(base * 0.9) : base;
   }
-  function unmortgageCost(idx) { return Math.ceil(SPACES[idx].price * 0.55); }
+  function unmortgageCost(idx) { return Math.ceil(SPACES[idx].price * (RL.on(RS, 'mortgageFree') ? 0.5 : 0.55)); }
   function bankSupply(S) {
     let houses = 0, hotels = 0;
     for (const k in S.props) {
@@ -102,7 +113,8 @@
   function calcRent(S, idx, payer) {
     let r = baseRent(S, idx, payer);
     if (S.settings && S.settings.variant === 'hardcore') r *= 1.5;
-    if (S.event && S.event.rentMult) r *= S.event.rentMult;
+    if (S.event && S.event.rentMult != null) r *= S.event.rentMult;
+    r *= RL.rentFactor(S);
     return Math.round(r);
   }
 
@@ -110,7 +122,7 @@
     const sp = SPACES[idx], st = S.props[idx], owner = st.owner;
     if (sp.type === 'prop') {
       if (st.houses > 0) return sp.rent[st.houses];
-      return ownsGroup(S, owner, sp.group) ? sp.rent[0] * 2 : sp.rent[0];
+      return ownsGroup(S, owner, sp.group) ? sp.rent[0] * RL.monoMult(S) : sp.rent[0];
     }
     if (sp.type === 'rail') {
       const n = RAILS.filter(i => S.props[i].owner === owner).length;
@@ -179,11 +191,12 @@
     if ([1000, 1500, 2000, 3000].includes(sm)) S.settings.startMoney = sm;
     if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
-    if (['classic', 'casino', 'world', 'royale', 'metro', 'tower'].includes(o.mode)) S.settings.mode = o.mode;
+    if (['classic', 'casino', 'world', 'royale', 'metro', 'tower', 'islands', 'festival'].includes(o.mode)) S.settings.mode = o.mode;
     if (['mini', 'normal', 'mega'].includes(o.size)) S.settings.size = o.size;
     if (typeof o.mood === 'boolean') S.settings.mood = o.mood;
     if (VARIANTS.includes(o.variant)) S.settings.variant = o.variant;
     if ([0, 15, 20, 30, 50].includes(Number(o.maxRounds))) S.settings.maxRounds = Number(o.maxRounds);
+    if (o.rule && RL.RULES.some(r => r.id === o.rule)) S.settings.rules = Object.assign({}, S.settings.rules, { [o.rule]: !!o.on });
     return null;
   }
 
@@ -218,15 +231,29 @@
     S.maxRounds = variant === 'blitz' ? 20 : 0;
     S.goal = variant === 'million' ? GOAL_WORTH : 0;
     if (variant === 'hardcore') S.players.forEach(p => { p.money = Math.round(800 * BD.moneyMult); });
+    if (variant === 'rich') S.players.forEach(p => { p.money = Math.round(5000 * BD.moneyMult); });
+    if (variant === 'tycoon') S.players.forEach(p => { p.money = Math.max(500, p.money - 500); });
+    S.players.forEach(p => { if (p.token === 'rocket') p.money += 150; });
+    if (variant === 'tycoon') giveRandomProps(S, 3);
+    if (RL.on(S, 'startProps')) giveRandomProps(S, 2);
     if (variant === 'blitz') {
       const idx = shuffle(Object.keys(S.props).map(Number));
       idx.forEach((k, i) => { S.props[k].owner = S.players[i % S.players.length].id; });
     }
+    S.hist = [];
     S.log = [];
     log(S, S.isCasino ? `🎰 DULIDAN CASINO öffnet! ${S.players[0].name} beginnt.` : S.size === 'mega' ? `🚀 MEGA-Dulidanopoly startet! 120 Felder, doppelte Schritte. ${S.players[0].name} beginnt.` : S.size === 'mini' ? `⚡ MINI-Dulidanopoly startet! 24 Felder, nur das Wichtigste. ${S.players[0].name} beginnt.` : `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
+    recordHist(S);
     const intro = { blitz: '⚡ Blitz: Alle Felder sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: `💸 Millionär: Wer zuerst ${money(GOAL_WORTH)} Vermögen hat, gewinnt!`, chaos: '💖 April-Chaos: Jede Runde passiert irgendwas. Ihr wurdet gewarnt.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5. Viel Glück.' }[variant];
     if (intro) log(S, intro);
+    else if (variant !== 'normal') { const v = RL.VARIANTS.find(x => x.id === variant); if (v) log(S, `${v.icon} ${v.name}: ${v.text}`); }
     return null;
+  }
+
+  // Startpaket: jede Person bekommt n zufällige freie Straßen
+  function giveRandomProps(S, n) {
+    const free = shuffle(Object.keys(S.props).map(Number).filter(k => SPACES[k].type === 'prop' && !S.props[k].owner));
+    for (let r = 0; r < n; r++) for (const p of S.players) { const k = free.pop(); if (k != null) S.props[k].owner = p.id; }
   }
 
   // ---------- Zugablauf ----------
@@ -234,6 +261,16 @@
     const amt = BD.go + (p.token === 'zebra' ? 50 : 0) + MOOD.salaryBonus(S);
     p.money += amt;
     log(S, `${p.name} zieht über LOS und kassiert ${money(amt)}.`);
+    if (RL.on(S, 'interest')) {
+      const z = Math.min(100, Math.floor(p.money * 0.05));
+      if (z > 0) { p.money += z; log(S, `🏦 Zinsen: ${p.name} bekommt ${money(z)}.`); }
+    }
+    if (p.token === 'crown') {
+      let t = 0;
+      for (const o of active(S)) if (o.id !== p.id) { const x = Math.min(o.money, 10); o.money -= x; t += x; }
+      p.money += t;
+      if (t) log(S, `👑 Tribut an die Krone: ${p.name} bekommt ${money(t)}.`);
+    }
     quip(S, 'go', 0.2);
   }
   function moveBy(S, p, n) {
@@ -247,6 +284,13 @@
     p.pos = target;
   }
   function sendJail(S, p) {
+    if (RL.on(S, 'noJail')) {
+      const x = Math.min(p.money, 100);
+      p.money -= x; toBank(S, x);
+      S.rolledDouble = false; S.doublesCount = 0;
+      log(S, `🚫 Düsseldorf light: ${p.name} zahlt ${money(x)} statt in den Knast zu gehen.`);
+      return;
+    }
     p.pos = JAIL; p.inJail = true; p.jailTries = 0;
     if (p.stats) p.stats.jail++;
     S.rolledDouble = false; S.doublesCount = 0;
@@ -300,6 +344,9 @@
       if (st.mort) { log(S, `${sp.name} ist mit einer Hypothek belastet. Keine Miete.`); return proceed(S); }
       const owner = P(S, st.owner);
       const rent = calcRent(S, p.pos, p);
+      if (RL.on(S, 'jailRent') && owner.inJail) { log(S, `⛓️ ${owner.name} sitzt in Düsseldorf und kassiert keine Miete.`); return proceed(S); }
+      if (rent <= 0) { log(S, `Mietfrei! ${p.name} zahlt nichts.`); return proceed(S); }
+      if (p.token === 'ghost' && !p.used.ghost && rent >= 100) { p.used.ghost = true; log(S, `👻 ${p.name} geht als Geist durch die Wand und zahlt keine ${money(rent)}!`); return proceed(S); }
       if (S.isCasino && sp.type === 'prop') return enterCasino(S, p, p.pos, owner, Math.max(20, rent * 2));
       log(S, `${p.name} zahlt ${money(rent)} Miete an ${owner.name}.`);
       if (p.stats) { p.stats.rentPaid += rent; p.stats.maxRent = Math.max(p.stats.maxRent, rent); }
@@ -311,7 +358,7 @@
     }
     switch (sp.type) {
       case 'tax': {
-        const amt = sp.amount * MOOD.taxMult(S);
+        const amt = Math.round(sp.amount * MOOD.taxMult(S) * (p.token === 'pizza' ? 0.5 : 1));
         log(S, `${sp.name}! ${p.name} zahlt ${money(amt)}${amt > sp.amount ? ' (April ist sauer: doppelt!)' : ''}.`);
         if (charge(S, p, [{ to: null, amt }])) proceed(S);
         return;
@@ -353,25 +400,31 @@
     const a = d6(), b = d6();
     S.dice = [a, b]; S.rollId++;
     const dbl = a === b, sum = a + b;
-    log(S, `${p.name} würfelt ${a} + ${b} = ${sum}${dbl ? ' (Pasch)' : ''}${BD.stepMult > 1 ? ` · Mega: ${sum * BD.stepMult} Felder` : ''}.`);
+    const turbo = RL.variant(S) === 'speed' ? 1 + Math.floor(rng() * 3) : 0;
+    const steps = sum + turbo;
+    S.turbo = turbo || null;
+    log(S, `${p.name} würfelt ${a} + ${b} = ${sum}${dbl ? ' (Pasch)' : ''}${turbo ? ` · 🏎️ Turbo +${turbo}` : ''}${BD.stepMult > 1 ? ` · Mega: ${steps * BD.stepMult} Felder` : ''}.`);
+    if (sum === 7 && RL.on(S, 'lucky7')) { p.money += 77; log(S, `🍀 Glückszahl 7! ${p.name} bekommt ${money(77)}.`); }
+    if (dbl && RL.on(S, 'doublesCash')) { p.money += 50; log(S, `🎲 Pasch-Prämie: ${p.name} bekommt ${money(50)}.`); }
+    if (dbl && S.event && S.event.doubleBonus) { p.money += S.event.doubleBonus; log(S, `🎉 Pasch-Fieber: ${p.name} bekommt ${money(S.event.doubleBonus)}.`); }
 
     if (p.inJail) {
       if (dbl) {
         p.inJail = false; p.jailTries = 0; S.rolledDouble = false;
         log(S, `Pasch! ${p.name} entkommt aus Düsseldorf.`);
-        return doMove(S, p, sum);
+        return doMove(S, p, steps);
       }
       p.jailTries++;
       if (p.token === 'helmet' && p.jailTries >= 2) {
         p.inJail = false; p.jailTries = 0; S.rolledDouble = false;
         log(S, `Der Stahlhelm bricht aus Düsseldorf aus! ⛑️`);
-        return doMove(S, p, sum);
+        return doMove(S, p, steps);
       }
       if (p.jailTries >= 3) {
         p.inJail = false; p.jailTries = 0; S.rolledDouble = false;
         log(S, `${p.name} muss ${money(50)} zahlen, um Düsseldorf zu verlassen.`);
-        if (charge(S, p, [{ to: null, amt: 50 }])) return doMove(S, p, sum);
-        S.debt.afterMove = sum;
+        if (charge(S, p, [{ to: null, amt: 50 }])) return doMove(S, p, steps);
+        S.debt.afterMove = steps;
         return;
       }
       log(S, `${p.name} bleibt in Düsseldorf (Versuch ${p.jailTries}/${p.token === 'helmet' ? 2 : 3}).`);
@@ -384,6 +437,11 @@
       if (p.stats) p.stats.doubles++;
       if (S.doublesCount === 2) MOOD.doubles(S, p);
       if (p.token === 'doener') { p.money += 20; log(S, `Döner-Pasch: ${p.name} bekommt ${money(20)}. Mit allem, scharf! 🥙`); }
+      if (S.doublesCount >= 3 && p.token === 'gamepad') {
+        p.money += 100; S.rolledDouble = false; S.doublesCount = 0;
+        log(S, `🎮 Drei Pasch! Highscore statt Düsseldorf: ${p.name} bekommt ${money(100)}.`);
+        return doMove(S, p, steps);
+      }
       if (S.doublesCount >= 3) {
         log(S, `Drei Pasch hintereinander!`);
         quip(S, 'triple', 1);
@@ -396,11 +454,11 @@
       S.rolledDouble = false;
     }
     if (S.berlingoArmed) {
-      S.pendingMove = sum;
+      S.pendingMove = steps;
       S.sub = 'berlingo';
       return;
     }
-    doMove(S, p, sum);
+    doMove(S, p, steps);
   }
 
   function nextTurn(S) {
@@ -427,9 +485,34 @@
       if (S.settings && S.settings.variant === 'chaos') chaosEvent(S);
       else S.event = null;
       MOOD.newRound(S, active(S), (q) => netWorth(S, q));
+      roundRules(S);
+      recordHist(S);
     }
     log(S, `${curP(S).name} ist dran.`);
     MOOD.turnStart(S, curP(S), moodApi(S));
+    const tax = RL.suddenTax(S), cp = curP(S);
+    if (tax && !cp.bankrupt) {
+      log(S, `⏳ Sudden Death: ${cp.name} zahlt ${money(tax)} Überlebens-Steuer.`);
+      if (!charge(S, cp, [{ to: null, amt: tax }])) S.debt.afterTax = true;
+    }
+  }
+
+  // Regeln, die einmal pro Runde greifen
+  function roundRules(S) {
+    const act = active(S);
+    if (act.length < 2) return;
+    if (RL.on(S, 'robin')) {
+      const byMoney = act.slice().sort((a, b) => b.money - a.money);
+      const rich = byMoney[0], poor = byMoney[byMoney.length - 1];
+      const x = Math.min(50, rich.money);
+      rich.money -= x; poor.money += x;
+      log(S, `🏹 Robin Hood: ${rich.name} gibt ${poor.name} ${money(x)}.`);
+    }
+    if (RL.variant(S) === 'swap' && S.round % 5 === 0) {
+      const ms = shuffle(act.map(p => p.money));
+      act.forEach((p, i) => { p.money = ms[i]; });
+      log(S, `🔄 Konto-Roulette! Alle Kontostände wurden getauscht.`);
+    }
   }
 
   // Was April bei Hass kaputt machen darf
@@ -472,6 +555,10 @@
       act.forEach((p, i) => { if (!p.inJail) p.pos = pos[i]; else p.pos = JAIL; });
     }
     if (e.freeJail) act.forEach(p => { if (p.inJail) { p.inJail = false; p.jailTries = 0; } });
+    const byMoney = act.slice().sort((a, b) => b.money - a.money);
+    if (e.poorGift && byMoney.length) byMoney[byMoney.length - 1].money += e.poorGift;
+    if (e.richTax && byMoney.length) { const x = Math.min(byMoney[0].money, e.richTax); byMoney[0].money -= x; toBank(S, x); }
+    if (e.potSplit && S.pot > 0 && act.length) { const each = Math.floor(S.pot / act.length); act.forEach(p => { p.money += each; }); S.pot -= each * act.length; }
     if (e.houseBonus) {
       for (const k in S.props) {
         const st = S.props[k];
@@ -521,18 +608,24 @@
 
   function applyCard(S, p, c, deck) {
     const others = active(S).filter(o => o.id !== p.id);
+    if (p.token === 'cat' && !p.used.cat && MOOD.cardTone(c) < 0) {
+      p.used.cat = true;
+      log(S, `🐈 Glückskatze! Die fiese Karte prallt an ${p.name} ab.`);
+      return proceed(S);
+    }
+    const cm = RL.cardMult(S), cam = p.token === 'camera' ? 1.5 : 1;
     switch (c.t) {
       case 'move': moveTo(S, p, BD.moveMap ? (BD.moveMap[c.to] ?? c.to) : c.to); return land(S, p);
       case 'money':
-        if (c.amt >= 0) { p.money += c.amt; return proceed(S); }
-        if (charge(S, p, [{ to: null, amt: Math.round(-c.amt * MOOD.badMult(S)) }])) proceed(S);
+        if (c.amt >= 0) { p.money += Math.round(c.amt * cm * cam); return proceed(S); }
+        if (charge(S, p, [{ to: null, amt: Math.round(-c.amt * MOOD.badMult(S) * cm) }])) proceed(S);
         return;
       case 'payEach':
-        if (charge(S, p, others.map(o => ({ to: o.id, amt: Math.round(c.amt * MOOD.badMult(S)) })))) proceed(S);
+        if (charge(S, p, others.map(o => ({ to: o.id, amt: Math.round(c.amt * MOOD.badMult(S) * cm) })))) proceed(S);
         return;
       case 'collectEach':
         for (const o of others) {
-          const x = Math.min(o.money, c.amt);
+          const x = Math.min(o.money, Math.round(c.amt * cm * cam));
           o.money -= x; p.money += x;
         }
         return proceed(S);
@@ -541,7 +634,7 @@
       case 'fromRichest': {
         const rich = others.slice().sort((a, b) => b.money - a.money)[0];
         if (rich) {
-          const x = Math.min(rich.money, c.amt);
+          const x = Math.min(rich.money, Math.round(c.amt * cm * cam));
           rich.money -= x; p.money += x;
           log(S, `${rich.name} ist am reichsten und zahlt ${money(x)} an ${p.name}.`);
         }
@@ -700,7 +793,7 @@
     if (g.some(i => S.props[i].mort)) return 'In der Gruppe ist noch eine Hypothek.';
     if (st.houses >= 5) return 'Hier steht schon ein Hotel.';
     const min = Math.min(...g.map(i => S.props[i].houses));
-    if (st.houses > min) return 'Gleichmäßig bauen! Erst die anderen Felder der Gruppe.';
+    if (st.houses > min && !RL.on(S, 'freeBuild')) return 'Gleichmäßig bauen! Erst die anderen Felder der Gruppe.';
     const cost = houseCost(p, sp.group, S);
     if (p.money < cost) return 'Nicht genug Dulis.';
     const sup = bankSupply(S);
@@ -719,7 +812,7 @@
     if (!sp || sp.type !== 'prop' || st.owner !== p.id || st.houses === 0) return 'Hier gibt es nichts zu verkaufen.';
     const g = groupIdx(sp.group);
     const max = Math.max(...g.map(i => S.props[i].houses));
-    if (st.houses < max) return 'Gleichmäßig verkaufen! Erst die anderen Felder der Gruppe.';
+    if (st.houses < max && !RL.on(S, 'freeBuild')) return 'Gleichmäßig verkaufen! Erst die anderen Felder der Gruppe.';
     const back = Math.floor(GROUPS[sp.group].house / 2);
     st.houses--;
     p.money += back;
@@ -733,8 +826,9 @@
     if (st.mort) return 'Schon hypothekiert.';
     if (sp.type === 'prop' && groupHasHouses(S, sp.group)) return 'Erst alle Häuser der Gruppe verkaufen.';
     st.mort = true;
-    p.money += sp.price / 2;
-    log(S, `${p.name} nimmt eine Hypothek auf ${sp.name} auf (+${money(sp.price / 2)}).`);
+    const val = Math.round(sp.price * (p.token === 'duck' ? 0.6 : 0.5));
+    p.money += val;
+    log(S, `${p.name} nimmt eine Hypothek auf ${sp.name} auf (+${money(val)}).`);
     return null;
   }
 
@@ -762,6 +856,7 @@
     S.debt = null;
     log(S, `${p.name} hat die Schulden bezahlt.`);
     if (d.afterMove != null) doMove(S, p, d.afterMove);
+    else if (d.afterTax) S.sub = 'roll';
     else proceed(S);
     return null;
   }
@@ -810,6 +905,13 @@
       return;
     }
     if (curP(S).id === pid) nextTurn(S);
+  }
+
+  // Vermögen pro Runde für das Diagramm am Spielende (bei langen Spielen ausgedünnt)
+  function recordHist(S) {
+    if (!S.hist) S.hist = [];
+    S.hist.push(S.players.map(p => (p.bankrupt ? 0 : Math.round(netWorth(S, p)))));
+    if (S.hist.length > 160) S.hist = S.hist.filter((_, i) => i % 2 === 0);
   }
 
   function rank(S) {
@@ -929,6 +1031,7 @@
         return buy(S);
       case 'auction':
         if (needCur() || S.sub !== 'buy') return 'Geht gerade nicht.';
+        if (RL.on(S, 'noAuction')) { log(S, `${p.name} lässt ${SPACES[p.pos].name} liegen.`); proceed(S); return null; }
         startAuction(S); return null;
       case 'bid':
         if (S.sub !== 'auction' || S.auction.active[S.auction.turn] !== pid) return 'Du bist beim Bieten nicht dran.';

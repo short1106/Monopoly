@@ -13,15 +13,17 @@ Das Monopoly von **Dulidan Studios**: von Marxloh bis ins DULIDAN HQ. Spielbar i
 - 🌀 **DULIDAN ROYALE:** drei Ringe im All, Portale, Loot-Kisten, der April-Sturm zerstört Ring für Ring
 - 🚇 **DULIDAN METRO:** U-Bahn-Netz, wem eine ganze Linie gehört, kassiert Fahrpreis von allen Durchfahrenden
 - 🏙️ **DULIDAN TOWER:** fünf Etagen, Aufzüge rauf, Rutschen runter, Aufzug-Gebühr für Etagen-Besitzer
+- 🏝️ **DULIDAN ISLANDS:** sieben Inseln, Fähren zwischen den Häfen, jede Runde kann eine Insel überflutet werden
+- 🎪 **DULIDAN FESTIVAL:** Rundgang übers Festivalgelände, jede Runde ein Headliner mit dreifacher Miete
 
-Dazu fünf Varianten für jedes Brett: Klassisch, Blitz, Millionär, April-Chaos, Hardcore.
+Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo, Baulöwe, Neureich, Sudden Death, Konto-Roulette), 17 Hausregeln zum Anklicken, 16 Figuren mit eigenen Fähigkeiten, ein Geldverlauf am Spielende und Erfolge, die auf dem Gerät gespeichert bleiben.
 
 **💖 Aprils Laune** (in der Lobby abschaltbar): April mag jede Person anders, lässt sich bestechen, macht ihrem Liebling Geschenke und rächt sich bei Hass (Haus abreißen, Straße in Hypothek). Dazu Tageslaune und Live-Kommentar über dem Brett.
 
 ## Technik
 - Reine statische Webseite (HTML/CSS/JS), keine Build-Schritte.
 - Online-Verbindung direkt zwischen den Geräten über [PeerJS](https://peerjs.com) (WebRTC, `vendor/peerjs.min.js`). Für den Verbindungsaufbau wird der kostenlose PeerJS-Cloud-Server genutzt.
-- `js/data.js` + `js/engine.js`: klassisches Brett und Regeln · `js/world-data.js` + `js/boards-data.js`: die Bretter World, Royale, Metro, Tower · `js/world.js`: gemeinsame Brett-Engine · `js/mood.js`: Aprils Laune · `js/casino.js`: Casino-Spiele · `js/net.js`: Online-Verbindung · `js/ui.js` + `js/fx.js`: Oberfläche, Sounds, Würfel · `css/april.css`: Design wie dulidan-studios.com.
+- `js/data.js` + `js/engine.js`: klassisches Brett und Regeln · `js/world-data.js` + `js/boards-data.js`: die Bretter World, Royale, Metro, Tower · `js/world.js`: gemeinsame Brett-Engine · `js/mood.js`: Aprils Laune · `js/casino.js`: Casino-Spiele · `js/rules.js`: Hausregeln und Varianten · `js/net.js`: Online-Verbindung · `js/ui.js` + `js/fx.js`: Oberfläche, Sounds, Würfel · `css/april.css`: Design wie dulidan-studios.com.
 
 ## Live stellen (GitHub Pages)
 Settings → Pages → „Deploy from a branch“ → Branch wählen, Ordner `/ (root)` → Save.

@@ -111,6 +111,7 @@
     if (p.money < amt) return { err: 'Nicht genug Dulis.' };
     p.money -= amt;
     p.bribeTurn = S.turnNo;
+    p.bribes = (p.bribes || 0) + 1;
     const [lo, hi] = BRIBES[amt];
     const cheap = amt < 200 && rng() < 0.2;
     const gain = cheap ? 1 + Math.floor(rng() * 3) : lo + Math.floor(rng() * (hi - lo + 1));

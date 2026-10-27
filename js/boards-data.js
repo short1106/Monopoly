@@ -22,7 +22,15 @@
     berlingo: 'Darf nach jedem Wurf 1 Schritt mehr oder weniger laufen.',
     pen: 'Gebäude kosten Ð25 weniger.',
     helmet: 'Übernahmen seiner Felder kosten 2× statt 1,5×.',
-    doener: 'Street-Food-Tour: Ð30 für jedes Feld, auf dem er zum ersten Mal landet.',
+    doener: 'Street-Food-Tour: Ð30 für jedes neue Feld, auf dem die Figur zum ersten Mal landet.',
+    cat: 'Die erste fiese Karte im Spiel prallt einfach ab.',
+    crown: 'Bekommt jede Runde Ð20 mehr Gehalt.',
+    ghost: 'Einmal pro Spiel durch die Wand: eine Miete einfach nicht zahlen.',
+    pizza: 'Fiese Geld-Karten kosten nur die Hälfte.',
+    camera: 'Content-Profi: Geld von Karten gibt 50 % mehr.',
+    duck: 'Hypotheken bringen 60 % statt 50 % vom Preis.',
+    gamepad: 'Jeder Pasch bringt Ð30 Highscore-Bonus.',
+    rocket: 'Startet mit Ð150 mehr.',
   };
   const node = (id, name, extra) => Object.assign({ id, name, type: 'prop' }, extra);
 
@@ -39,6 +47,16 @@
       { t: 'April gibt dir Red Bull. ⚡ Dein nächster Wurf geht 3 Felder weiter.', item: 'boost', good: true },
       { t: 'April hat sich verklickt und dich teleportiert. 🌀 Ab auf ein zufälliges Feld!', teleport: true },
       { t: 'April hackt den reichsten Mitspieler. Der zahlt dir Ð100. Robin Hood, aber cringe.', fromRichest: 100, good: true },
+      { t: 'April hat dein altes Gaming-Setup verkauft. Erhalte Ð120.', money: 120, good: true },
+      { t: 'April hat dein Display zerkratzt. Reparatur: Ð60.', money: -60 },
+      { t: 'Geburtstag! Jeder Mitspieler zahlt dir Ð40.', collect: 40, good: true },
+      { t: 'April hat deine Playlist geteilt. Peinlich. Zahle jedem Mitspieler Ð25.', payEach: 25 },
+      { t: 'April hat ein NFT gekauft. Mit deinem Konto. Zahle Ð150.', money: -150 },
+      { t: 'April hat im Casino gewonnen und teilt. Erhalte Ð200.', money: 200, good: true },
+      { t: 'April leiht dir einen E-Scooter. ⚡ Dein nächster Wurf geht 3 Felder weiter.', item: 'boost', good: true },
+      { t: 'April kippt Glitzer über deine Gebäude. Reinigung: Ð20 pro Ausbaustufe.', repairs: 20 },
+      { t: 'April schickt dich auf einen Trip. 🌀 Ab auf ein zufälliges Feld!', teleport: true },
+      { t: 'April schreibt der reichsten Person eine Rechnung „für Vibes“. Du bekommst Ð60.', fromRichest: 60, good: true },
     ],
     studio: [
       { t: 'Der Kunde zahlt endlich die Rechnung! Erhalte Ð200.', money: 200 },
@@ -51,6 +69,16 @@
       { t: 'Deine Werbekampagne geht viral! Jeder Mitspieler zahlt dir Ð20.', collect: 20 },
       { t: 'Studio-Renovierung: Zahle Ð30 pro Ausbaustufe auf deinen Feldern.', repairs: 30 },
       { t: 'Security-Ausweis 🛡️: Schild gegen die nächste Miete.', item: 'shield' },
+      { t: 'Großauftrag: Branding für einen Sportverein. Erhalte Ð250.', money: 250 },
+      { t: 'Festplatte kaputt. Datenrettung: Ð120.', money: -120 },
+      { t: 'Du gibst einen Workshop. Jeder Mitspieler zahlt dir Ð25.', collect: 25 },
+      { t: 'Team-Event! Du lädst alle zum Bowling ein. Zahle jedem Mitspieler Ð20.', payEach: 20 },
+      { t: 'Ein Stock-Foto von dir wurde verkauft. Erhalte Ð60.', money: 60 },
+      { t: 'Der Drucker streikt. Neuer Drucker: Ð90.', money: -90 },
+      { t: 'Du hast einen Messestand designt. Erhalte Ð175.', money: 175 },
+      { t: 'Brandschutz-Prüfung: Ð25 pro Ausbaustufe.', repairs: 25 },
+      { t: 'Kundentermin am anderen Ende. 🌀 Ab auf ein zufälliges Feld!', teleport: true },
+      { t: 'Dein Showreel gewinnt einen Award. Erhalte Ð120.', money: 120 },
     ],
   };
 
@@ -297,6 +325,157 @@
       starts: ['in', 'in', 'in', 'in', 'in', 'in'],
       VIEW: { w: W, h: H },
       words: { zone: 'Etage', city: 'Raum', cities: 'Räume' },
+    };
+  }
+
+  // =====================================================================
+  // 🏝️ DULIDAN ISLANDS – Inselwelt, Fähren zwischen Häfen, jede Runde kann eine Insel überflutet werden
+  // =====================================================================
+  {
+    const ZONES = {
+      pom: { name: 'Pommes-Insel', color: '#ffd83a', build: 50 },
+      zeb: { name: 'Zebra-Atoll', color: '#5fd0ff', build: 50 },
+      pix: { name: 'Pixel-Archipel', color: '#ff8a2a', build: 100 },
+      don: { name: 'Döner-Eiland', color: '#ff3348', build: 150 },
+      ohr: { name: 'Öhringer Inseln', color: '#2fe08a', build: 150 },
+      apr: { name: 'April-Paradies', color: '#ff7ae6', build: 200 },
+      dul: { name: 'DULIDAN-Atoll', color: '#c020b8', build: 250 },
+    };
+    const ISL = [
+      ['pom', 150, 150, [['Fritten-Strand', 60, 'Sand und Pommes. Paradies.'], ['Mayo-Bucht', 60], ['Currywurst-Kap', 80, 'Currywurst mit Meerblick. Ich weine.']]],
+      ['zeb', 430, 105, [['Streifen-Strand', 100], ['MSV-Lagune', 100, 'Zebras schwimmen nicht. Sagen sie.'], ['Zebra-Riff', 120]]],
+      ['pix', 740, 145, [['Pixel-Palme', 140, 'Eine Palme in 8 Bit. Wirft eckige Kokosnüsse.'], ['Vektor-Vulkan', 140], ['Render-Riff', 160]]],
+      ['don', 820, 400, [['Knoblauch-Klippe', 180, 'Riecht man bis zum Festland.'], ['Ayran-Quelle', 180], ['Dönerspieß-Berg', 200, 'Der Berg dreht sich. Langsam.']]],
+      ['ohr', 660, 585, [['Hofgarten-Holm', 220, 'Enten auf einer Insel. Sie sind die Chefs.'], ['Schloss-Sandbank', 220], ['Marktplatz-Mole', 240]]],
+      ['apr', 340, 590, [['Aprils Hängematte', 260, 'Meine Hängematte. Besetzt. Für immer.'], ['Energy-Drink-Lagune', 260], ['Lila Lagune', 280]]],
+      ['dul', 150, 400, [['Logo-Leuchtturm', 320, 'Der Leuchtturm blinkt im Dulidan-Lila.'], ['Studio-Villa', 350], ['DULIDAN Yacht-Club', 400, 'Die Yacht heißt „Berlingo II“.']]],
+    ];
+    const CITIES = [], ROUTES = [];
+    const SEA = { x: 520, y: 360 };
+    const labFor = (dx, dy) => (Math.abs(dx) > 0.4 ? (dx > 0 ? 'e' : 'w') : (dy > 0 ? 's' : 'n'));
+    ISL.forEach(([z, cx, cy, props]) => {
+      // Hafen zeigt Richtung Meeresmitte, die Strände liegen im Kreis dahinter
+      const toSea = Math.atan2(SEA.y - cy, SEA.x - cx);
+      const hub = node(`${z}H`, `Hafen ${ZONES[z].name.split(' ')[0].replace('-Insel', '').replace('-Atoll', '').replace('-Archipel', '').replace('-Eiland', '').replace('-Paradies', '')}`, {
+        type: 'free', hub: true, icon: '⚓', info: '⚓ Hafen: Mit der ⛴️ Fähre vom Dulidan-Würfel kannst du direkt hierher.', quip: 'Leinen los!',
+        x: Math.round(cx + Math.cos(toSea) * 58), y: Math.round(cy + Math.sin(toSea) * 58),
+      });
+      hub.lab = labFor(Math.cos(toSea), Math.sin(toSea));
+      CITIES.push(hub);
+      const ids = props.map((pr, i) => {
+        const a = toSea + Math.PI + (i - 1) * 1.15;
+        const n = node(`${z}${i}`, pr[0], { zone: z, price: pr[1], quip: pr[2], x: Math.round(cx + Math.cos(a) * 62), y: Math.round(cy + Math.sin(a) * 62) });
+        n.lab = labFor(Math.cos(a), Math.sin(a));
+        CITIES.push(n);
+        return n.id;
+      });
+      const loop = [hub.id, ...ids];
+      loop.forEach((id, i) => ROUTES.push([id, loop[(i + 1) % loop.length], 'path']));
+    });
+    // Meeresmitte: Karten und Schatzkisten
+    const mid = [
+      node('sea1', 'April-Karte', { type: 'event', deck: 'april', x: 430, y: 300, lab: 'n' }),
+      node('sea2', 'Studio-Karte', { type: 'event', deck: 'studio', x: 610, y: 420, lab: 's' }),
+      node('sea3', 'Schatzkiste', { type: 'loot', x: 610, y: 290, lab: 'n', quip: 'Eine Schatzkiste! Hoffentlich keine Falle.' }),
+      node('sea4', 'Flaschenpost', { type: 'loot', x: 420, y: 430, lab: 's', quip: 'Flaschenpost! Vielleicht von April.' }),
+    ];
+    CITIES.push(...mid);
+    const sea = (a, b) => ROUTES.push([a, b, 'sea']);
+    sea('pomH', 'zebH'); sea('zebH', 'pixH'); sea('pixH', 'donH'); sea('donH', 'ohrH'); sea('ohrH', 'aprH'); sea('aprH', 'dulH'); sea('dulH', 'pomH');
+    sea('pomH', 'sea1'); sea('zebH', 'sea1'); sea('sea1', 'sea3'); sea('pixH', 'sea3'); sea('sea3', 'donH');
+    sea('donH', 'sea2'); sea('ohrH', 'sea2'); sea('sea2', 'sea4'); sea('aprH', 'sea4'); sea('sea4', 'dulH'); sea('sea1', 'sea4'); sea('sea3', 'sea2');
+    BOARDS.islands = {
+      id: 'islands', title: 'DULIDAN ISLANDS', icon: '🏝️',
+      tagline: 'Sieben Inseln, Fähren zwischen den Häfen. Jede Runde kann eine Insel überflutet werden – dort zahlt dann niemand Miete.',
+      walk: 'random', ZONES, CITIES, ROUTES, LEVELS: ['Unbebaut', 'Strandbar', 'Bungalow', 'Resort', 'Luxus-Villa'],
+      LEVEL_ART: ['', 'eine Strandbar', 'einen Bungalow', 'ein Resort', 'eine Luxus-Villa'],
+      RENT_PCT: [0.2, 1, 2.8, 5.5, 8.5],
+      RULES: { startMoney: 1500, salary: 40, takeoverMult: 1.5, flood: true, crisis: { from: 8, step: 0.2 }, noLimit: true },
+      FACES: [
+        { id: 'nav', icon: '🧭', name: 'Kompass', text: 'Du wählst an jeder Kreuzung selbst, wohin es geht.' },
+        { id: 'jet', icon: '⛴️', name: 'Fähre', text: 'Statt zu laufen fährst du zu einem Hafen deiner Wahl.' },
+        { id: 'pay', icon: '💰', name: 'Zahltag', text: 'Du bekommst Ð150 von der Bank.' },
+        { id: 'april', icon: '💖', name: 'April-Chaos', text: 'April macht irgendwas. Gut oder schlecht.' },
+        { id: 'shield', icon: '🛟', name: 'Rettungsring', text: 'Diesen Zug zahlst du keine Miete.' },
+        { id: 'boss', icon: 'D', name: 'Dulidan-Power', text: 'Du bestimmst selbst, wie weit du läufst (2–12).' },
+      ],
+      CHAOS: WD.CHAOS, EVENTS: WD.EVENTS, FUNK, POWERS,
+      LOOT: [
+        { id: 'money', t: '💰 Piratengold! +Ð150.', money: 150 },
+        { id: 'shield', t: '🛟 Rettungsring! Blockt die nächste Miete.' },
+        { id: 'boost', t: '⚡ Rückenwind! Dein nächster Wurf geht 3 Felder weiter.' },
+        { id: 'money', t: '💎 Perle gefunden! +Ð250.', money: 250 },
+        { id: 'trap', t: '🦀 Eine Krabbe kneift dich. Arztkosten: −Ð60.', money: -60 },
+      ],
+      starts: ['pomH', 'zebH', 'pixH', 'donH', 'ohrH', 'aprH'],
+      VIEW: { w: 1000, h: 700 },
+      words: { zone: 'Insel', city: 'Strand', cities: 'Strände' },
+    };
+  }
+
+  // =====================================================================
+  // 🎪 DULIDAN FESTIVAL – Rundgang übers Festivalgelände, jede Runde ein Headliner
+  // =====================================================================
+  {
+    const ZONES = {
+      cmp: { name: 'Campingplatz', color: '#c47a45', build: 50 },
+      fod: { name: 'Foodcourt', color: '#ffd83a', build: 50 },
+      tec: { name: 'Techno-Zelt', color: '#5fd0ff', build: 100 },
+      rap: { name: 'Rap-Bühne', color: '#ff8a2a', build: 100 },
+      rck: { name: 'Rock-Stage', color: '#ff3348', build: 150 },
+      vip: { name: 'VIP-Bereich', color: '#2fe08a', build: 200 },
+      dul: { name: 'Main Stage', color: '#c020b8', build: 250 },
+    };
+    const p = (id, name, zone, price, quip) => node(id, name, { zone, price, quip });
+    const ring = [
+      node('in', 'Eingang', { type: 'free', icon: '🎟️', quip: 'Bändchen dran? Dann rein da!' }),
+      p('c1', 'Zeltplatz', 'cmp', 60, 'Zelt aufgebaut. Nach zwei Stunden.'), p('c2', 'Dosenravioli-Grill', 'cmp', 60), p('c3', 'Luftmatratzen-Lager', 'cmp', 80, 'Platt. Natürlich.'),
+      node('ev1', 'April-Karte', { type: 'event', deck: 'april' }),
+      p('f1', 'Döner-Truck', 'fod', 100, 'Festival-Döner. Doppelt so teuer, doppelt so gut.'), p('f2', 'Pommes-Bude', 'fod', 100), p('f3', 'Crêpes-Stand', 'fod', 120),
+      node('wc', 'Dixi-Klo', { type: 'free', icon: '🚽', quip: 'Nicht atmen. Einfach nicht atmen.' }),
+      p('t1', 'Bass-Bunker', 'tec', 140, 'Der Bass massiert meine Organe.'), p('t2', 'Strobo-Halle', 'tec', 140), p('t3', 'Nebelmaschine', 'tec', 160),
+      node('lt1', 'Merch-Kiste', { type: 'loot', quip: 'Merch! Ich nehm ein Shirt in jeder Farbe.' }),
+      p('r1', 'Cypher-Kreis', 'rap', 180, 'Ich droppe Bars. Schlechte Bars.'), p('r2', 'Ad-Lib-Ecke', 'rap', 180), p('r3', 'Bars-Bühne', 'rap', 200),
+      node('ev2', 'Studio-Karte', { type: 'event', deck: 'studio' }),
+      p('k1', 'Moshpit-Arena', 'rck', 220, 'Moshpit! Ich bin klein, aber gefährlich.'), p('k2', 'Gitarren-Turm', 'rck', 220), p('k3', 'Crowdsurf-Graben', 'rck', 240),
+      node('lt2', 'Glitzer-Kiste', { type: 'loot', quip: 'Glitzer überall. Für immer.' }),
+      p('v1', 'VIP-Lounge', 'vip', 260, 'Bändchen-Kontrolle. Ich bin auf der Liste.'), p('v2', 'Champagner-Bar', 'vip', 260), p('v3', 'Backstage', 'vip', 280),
+      node('ev3', 'April-Karte', { type: 'event', deck: 'april' }),
+      p('m1', 'Lichtpult', 'dul', 320), p('m2', 'Pyro-Tower', 'dul', 350, 'FEUER! Kontrolliertes Feuer.'), p('m3', 'DULIDAN Main Stage', 'dul', 400, 'Die Main Stage. Headliner: April.'),
+    ];
+    const cx = 500, cy = 350, rx = 360, ry = 270;
+    ring.forEach((n, i) => {
+      const a = (-90 + (i * 360) / ring.length) * Math.PI / 180;
+      n.x = Math.round(cx + Math.cos(a) * rx); n.y = Math.round(cy + Math.sin(a) * ry);
+      n.next = ring[(i + 1) % ring.length].id;
+      n.lab = Math.abs(Math.cos(a)) < 0.4 ? (Math.sin(a) < 0 ? 'n' : 's') : (Math.cos(a) > 0 ? 'e' : 'w');
+    });
+    BOARDS.festival = {
+      id: 'festival', title: 'DULIDAN FESTIVAL', icon: '🎪',
+      tagline: 'Ein Rundgang übers Festivalgelände. Jede Runde ist eine Area Headliner – dort kostet alles das Dreifache.',
+      walk: 'ring', ZONES, CITIES: ring, ROUTES: ring.map((n) => [n.id, n.next, 'ring']),
+      LEVELS: ['Leer', 'Stand', 'Zelt', 'Bühne', 'Mega-Stage'], LEVEL_ART: ['', 'einen Stand', 'ein Zelt', 'eine Bühne', 'eine Mega-Stage'],
+      RENT_PCT: [0.2, 1, 2.8, 5.5, 8.5],
+      RULES: { startMoney: 1500, salary: 50, takeoverMult: 1.5, headliner: true, crisis: { from: 8, step: 0.2 }, noLimit: true },
+      FACES: [
+        { id: 'pay', icon: '💰', name: 'Gage', text: 'Du bekommst Ð150 Gage.' },
+        { id: 'shield', icon: '🎫', name: 'Freikarte', text: 'Diesen Zug zahlst du keine Miete.' },
+        { id: 'april', icon: '💖', name: 'April-Chaos', text: 'April macht irgendwas. Gut oder schlecht.' },
+        { id: 'boss', icon: 'D', name: 'Dulidan-Power', text: 'Du bestimmst selbst, wie weit du läufst (2–12).' },
+        { id: 'encore', icon: '🔁', name: 'Zugabe!', text: 'Die Crowd will mehr: Du darfst nochmal würfeln.' },
+        { id: 'surf', icon: '🏄', name: 'Crowdsurfen', text: 'Die Menge trägt dich 3 Felder weiter.' },
+      ],
+      CHAOS: WD.CHAOS, EVENTS: WD.EVENTS, FUNK, POWERS,
+      LOOT: [
+        { id: 'money', t: '💰 Ein Bündel Festival-Coins! +Ð150.', money: 150 },
+        { id: 'shield', t: '🎫 Backstage-Pass! Blockt die nächste Miete.' },
+        { id: 'boost', t: '⚡ Energy-Drink! Dein nächster Wurf geht 3 Felder weiter.' },
+        { id: 'money', t: '👕 Seltenes Merch-Shirt verkauft: +Ð200.', money: 200 },
+        { id: 'trap', t: '🍺 Jemand hat dir Bier übers Handy gekippt. −Ð80.', money: -80 },
+      ],
+      starts: ['in', 'in', 'in', 'in', 'in', 'in'],
+      VIEW: { w: 1000, h: 700, cx, cy, rx, ry },
+      words: { zone: 'Area', city: 'Spot', cities: 'Spots' },
     };
   }
 

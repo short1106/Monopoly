@@ -104,7 +104,15 @@
     berlingo: 'Darf nach jedem Wurf 1 Schritt mehr oder weniger laufen.',
     pen: 'Gebäude kosten Ð25 weniger.',
     helmet: 'Übernahmen seiner Städte kosten 2× statt 1,5×.',
-    doener: 'Street-Food-Tour: Ð30 für jede Stadt, in der er zum ersten Mal landet.',
+    doener: 'Street-Food-Tour: Ð30 für jede Stadt, in der die Figur zum ersten Mal landet.',
+    cat: 'Die erste fiese Karte im Spiel prallt einfach ab.',
+    crown: 'Bekommt jede Runde Ð20 mehr Gehalt.',
+    ghost: 'Einmal pro Spiel durch die Wand: eine Maut einfach nicht zahlen.',
+    pizza: 'Fiese Geld-Karten und April-Chaos kosten nur die Hälfte.',
+    camera: 'Content-Profi: Geld von Karten gibt 50 % mehr.',
+    duck: 'Hypotheken bringen 60 % statt 50 % vom Preis.',
+    gamepad: 'Jeder Pasch bringt Ð30 Highscore-Bonus.',
+    rocket: 'Startet mit Ð150 mehr.',
   };
 
   // Weltnachrichten von April – eine pro Runde
@@ -122,6 +130,13 @@
     { t: 'Übernahme-Saison: Feindliche Übernahmen kosten nur 1,2×.', takeoverMult: 1.2 },
     { t: 'Stau weltweit: Diese Runde würfelt jeder nur mit einem Würfel.', oneDie: true },
     { t: 'April verteilt Energy-Drinks: Diese Runde würfelt jeder mit drei Würfeln!', threeDice: true },
+    { t: 'Lotto-Gewinn! Die ärmste Person bekommt Ð300.', poorGift: 300 },
+    { t: 'Reichensteuer: Die reichste Person zahlt Ð200 an die Bank.', richTax: 200 },
+    { t: 'Konfetti-Regen: Alle bekommen Ð75.', gift: 75 },
+    { t: 'Bauamt im Urlaub: Gebäude kosten diese Runde nur ein Viertel.', buildMult: 0.25 },
+    { t: 'Pasch-Fieber: Jeder Pasch bringt diese Runde Ð100.', doubleBonus: 100 },
+    { t: 'Maut-Wahnsinn: Alle Mauten diese Runde ×2.', rentMult: 2 },
+    { t: 'Feiertag! Diese Runde zahlt niemand Maut.', rentMult: 0 },
   ];
 
   // Grobe Kontinent-Umrisse (lon, lat) für die Punktkarte

@@ -6,7 +6,8 @@
   if (isNode) { require('./world-data.js'); require('./boards-data.js'); }
   const BOARDS = root.DULI_BOARDS;
   const MOOD = isNode ? require('./mood.js') : root.DULI_MOOD;
-  const MODES = ['world', 'royale', 'metro', 'tower'];
+  const RL = isNode ? require('./rules.js') : root.DULI_RULES;
+  const MODES = ['world', 'royale', 'metro', 'tower', 'islands', 'festival'];
 
   // ---------- Bretter vorbereiten ----------
   const compiled = {};
@@ -61,10 +62,13 @@
   function rentFor(S, id, payer) {
     const g = G(S), c = g.CITY[id], st = S.cities[id];
     if (!st || !st.owner || st.mort) return 0;
+    if (S.flood && S.flood === c.zone) return 0;
     let r = c.price * g.RENT_PCT[st.level];
-    if (st.level === 0 && zoneComplete(S, st.owner, c.zone)) r *= 2;
+    if (st.level === 0 && zoneComplete(S, st.owner, c.zone)) r *= RL.monoMult(S);
+    if (S.headliner && S.headliner === c.zone) r *= 3;
+    r *= RL.rentFactor(S);
     if (ev(S).boom && ev(S).zone === c.zone) r *= 2;
-    if (ev(S).rentMult) r *= ev(S).rentMult;
+    if (ev(S).rentMult != null) r *= ev(S).rentMult;
     if (S.inflation) r *= 1 + S.inflation;
     if (S.settings && S.settings.variant === 'hardcore') r *= 1.5;
     if (payer && payer.token === 'ship' && c.hub) r /= 2;
@@ -79,7 +83,7 @@
     return r5(c.price * 0.1 + st.level * 20);
   }
   function salaryOf(S, p) {
-    const base = G(S).RULES.salary + (p.token === 'zebra' ? 50 : 0);
+    const base = G(S).RULES.salary + (p.token === 'zebra' ? 50 : 0) + (p.token === 'crown' ? 20 : 0);
     return Math.round(base * (ev(S).salaryMult ?? 1));
   }
   function buyPrice(p, id, S) {
@@ -89,14 +93,14 @@
   function buildCost(S, p, id) {
     const g = G(S);
     const base = g.ZONES[g.CITY[id].zone].build - (p.token === 'pen' ? 25 : 0);
-    return r5(base * (ev(S).buildMult || 1));
+    return Math.max(5, r5(base * (ev(S).buildMult || 1) * RL.buildFactor(S)));
   }
   function takeoverCost(S, id) {
     const g = G(S), c = g.CITY[id], st = S.cities[id], owner = P(S, st.owner);
     const mult = owner && owner.token === 'helmet' ? 2 : (ev(S).takeoverMult || g.RULES.takeoverMult);
     return r5((c.price + st.level * g.ZONES[c.zone].build) * mult);
   }
-  function unmortgageCost(id, S) { return Math.ceil((S ? G(S) : board('world')).CITY[id].price * 0.55); }
+  function unmortgageCost(id, S) { return Math.ceil((S ? G(S) : board('world')).CITY[id].price * (RL.on(S, 'mortgageFree') ? 0.5 : 0.55)); }
 
   function netWorth(S, p) {
     const g = G(S);
@@ -125,7 +129,7 @@
     if (!zoneComplete(S, p.id, c.zone)) return `Erst die ganze ${g.words.zone} besitzen.`;
     if (g.ZONE_CITIES[c.zone].some(i => S.cities[i].mort)) return 'Da ist noch eine Hypothek drauf.';
     if (st.level >= 4) return 'Hier ist schon alles ausgebaut.';
-    if (st.level > Math.min(...g.ZONE_CITIES[c.zone].map(i => S.cities[i].level))) return 'Gleichmäßig bauen! Erst die anderen Felder der Gruppe.';
+    if (st.level > Math.min(...g.ZONE_CITIES[c.zone].map(i => S.cities[i].level)) && !RL.on(S, 'freeBuild')) return 'Gleichmäßig bauen! Erst die anderen Felder der Gruppe.';
     if (p.money < buildCost(S, p, id)) return 'Nicht genug Dulis.';
     return null;
   }
@@ -167,6 +171,16 @@
     S.goal = variant === 'million' ? 5000 : 0;
     S.crisis = g.RULES.crisis ? { ...g.RULES.crisis, from: variant === 'blitz' ? 3 : g.RULES.crisis.from } : null;
     if (variant === 'hardcore') S.players.forEach(p => { p.money = 800; });
+    if (variant === 'rich') S.players.forEach(p => { p.money = 5000; });
+    if (variant === 'tycoon') S.players.forEach(p => { p.money = Math.max(500, p.money - 500); });
+    S.players.forEach(p => { if (p.token === 'rocket') p.money += 150; p.used = { ghost: false, cat: false }; });
+    const giveProps = (n) => {
+      const free = g.PROPS.filter(id => !S.cities[id].owner).sort(() => rng() - 0.5);
+      for (let r = 0; r < n; r++) for (const p of S.players) { const id = free.pop(); if (id) S.cities[id].owner = p.id; }
+    };
+    if (variant === 'tycoon') giveProps(3);
+    if (RL.on(S, 'startProps')) giveProps(2);
+    S.flood = null; S.headliner = null;
     if (variant === 'blitz') {
       const ids = g.PROPS.slice().sort(() => rng() - 0.5);
       ids.forEach((id, i) => { S.cities[id].owner = S.players[i % S.players.length].id; });
@@ -179,8 +193,11 @@
     S.debt = null; S.trade = null; S.log = []; S.winner = null; S.ranking = null;
     MOOD.init(S);
     log(S, `${g.title} startet! ${g.tagline}`);
-    const intro = { blitz: '⚡ Blitz: Alles ist verteilt. Nach 20 Runden gewinnt der Reichste!', million: '💸 Millionär: Wer zuerst Ð5000 Vermögen hat, gewinnt!', chaos: '💖 April-Chaos: Jeden Zug eine neue Nachricht.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5.' }[variant];
+    S.hist = [];
+    recordHist(S);
+    const intro = { blitz: '⚡ Blitz: Alles ist verteilt. Die Krise kommt schon in Runde 3!', million: '💸 Millionär: Wer zuerst Ð5000 Vermögen hat, gewinnt!', chaos: '💖 April-Chaos: Jeden Zug eine neue Nachricht.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5.' }[variant];
     if (intro) log(S, intro);
+    else if (variant !== 'normal') { const v = RL.VARIANTS.find(x => x.id === variant); if (v) log(S, `${v.icon} ${v.name}: ${v.text}`); }
     beginTurn(S);
     return null;
   }
@@ -193,7 +210,43 @@
     S.sub = 'roll';
     S.doubles = 0; S.again = false; S.shield = false; S.landed = false; S.tookOver = false;
     log(S, `${p.name} ist dran${sal ? ` und bekommt ${M(sal)} Gehalt` : ''}.`);
+    if (sal && RL.on(S, 'interest')) {
+      const z = Math.min(50, Math.floor(p.money * 0.03));
+      if (z > 0) { p.money += z; log(S, `🏦 Zinsen: ${p.name} bekommt ${M(z)}.`); }
+    }
     MOOD.turnStart(S, p, moodApi(S));
+    const tax = RL.suddenTax(S);
+    if (tax && !p.bankrupt) {
+      log(S, `⏳ Sudden Death: ${p.name} zahlt ${M(tax)} Überlebens-Steuer.`);
+      charge(S, p, [{ to: null, amt: tax }]);
+    }
+  }
+
+  // Einmal pro Runde: Hausregeln, Varianten und Brett-Twists
+  function roundRules(S) {
+    const g = G(S), act = active(S);
+    if (act.length < 2) return;
+    if (RL.on(S, 'robin')) {
+      const byMoney = act.slice().sort((a, b) => b.money - a.money);
+      const rich = byMoney[0], poor = byMoney[byMoney.length - 1];
+      const x = Math.min(50, rich.money);
+      rich.money -= x; poor.money += x;
+      log(S, `🏹 Robin Hood: ${rich.name} gibt ${poor.name} ${M(x)}.`);
+    }
+    if (RL.variant(S) === 'swap' && S.round % 5 === 0) {
+      const ms = act.map(p => p.money).sort(() => rng() - 0.5);
+      act.forEach((p, i) => { p.money = ms[i]; });
+      log(S, '🔄 Konto-Roulette! Alle Kontostände wurden getauscht.');
+    }
+    const zones = Object.keys(g.ZONES);
+    if (g.RULES.flood) {
+      S.flood = S.round >= 3 && rng() < 0.6 ? pick(zones) : null;
+      if (S.flood) log(S, `🌊 Flut! ${g.ZONES[S.flood].name} steht unter Wasser. Dort zahlt diese Runde niemand Miete.`);
+    }
+    if (g.RULES.headliner) {
+      S.headliner = pick(zones);
+      log(S, `🎤 Headliner dieser Runde: ${g.ZONES[S.headliner].name}! Dort kostet alles 3×.`);
+    }
   }
 
   // Was April bei Hass kaputt machen darf
@@ -236,6 +289,9 @@
     }
     if (e.taxPct) for (const p of act) p.money -= Math.floor(p.money * e.taxPct);
     if (e.gift) for (const p of act) p.money += e.gift;
+    const byMoney = act.slice().sort((a, b) => b.money - a.money);
+    if (e.poorGift && byMoney.length) byMoney[byMoney.length - 1].money += e.poorGift;
+    if (e.richTax && byMoney.length) byMoney[0].money -= Math.min(byMoney[0].money, e.richTax);
   }
 
   // ---------- ROYALE: der April-Sturm ----------
@@ -311,8 +367,17 @@
       stormTick(S);
       crisisTick(S);
       MOOD.newRound(S, active(S), (q) => netWorth(S, q));
+      roundRules(S);
+      recordHist(S);
     } else if (S.settings && S.settings.variant === 'chaos') drawEvent(S);
     beginTurn(S);
+  }
+
+  // Vermögen pro Runde für das Diagramm am Spielende (bei langen Spielen ausgedünnt)
+  function recordHist(S) {
+    if (!S.hist) S.hist = [];
+    S.hist.push(S.players.map(p => (p.bankrupt ? 0 : Math.round(netWorth(S, p)))));
+    if (S.hist.length > 160) S.hist = S.hist.filter((_, i) => i % 2 === 0);
   }
 
   function rank(S) {
@@ -349,10 +414,16 @@
     S.face = face ? face.id : null;
     S.rollId++;
     const dbl = b && a === b;
-    let steps = a + b + c;
+    const turbo = RL.variant(S) === 'speed' ? 1 + Math.floor(rng() * 3) : 0;
+    let steps = a + b + c + turbo;
+    if (turbo) log(S, `🏎️ Turbo-Würfel: +${turbo}`);
     const faceTxt = face ? ` · Dulidan-Würfel: ${face.icon === 'D' ? '💜' : face.icon} ${face.name}` : '';
     log(S, `🎲 ${p.name} würfelt ${[a, b, c].filter(Boolean).join(' + ')} = ${steps}${dbl ? ' (Pasch)' : ''}${faceTxt}`);
     if (dbl) { S.doubles++; p.stats.doubles++; if (S.doubles === 2) MOOD.doubles(S, p); }
+    if (a + b + c === 7 && RL.on(S, 'lucky7')) { p.money += 77; log(S, `🍀 Glückszahl 7! ${p.name} bekommt ${M(77)}.`); }
+    if (dbl && RL.on(S, 'doublesCash')) { p.money += 50; log(S, `🎲 Pasch-Prämie: ${p.name} bekommt ${M(50)}.`); }
+    if (dbl && e.doubleBonus) { p.money += e.doubleBonus; log(S, `🎉 Pasch-Fieber: ${p.name} bekommt ${M(e.doubleBonus)}.`); }
+    if (dbl && p.token === 'gamepad') { p.money += 30; log(S, `🎮 Highscore-Bonus: ${p.name} bekommt ${M(30)}.`); }
     S.again = !!dbl && S.doubles < 3;
     if (p.items && p.items.boost > 0) {
       p.items.boost--;
@@ -368,16 +439,25 @@
       case 'shield':
         S.shield = true;
         break;
+      case 'encore':
+        S.again = true;
+        log(S, `🔁 Zugabe! ${p.name} darf gleich nochmal würfeln.`);
+        break;
+      case 'surf':
+        steps += 3;
+        log(S, `🏄 Crowdsurfen! ${p.name} wird 3 Felder weitergetragen.`);
+        break;
       case 'april': {
         const pool = p.token === 'april' ? g.CHAOS.filter(x => x.good) : g.CHAOS;
         const x = pick(pool);
         log(S, `💖 April-Chaos: ${x.t}`);
         const others = active(S).filter(o => o.id !== p.id);
+        const half = p.token === 'pizza' ? 0.5 : 1;
         if (x.money > 0) p.money += x.money;
         if (x.collect) for (const o of others) { const v = Math.min(o.money, x.collect); o.money -= v; p.money += v; }
         if (x.stepMult) steps = Math.max(1, Math.round(steps * x.stepMult));
-        if (x.money < 0 && !charge(S, p, [{ to: null, amt: -x.money }])) { S.pendingSteps = steps; return; }
-        if (x.payEach && !charge(S, p, others.map(o => ({ to: o.id, amt: x.payEach })))) { S.pendingSteps = steps; return; }
+        if (x.money < 0 && !charge(S, p, [{ to: null, amt: Math.round(-x.money * half) }])) { S.pendingSteps = steps; return; }
+        if (x.payEach && !charge(S, p, others.map(o => ({ to: o.id, amt: Math.round(x.payEach * half) })))) { S.pendingSteps = steps; return; }
         break;
       }
     }
@@ -468,6 +548,8 @@
           if (S.shield) { log(S, `🛡️ Schutzschild! ${p.name} zahlt nichts an ${owner.name}.`); break; }
           if (p.items && p.items.shield > 0) { p.items.shield--; log(S, `🛡️ ${p.name} blockt die Miete mit einem Schild!`); break; }
           const toll = rentFor(S, id, p);
+          if (toll <= 0) { log(S, `Mietfrei! ${p.name} zahlt nichts.`); break; }
+          if (p.token === 'ghost' && p.used && !p.used.ghost && toll >= 100) { p.used.ghost = true; log(S, `👻 ${p.name} geht als Geist durch die Wand und zahlt keine ${M(toll)}!`); break; }
           log(S, `${p.name} zahlt ${M(toll)} Miete an ${owner.name}.`);
           p.stats.rentPaid += toll; p.stats.maxRent = Math.max(p.stats.maxRent, toll);
           owner.stats.rentGot += toll;
@@ -648,16 +730,22 @@
         S.card = null;
         S.sub = 'end';
         log(S, `${x.t}`);
+        if (p.token === 'cat' && p.used && !p.used.cat && MOOD.cardTone(x) < 0) {
+          p.used.cat = true;
+          log(S, `🐈 Glückskatze! Die fiese Karte prallt an ${p.name} ab.`);
+          return null;
+        }
         const others = active(S).filter(o => o.id !== p.id);
-        if (x.money > 0) p.money += x.money;
-        if (x.collect) for (const o of others) { const v = Math.min(o.money, x.collect); o.money -= v; p.money += v; }
+        const cm = RL.cardMult(S), up = cm * (p.token === 'camera' ? 1.5 : 1), down = cm * MOOD.badMult(S) * (p.token === 'pizza' ? 0.5 : 1);
+        if (x.money > 0) p.money += Math.round(x.money * up);
+        if (x.collect) for (const o of others) { const v = Math.min(o.money, Math.round(x.collect * up)); o.money -= v; p.money += v; }
         if (x.fromRichest) {
           const rich = others.slice().sort((a, b) => b.money - a.money)[0];
-          if (rich) { const v = Math.min(rich.money, x.fromRichest); rich.money -= v; p.money += v; log(S, `${rich.name} zahlt ${M(v)} an ${p.name}.`); }
+          if (rich) { const v = Math.min(rich.money, Math.round(x.fromRichest * up)); rich.money -= v; p.money += v; log(S, `${rich.name} zahlt ${M(v)} an ${p.name}.`); }
         }
         if (x.item) p.items[x.item] = (p.items[x.item] || 0) + 1;
-        if (x.money < 0) charge(S, p, [{ to: null, amt: Math.round(-x.money * MOOD.badMult(S)) }]);
-        else if (x.payEach) charge(S, p, others.map(o => ({ to: o.id, amt: Math.round(x.payEach * MOOD.badMult(S)) })));
+        if (x.money < 0) charge(S, p, [{ to: null, amt: Math.round(-x.money * down) }]);
+        else if (x.payEach) charge(S, p, others.map(o => ({ to: o.id, amt: Math.round(x.payEach * down) })));
         else if (x.repairs) {
           const lv = Object.values(S.cities).filter(st => st.owner === p.id).reduce((a, st) => a + st.level, 0);
           if (lv) { log(S, `${p.name} zahlt ${M(lv * x.repairs)} für ${lv} Ausbaustufen.`); charge(S, p, [{ to: null, amt: lv * x.repairs }]); }
@@ -726,7 +814,7 @@
         if (!manage) return 'Geht gerade nicht.';
         const id = String(a.id), c = g.CITY[id], s2 = S.cities[id];
         if (!c || !s2 || s2.owner !== p.id || !s2.level) return 'Hier gibt es nichts zu verkaufen.';
-        if (s2.level < Math.max(...g.ZONE_CITIES[c.zone].map(i => S.cities[i].level))) return 'Gleichmäßig abreißen!';
+        if (s2.level < Math.max(...g.ZONE_CITIES[c.zone].map(i => S.cities[i].level)) && !RL.on(S, 'freeBuild')) return 'Gleichmäßig abreißen!';
         s2.level--;
         const back = Math.floor(g.ZONES[c.zone].build / 2);
         p.money += back;
@@ -739,8 +827,9 @@
         if (!c || !s2 || s2.owner !== p.id || s2.mort) return 'Geht nicht.';
         if (zoneHasBuildings(S, c.zone)) return 'Erst alle Gebäude der Gruppe abreißen.';
         s2.mort = true;
-        p.money += c.price / 2;
-        log(S, `${p.name} nimmt eine Hypothek auf ${c.name} auf (+${M(c.price / 2)}).`);
+        const val = Math.round(c.price * (p.token === 'duck' ? 0.6 : 0.5));
+        p.money += val;
+        log(S, `${p.name} nimmt eine Hypothek auf ${c.name} auf (+${M(val)}).`);
         return null;
       }
       case 'unmortgage': {

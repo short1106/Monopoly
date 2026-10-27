@@ -2,7 +2,7 @@
 (function () {
   const D = window.DULI_DATA, E = window.DULI_ENGINE, Net = window.DULI_NET, FX = window.DULI_FX;
   const W = window.DULI_WORLD, WD = window.DULI_WORLD_DATA;
-  const MOOD = window.DULI_MOOD, CZ = window.DULI_CASINO;
+  const MOOD = window.DULI_MOOD, CZ = window.DULI_CASINO, RL = window.DULI_RULES;
   const isWorld = () => !!(App.S && W.MODES.includes(App.S.mode));
   const GB = () => W.board(App.S.mode);
   const ENG = () => (isWorld() ? W : E);
@@ -256,6 +256,7 @@
     if (!name) return;
     const S = E.newGame();
     E.addPlayer(S, myId, name);
+    if (App.prefMode) E.setSettings(S, { mode: App.prefMode });
     startHost(Net.randomCode(), S);
   };
 
@@ -277,6 +278,7 @@
 
   $('#btn-local').onclick = () => {
     App.mode = 'local'; App.code = null; App.S = E.newGame(); App.localSel = null;
+    if (App.prefMode) E.setSettings(App.S, { mode: App.prefMode });
     show('screen-lobby');
     renderLobby();
     $('#in-local-name').focus();
@@ -302,6 +304,50 @@
     nameIn.value = savedClient.name;
     joinRoom(savedClient.code, savedClient.name);
   }
+
+  // ---------- Startseite: Laufband, Modi, Features ----------
+  const FEATS = [
+    ['💖', 'Aprils Laune', 'April mag jede Person anders. Bestich sie – oder sie reißt dir ein Haus ab.'],
+    ['🎙️', 'Live-Kommentar', 'April kommentiert große Momente wie im Fußball. Laut, unfair, ehrlich.'],
+    ['🧩', '17 Hausregeln', 'Pasch-Prämie, Mietwahnsinn, Robin Hood, Geheimes Konto … einfach anklicken.'],
+    ['🎰', 'Casino-Minispiele', 'Münzwurf bis Slotmaschine, Blackjack gegen die Bank. Korruption inklusive.'],
+    ['🌍', 'MEGA-Weltreise', '120 Felder von Sofia bis New York – und ganz am Ende das DULIDAN HQ.'],
+    ['📈', 'Geldverlauf & Erfolge', 'Am Ende siehst du, wer wann abgestürzt ist. Erfolge bleiben gespeichert.'],
+  ];
+  function buildHome() {
+    const modes = modeList();
+    const names = modes.map((m) => `<span>${esc(m.name.replace('DULIDAN ', ''))}</span>`).join('');
+    $('#marquee').innerHTML = names + names;
+    $('#home-modes').innerHTML = modes.map((m, i) => modeCardHTML(m, i, m.id === App.prefMode)).join('');
+    $('#home-feats').innerHTML = FEATS.map(([ic, t, d], i) => `<article class="feat spot"><span class="mc-n">F/${String(i + 1).padStart(2, '0')}</span><span class="mc-ic">${ic}</span><strong>${t}</strong><small>${d}</small></article>`).join('');
+    const pick = $('#home-pick');
+    const m = modes.find((x) => x.id === App.prefMode);
+    pick.hidden = !m;
+    if (m) pick.innerHTML = `Modus: <strong>${m.icon} ${esc(m.name)}</strong> <button type="button" class="link-btn" id="home-pick-x">ändern</button>`;
+  }
+  App.prefMode = store.get('duli-mode');
+  $('#home-modes').addEventListener('click', (e) => {
+    const c = e.target.closest('[data-mode]');
+    if (!c) return;
+    App.prefMode = c.dataset.mode;
+    store.set('duli-mode', App.prefMode);
+    buildHome();
+    FX.play('pop');
+    $('.hero2').scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => nameIn.focus(), 450);
+  });
+  $('#home-pick').addEventListener('click', (e) => {
+    if (e.target.id !== 'home-pick-x') return;
+    $('#home-modes').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  // Spotlight-Effekt auf Karten wie auf dulidan-studios.com
+  document.addEventListener('pointermove', (e) => {
+    const c = e.target.closest && e.target.closest('.spot');
+    if (!c) return;
+    const r = c.getBoundingClientRect();
+    c.style.setProperty('--mx', `${e.clientX - r.left}px`);
+    c.style.setProperty('--my', `${e.clientY - r.top}px`);
+  });
 
   // ---------- Lobby ----------
   function enterRoom() {
@@ -360,19 +406,45 @@
     enterRoom();
   };
 
-  const VARIANTS = [
-    { id: 'normal', ic: '🎲', name: 'Klassisch', text: 'Die normalen Regeln.' },
-    { id: 'blitz', ic: '⚡', name: 'Blitz', text: 'Alles wird am Start verteilt. Nach 20 Runden gewinnt der Reichste.' },
-    { id: 'million', ic: '💸', name: 'Millionär', text: 'Wer zuerst Ð5.000 Vermögen hat, gewinnt.' },
-    { id: 'chaos', ic: aprilIcon('v-april'), name: 'April-Chaos', text: 'April wirft ständig Chaos-Events rein. Nichts ist sicher.' },
-    { id: 'hardcore', ic: '💀', name: 'Hardcore', text: 'Nur Ð800 Startgeld, alle Mieten ×1,5.' },
-  ];
+  const VARIANTS = RL.VARIANTS;
+  const varIcon = (v) => (v.icon === 'april' ? aprilIcon('v-april') : v.icon);
+  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut', 'NEU'], festival: ['Rundgang', 'Headliner', 'NEU'] };
+  function modeList() {
+    return [
+      { id: 'classic', icon: '🎲', name: 'Klassisch', text: 'Das Brett mit Duisburg und Öhringen. Als MINI, Normal oder MEGA-Weltreise.' },
+      { id: 'casino', icon: '🎰', name: 'DULIDAN CASINO', text: 'Jede Straße ist ein Casino. Wer bei dir landet, zockt gegen deine Bank.' },
+      ...W.MODES.map((id) => { const b = W.board(id); return { id, icon: b.icon || '🌍', name: b.title, text: b.tagline }; }),
+    ].map((m) => Object.assign(m, { tags: MODE_TAGS[m.id] || [] }));
+  }
+  function modeCardHTML(m, i, on, attrs = '') {
+    return `<button type="button" class="mode-card spot ${on ? 'is-on' : ''}" data-mode="${m.id}" ${attrs}>
+      <span class="mc-n">M/${String(i + 1).padStart(2, '0')}</span><span class="mc-ic">${m.icon}</span>
+      <strong>${esc(m.name)}</strong><small>${esc(m.text)}</small>
+      <span class="mc-tags">${m.tags.map((t) => `<i class="${t === 'NEU' ? 'hot' : ''}">${t}</i>`).join('')}</span></button>`;
+  }
+  function ruleCards(st, world) {
+    const rules = st.rules || {};
+    const extra = world ? [] : [
+      { id: 'pot', setting: 'pot', icon: '🐷', name: 'Aprils Spardose', text: 'Steuern und Strafen sammeln sich auf „Aprils Pause“.', on: st.pot !== false },
+      { id: 'goDouble', setting: 'goDouble', icon: '💸', name: 'Doppelt auf LOS', text: 'Wer genau auf LOS landet, bekommt das Gehalt doppelt.', on: !!st.goDouble },
+    ];
+    return extra.concat(RL.RULES.filter((r) => !r.only || !world).map((r) => Object.assign({}, r, { on: !!rules[r.id] })));
+  }
   $('#settings').addEventListener('click', (e) => {
+    if (App.mode === 'client' || !App.S || App.S.phase !== 'lobby') return;
+    const m = e.target.closest('[data-mode]');
+    if (m) { E.setSettings(App.S, { mode: m.dataset.mode }); return commit(); }
+    const r = e.target.closest('[data-rule]');
+    if (r) {
+      const on = !r.classList.contains('is-on');
+      E.setSettings(App.S, r.dataset.setting ? { [r.dataset.setting]: on } : { rule: r.dataset.rule, on });
+      return commit();
+    }
     const b = e.target.closest('.variant');
-    if (!b || App.mode === 'client' || !App.S) return;
+    if (!b) return;
     E.setSettings(App.S, { variant: b.dataset.variant });
     const v = VARIANTS.find((x) => x.id === b.dataset.variant);
-    if (v) aprilSay({ normal: 'Klassisch. Solide Wahl. Langweilig, aber solide.', blitz: 'Blitz! Alles verteilt, keine Gnade.', million: 'Millionär! Ich zähl mit. Ð5.000 und Schluss.', chaos: 'April-Chaos?! Endlich darf ich mal richtig. Hehe.', hardcore: 'Hardcore. Ð800. Ich hoffe, ihr könnt rechnen.' }[v.id]);
+    if (v) aprilSay({ normal: 'Klassisch. Solide Wahl. Langweilig, aber solide.', blitz: 'Blitz! Alles verteilt, keine Gnade.', million: 'Millionär! Ich zähl mit. Ð5.000 und Schluss.', chaos: 'April-Chaos?! Endlich darf ich mal richtig. Hehe.', hardcore: 'Hardcore. Ð800. Ich hoffe, ihr könnt rechnen.', speed: 'Turbo! Drei Würfel, null Geduld.', tycoon: 'Baulöwe. Ich riech schon den Beton.', rich: 'Neureich! Viel Geld, noch mehr Miete.', sudden: 'Sudden Death. Am Ende bleibt nur einer. Oder keiner.', swap: 'Konto-Roulette! Heute reich, morgen pleite. Herrlich.' }[v.id]);
     commit();
   });
 
@@ -401,25 +473,26 @@
     $('#lobby-tools').hidden = App.mode === 'client';
     const st = S.settings || { startMoney: 1500, pot: true, goDouble: false };
     const ro = App.mode === 'client' ? 'disabled' : '';
-    const world = W.MODES.includes(st.mode);
+    const mode = st.mode || 'classic';
+    const world = W.MODES.includes(mode);
     const curVar = st.variant || 'normal';
-    const vText = (v) => (world && v.id === 'blitz' ? 'Alles wird am Start verteilt. Die Krise kommt schon in Runde 3 – bis alle pleite sind.' : v.text);
-    const variantsHTML = `<div class="row-block"><span class="vb-title">Spielvariante<small>${esc(vText(VARIANTS.find((v) => v.id === curVar)))}</small></span>
-      <div class="variant-grid">${VARIANTS.map((v) => `<button type="button" class="variant ${v.id === curVar ? 'is-on' : ''}" data-variant="${v.id}" ${ro}><span class="v-ic">${v.ic}</span><strong>${v.name}</strong><small>${vText(v)}</small></button>`).join('')}</div></div>`;
-    $('#settings').innerHTML = variantsHTML + `
-      <label class="row"><span>Spielmodus<small>${world ? esc(W.board(st.mode).tagline) : st.mode === 'casino' ? 'Jede Straße ist ein Casino. Wer bei dir landet, muss gegen deine Bank zocken. Ausbauen macht dein Casino korrupter.' : 'Das Brett mit Duisburg und Öhringen'}</small></span>
-        <select id="set-mode" ${ro}>${[['classic', '🎲 Klassisch'], ['casino', '🎰 DULIDAN CASINO'], ['world', '🌍 DULIDAN WORLD'], ['royale', '🌀 DULIDAN ROYALE'], ['metro', '🚇 DULIDAN METRO'], ['tower', '🏙️ DULIDAN TOWER']].map(([v, l]) => `<option value="${v}" ${(st.mode || 'classic') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      ${!world && st.mode !== 'casino' ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
+    $('#mode-grid').innerHTML = modeList().map((m, i) => modeCardHTML(m, i, m.id === mode, ro)).join('');
+    const vText = (v) => (world && v.boardText ? v.boardText : v.text);
+    const cv = VARIANTS.find((v) => v.id === curVar) || VARIANTS[0];
+    $('#variant-box').innerHTML = `<p class="pick-note">${varIcon(cv)} <strong>${cv.name}:</strong> ${esc(vText(cv))}</p>
+      <div class="variant-grid">${VARIANTS.map((v) => `<button type="button" class="variant ${v.id === curVar ? 'is-on' : ''}" data-variant="${v.id}" ${ro}><span class="v-ic">${varIcon(v)}</span><strong>${v.name}</strong><small>${esc(vText(v))}</small></button>`).join('')}</div>`;
+    const rules = ruleCards(st, world);
+    $('#rule-grid').innerHTML = rules.map((r) => `<button type="button" class="rule-card ${r.on ? 'is-on' : ''}" data-rule="${r.id}" ${r.setting ? `data-setting="${r.setting}"` : ''} aria-pressed="${r.on}" ${ro}>
+      <span class="rc-ic">${r.icon}</span><strong>${r.name}</strong><small>${esc(r.text)}</small><i class="rc-check" aria-hidden="true"></i></button>`).join('');
+    $('#rule-count').textContent = `${rules.filter((r) => r.on).length} aktiv`;
+    $('#fine-settings').innerHTML = `
+      <label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
+        <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
+      ${!world && mode !== 'casino' ? `<label class="row"><span>Brettgröße<small>${{ mega: 'MEGA: einmal um die Welt mit 120 Feldern – Weltstädte, dazu Duisburg, Öhringen und DULIDAN. Doppelte Schritte, 1,5× Startgeld', mini: 'MINI: 24 Felder, nur die wichtigsten Straßen. Schnelle Runde, weniger Startgeld' }[st.size] || 'Normal: 40 Felder'}</small></span>
         <select id="set-size" ${ro}>${[['mini', '⚡ MINI (24 Felder)'], ['normal', 'Normal (40 Felder)'], ['mega', '🚀 MEGA (120 Felder)']].map(([v, l]) => `<option value="${v}" ${(st.size || 'normal') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
       <label class="row"><span>💖 Aprils Laune<small>April mag jede Person anders, lässt sich bestechen, macht Geschenke – und rächt sich, wenn sie dich hasst</small></span>
         <input type="checkbox" class="switch" id="set-mood" ${st.mood !== false ? 'checked' : ''} ${ro}></label>
-      ${world ? `<p class="row"><span>Spielende<small>Kein Runden-Limit: Es gewinnt, wer zuletzt noch nicht pleite ist.${st.mode === 'royale' ? ' Der April-Sturm sorgt dafür.' : ` Ab Runde ${W.board(st.mode).RULES.crisis.from} steigen alle Mieten jede Runde (Krise).`}</small></span></p>` : ''}
-      <label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
-        <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
-      ${world ? '' : `<label class="row"><span>🐷 Aprils Spardose<small>Steuern und Strafen sammeln sich auf „Aprils Pause“</small></span>
-        <input type="checkbox" class="switch" id="set-pot" ${st.pot ? 'checked' : ''} ${ro}></label>
-      <label class="row"><span>💸 Doppelt auf LOS<small>Wer genau auf LOS landet, bekommt ${M(400)}</small></span>
-        <input type="checkbox" class="switch" id="set-go" ${st.goDouble ? 'checked' : ''} ${ro}></label>`}`;
+      ${world ? `<p class="row"><span>Spielende<small>Kein Runden-Limit: Es gewinnt, wer zuletzt noch nicht pleite ist.${mode === 'royale' ? ' Der April-Sturm sorgt dafür.' : ` Ab Runde ${W.board(mode).RULES.crisis.from} steigen alle Mieten jede Runde (Krise).`}</small></span></p>` : ''}`;
 
     $('#lobby-players').innerHTML = S.players.map((p, i) => `
       <li class="${(local ? p.id === App.localSel : p.id === myId) ? 'is-me' : ''}" ${local ? `data-sel="${esc(p.id)}"` : ''}>
@@ -690,6 +763,7 @@
       const w = P(S.winner);
       el.innerHTML = `<div class="winner">${tokHTML(w.token, w.color)}<h3>${esc(w.name)} gewinnt Dulidanopoly! 🏆</h3>
         <ol class="rank">${(S.ranking || []).map((r) => `<li><span>${esc(P(r.id).name)}</span><strong>${M(r.worth)}</strong></li>`).join('')}</ol>
+        ${chartHTML()}
         ${awardsHTML()}
         ${App.mode !== 'client' ? uiBtn('Neue Runde', 'rematch', 'btn-primary') : '<p class="action-note">Der Host kann eine neue Runde starten.</p>'}</div>`;
       return;
@@ -697,7 +771,7 @@
     const cur = curP();
     let h = '';
     if (isBusy()) {
-      el.innerHTML = `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${esc(cur.name)} ist dran</h3><small>${M(cur.money)}</small></div></div>
+      el.innerHTML = `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${esc(cur.name)} ist dran</h3><small>${moneyTxt(cur)}</small></div></div>
         <p class="action-note rolling">${Date.now() < (App.walkAfter || 0) ? '🎲 Die Würfel rollen …' : App.czAnim && Date.now() < App.czAnim.until ? '🎰 Es wird gezockt …' : '🚶 unterwegs …'}</p>`;
       return;
     }
@@ -739,7 +813,7 @@
     const me = canControl(cur.id);
     const label = App.mode === 'local' || cur.id !== myId ? esc(cur.name) : 'Du';
     h += `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${me ? (label === 'Du' ? 'Du bist dran!' : `${label} ist dran`) : `${esc(cur.name)} ist dran`}</h3>
-      <small>${M(cur.money)} · ${esc(SPACES[cur.pos].name)}${cur.id !== myId && App.mode === 'host' && !cur.connected ? ' · offline – du spielst für sie/ihn' : ''}</small></div></div>`;
+      <small>${moneyTxt(cur)} · ${esc(SPACES[cur.pos].name)}${cur.id !== myId && App.mode === 'host' && !cur.connected ? ' · offline – du spielst für sie/ihn' : ''}</small></div></div>`;
 
     if (!me) {
       const what = { roll: 'würfelt gleich', berlingo: 'überlegt sich das Berlingo-Manöver', buy: `überlegt, ob ${esc(SPACES[cur.pos].name)} gekauft wird`, card: 'liest eine Karte', debt: 'muss Schulden begleichen', end: 'beendet gleich den Zug', casino: 'zockt im Casino' }[S.sub] || '';
@@ -837,6 +911,79 @@
     ['🧭', 'Weltenbummler', 'km', (v) => `${v} Felder gelaufen`],
     ['🎁', 'Loot-Goblin', 'loot', (v) => `${v} Kisten geöffnet`],
   ];
+  // ---------- Geldverlauf ----------
+  function chartHTML() {
+    const S = App.S, h = (S.hist || []).slice();
+    if (h.length < 2) return '';
+    h.push(S.players.map((p) => (p.bankrupt ? 0 : Math.round((isWorld() ? W : E).netWorth(S, p)))));
+    const CW = 520, CH = 190, pad = 6;
+    const max = Math.max(100, ...h.flat());
+    const x = (i) => pad + (i / (h.length - 1)) * (CW - pad * 2);
+    const y = (v) => CH - pad - (v / max) * (CH - pad * 2);
+    let grid = '';
+    for (let k = 1; k < 4; k++) grid += `<line x1="0" x2="${CW}" y1="${(CH * k) / 4}" y2="${(CH * k) / 4}"/>`;
+    const lines = S.players.map((p, k) => `<polyline points="${h.map((row, i) => `${x(i).toFixed(1)},${y(row[k] || 0).toFixed(1)}`).join(' ')}" style="stroke:${p.color}"/>`).join('');
+    return `<div class="chart"><div class="chart-head"><span>📈 Vermögen pro Runde</span><span>Spitze ${M(max)}</span></div>
+      <svg viewBox="0 0 ${CW} ${CH}" preserveAspectRatio="none" aria-label="Vermögensverlauf aller Spieler">${grid}${lines}</svg>
+      <div class="chart-legend">${S.players.map((p) => `<span><i style="background:${p.color}"></i>${esc(p.name)}</span>`).join('')}</div></div>`;
+  }
+
+  // ---------- Erfolge (bleiben auf diesem Gerät gespeichert) ----------
+  const ACH = [
+    { id: 'win', icon: '🏆', name: 'Erster Sieg', text: 'Gewinne ein Spiel.' },
+    { id: 'win5', icon: '👑', name: 'Serien-Sieger', text: 'Gewinne 5 Spiele.' },
+    { id: 'rentKing', icon: '🦈', name: 'Miethai', text: 'Kassiere in einem Spiel Ð3.000 Miete.' },
+    { id: 'bigPay', icon: '💸', name: 'Schmerzgrenze', text: 'Zahle Ð1.000 Miete auf einmal.' },
+    { id: 'jail3', icon: '😱', name: 'Düsseldorf-Stammgast', text: 'Lande in einem Spiel 3× in Düsseldorf.' },
+    { id: 'builder', icon: '🏗️', name: 'Baulöwe', text: 'Baue in einem Spiel 10 Gebäude.' },
+    { id: 'doubles5', icon: '🎲', name: 'Pasch-Maschine', text: 'Würfle in einem Spiel 5 Pasche.' },
+    { id: 'mega', icon: '🚀', name: 'Weltreise', text: 'Spiele ein MEGA-Spiel zu Ende.' },
+    { id: 'casino', icon: '🎰', name: 'High Roller', text: 'Spiele ein Casino-Spiel zu Ende.' },
+    { id: 'newMode', icon: '🏝️', name: 'Entdecker', text: 'Spiele ISLANDS oder FESTIVAL zu Ende.' },
+    { id: 'allModes', icon: '🧭', name: 'Modus-Sammler', text: 'Beende Spiele in 4 verschiedenen Modi.' },
+    { id: 'aprilLove', icon: '💖', name: 'Aprils Liebling', text: 'Beende ein Spiel als Aprils Liebling.' },
+    { id: 'aprilHate', icon: '💔', name: 'Staatsfeind', text: 'Beende ein Spiel, während April dich hasst.' },
+    { id: 'briber', icon: '🤑', name: 'Korrupt', text: 'Besteche April 3× in einem Spiel.' },
+    { id: 'rules5', icon: '🧩', name: 'Regel-Bastler', text: 'Spiele mit 5 oder mehr Hausregeln.' },
+    { id: 'speedrun', icon: '⏱️', name: 'Speedrun', text: 'Gewinne ein Spiel in höchstens 15 Runden.' },
+  ];
+  const achStore = () => Object.assign({ got: {}, wins: 0, modes: [] }, store.get('duli-ach') || {});
+  function checkAchievements() {
+    const S = App.S, st = achStore();
+    const gid = `${S.players.map((p) => p.id).join('|')}:${S.turnNo}:${S.logSeq}`;
+    if (st.lastGame === gid) return [];
+    st.lastGame = gid;
+    const mine = App.mode === 'local' ? S.players.filter((p) => !p.bot) : S.players.filter((p) => p.id === myId);
+    if (!mine.length) { store.set('duli-ach', st); return []; }
+    const modeKey = S.isCasino ? 'casino' : S.mode || 'classic';
+    if (!st.modes.includes(modeKey)) st.modes.push(modeKey);
+    const won = mine.some((p) => p.id === S.winner);
+    if (won) st.wins += 1;
+    const any = (fn) => mine.some((p) => fn(p, p.stats || {}));
+    const ok = {
+      win: won, win5: st.wins >= 5,
+      rentKing: any((p, x) => x.rentGot >= 3000), bigPay: any((p, x) => x.maxRent >= 1000),
+      jail3: any((p, x) => (x.jail || 0) >= 3), builder: any((p, x) => (x.built || 0) >= 10), doubles5: any((p, x) => (x.doubles || 0) >= 5),
+      mega: S.size === 'mega', casino: !!S.isCasino, newMode: ['islands', 'festival'].includes(S.mode), allModes: st.modes.length >= 4,
+      aprilLove: MOOD.on(S) && any((p) => p.like >= 70), aprilHate: MOOD.on(S) && any((p) => p.like < 15),
+      briber: any((p) => (p.bribes || 0) >= 3),
+      rules5: Object.values((S.settings && S.settings.rules) || {}).filter(Boolean).length >= 5,
+      speedrun: won && (S.round || 99) <= 15,
+    };
+    const fresh = ACH.filter((a) => ok[a.id] && !st.got[a.id]);
+    fresh.forEach((a) => { st.got[a.id] = Date.now(); });
+    store.set('duli-ach', st);
+    return fresh;
+  }
+  function achGridHTML(fresh = []) {
+    const st = achStore();
+    return `<div class="ach-grid">${ACH.map((a) => `<div class="ach ${st.got[a.id] ? 'is-got' : ''} ${fresh.includes(a) ? 'is-new' : ''}"><span class="ach-ic">${st.got[a.id] ? a.icon : '🔒'}</span><strong>${a.name}</strong><small>${a.text}</small></div>`).join('')}</div>`;
+  }
+  function achModalHTML() {
+    const st = achStore();
+    return `<h2>🏅 Erfolge</h2><p class="action-note">${Object.keys(st.got).length} von ${ACH.length} freigeschaltet · ${st.wins} Siege auf diesem Gerät</p>${achGridHTML()}`;
+  }
+
   function awardsHTML() {
     const rows = AWARDS.map(([icon, title, key, fmt]) => {
       let best = null;
@@ -865,10 +1012,18 @@
           <div class="swatches">${owned.map((k) => `<i class="${S.props[k].mort ? 'is-mort' : ''}" style="--g:${SPACES[k].group ? GROUPS[SPACES[k].group].color : '#cfc3e6'}" title="${esc(SPACES[k].name)}"></i>`).join('')}</div>
           ${likeHTML(p)}
           <div class="pmeta">${meta.join('')}</div></div>
-        <div class="pmoney">${M(p.money)}</div>${goalBar(p)}</li>`;
+        <div class="pmoney">${moneyTxt(p)}</div>${goalBar(p)}</li>`;
     }).join('');
   }
 
+  // Geheimes Konto: fremdes Geld wird versteckt (lokal sieht man nur die Person, die dran ist)
+  function hideMoney(p) {
+    const S = App.S;
+    if (!S || S.phase !== 'play' || !RL.on(S, 'secret')) return false;
+    const v = viewer();
+    return !v || v.id !== p.id;
+  }
+  const moneyTxt = (p) => (hideMoney(p) ? '🕵️ Ð???' : M(p.money));
   function goalBar(p) {
     const S = App.S;
     if (!S.goal || p.bankrupt) return '';
@@ -980,6 +1135,7 @@
     }
     if (kind === 'cityInfo') return openCity(data.id);
     if (kind === 'bribe') return bribeModal();
+    if (kind === 'achievements') return openModal(achModalHTML());
     if (kind === 'tradeTo') { App.trade = { to: data.id }; return tradeModal(); }
     if (kind === 'tradeSend') {
       const vals = (name) => [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((x) => (isWorld() ? x.value : Number(x.value)));
@@ -1220,12 +1376,16 @@
     <h3>Figuren</h3><ul>${Object.values(TOKENS).map((t) => `<li><strong>${esc(t.name)}:</strong> ${esc(t.power)}</li>`).join('')}</ul></div>`));
   function variantRulesHTML() {
     const cur = (App.S && App.S.settings && App.S.settings.variant) || 'normal';
-    return `<h3>Spielvarianten</h3><ul>${VARIANTS.map((v) => `<li>${v.ic} <strong>${v.name}${v.id === cur ? ' (läuft gerade)' : ''}:</strong> ${esc(v.text)}</li>`).join('')}</ul>`;
+    const st = (App.S && App.S.settings) || {};
+    const active = ruleCards(st, isWorld()).filter((r) => r.on);
+    return `<h3>Hausregeln in diesem Spiel</h3><ul>${active.length ? active.map((r) => `<li>${r.icon} <strong>${r.name}:</strong> ${esc(r.text)}</li>`).join('') : '<li>Keine Extra-Regeln aktiv.</li>'}</ul>
+      <h3>Spielvarianten</h3><ul>${VARIANTS.map((v) => `<li>${varIcon(v)} <strong>${v.name}${v.id === cur ? ' (läuft gerade)' : ''}:</strong> ${esc(isWorld() && v.boardText ? v.boardText : v.text)}</li>`).join('')}</ul>`;
   }
   $('#btn-menu').onclick = () => {
     const host = App.mode !== 'client';
     openModal(`<h2>Menü</h2><div class="btn-row" style="flex-direction:column">
       ${App.mode !== 'local' ? uiBtn(`Einladungslink kopieren (Raum ${esc(App.code)})`, 'copy') : ''}
+      ${uiBtn('🏅 Erfolge ansehen', 'achievements')}
       ${host && App.S.phase === 'play' ? uiBtn('Spiel jetzt beenden – Reichster gewinnt', 'endGame') : ''}
       ${uiBtn(App.mode === 'host' ? 'Raum verlassen (Spiel bleibt gespeichert)' : 'Zur Startseite', 'leave', 'btn-ghost')}
     </div>
@@ -1255,7 +1415,7 @@
     const icon = { portal: '🌀', loot: '🎁', lift: '⬆', slide: '⬇' }[t];
     const inner = t === 'event' ? (c.deck === 'studio' ? '<text class="nicon" y="4.5">💜</text>' : '<use href="#april" x="-9" y="-9" width="18" height="18"/>')
       : icon ? `<text class="nicon" y="4.5">${icon}</text>`
-      : t === 'free' ? `<text class="nicon" y="4">${c.hub ? '⇄' : c.id === 'r3s' ? '🚀' : c.id === 'in' ? '🚪' : '•'}</text>` : '';
+      : t === 'free' ? `<text class="nicon" y="4">${c.icon || (c.hub ? '⇄' : c.id === 'r3s' ? '🚀' : c.id === 'in' ? '🚪' : '•')}</text>` : '';
     return `<g class="city n-${t}${c.hub ? ' n-hub' : ''}" data-city="${c.id}" transform="translate(${x},${y})" tabindex="0" role="button" aria-label="${esc(c.name)}">
       <circle class="hit" r="15"/>
       <circle class="reach" r="17"/>
@@ -1316,6 +1476,21 @@
       rings.forEach((r, i) => { decor += `<circle class="orbit" data-ring="${3 - i}" cx="${cx}" cy="${cy}" r="${r}"/>`; });
       decor += logoSVG().replace('<svg viewBox="0 0 700 620"', `<svg x="${cx - 42}" y="${cy - 37}" width="84" height="74" viewBox="0 0 700 620" class="core-logo"`);
       for (let i = 0; i < 60; i++) decor += `<circle class="star" cx="${(i * 137.5) % Vw}" cy="${(i * 89.3 + 40) % Vh}" r="${(i % 3) * 0.6 + 0.6}"/>`;
+    }
+    if (g.id === 'islands') {
+      for (let i = 0; i < 46; i++) decor += `<path class="wave" d="M${(i * 173) % Vw} ${(i * 97 + 30) % Vh} q8 -6 16 0 t16 0"/>`;
+      for (const z of Object.keys(g.ZONES)) {
+        const ns = g.CITIES.filter((c) => c.zone === z || c.id === `${z}H`);
+        const xs = ns.map((c) => c.x), ys = ns.map((c) => c.y);
+        const mx = (Math.min(...xs) + Math.max(...xs)) / 2, my = (Math.min(...ys) + Math.max(...ys)) / 2;
+        decor += `<ellipse class="isle" cx="${mx}" cy="${my}" rx="${(Math.max(...xs) - Math.min(...xs)) / 2 + 34}" ry="${(Math.max(...ys) - Math.min(...ys)) / 2 + 30}" style="--g:${g.ZONES[z].color}"/>`;
+      }
+    }
+    if (g.id === 'festival') {
+      const { cx, cy, rx, ry } = g.VIEW;
+      decor += `<ellipse class="fest-ground" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`;
+      decor += `<rect class="fest-stage" x="${cx - 150}" y="${cy - 70}" width="300" height="120" rx="10"/><text class="fest-title" x="${cx}" y="${cy - 8}" text-anchor="middle">DULIDAN</text><text class="fest-sub" x="${cx}" y="${cy + 26}" text-anchor="middle">FESTIVAL · MAIN STAGE</text>`;
+      for (let i = 0; i < 7; i++) decor += `<path class="fest-beam" d="M${cx - 120 + i * 40} ${cy - 70} L${cx - 220 + i * 73} ${cy - 220}" style="animation-delay:${i * 0.3}s"/>`;
     }
     if (g.id === 'tower') {
       const floors = [...new Set(g.CITIES.map((c) => c.floor))];
@@ -1497,7 +1672,7 @@
     event: (c) => (c.deck === 'studio' ? '💜 Studio-Karte: Zieh eine Karte aus dem Studio-Stapel. Gut oder schlecht.' : '💖 April-Karte: April zieht für dich eine Karte. Gut oder schlecht.'),
     lift: (c, g) => `⬆ Aufzug: Fährt dich in den ${g.CITY[c.link].floor}. Stock. Wem die Ziel-Etage komplett gehört, kassiert Ð${g.RULES.liftFee}.`,
     slide: (c, g) => `⬇ Rutsche: Wuuuh, runter in den ${g.CITY[c.link].floor}. Stock.`,
-    free: (c) => (c.hub ? '⇄ Umsteigebahnhof: Hier kreuzen sich Linien. Mit 🚄 Express kannst du direkt hierher springen.' : 'Hier passiert nichts. Einfach durchatmen.'),
+    free: (c) => c.info || (c.hub ? '⇄ Umsteigebahnhof: Hier kreuzen sich Linien. Mit 🚄 Express kannst du direkt hierher springen.' : 'Hier passiert nichts. Einfach durchatmen.'),
   };
 
   function worldTargets() {
@@ -1556,6 +1731,8 @@
       g.classList.toggle('is-mort', !!st.mort);
       g.classList.toggle('is-dead', !!(S.dead && S.dead[id]));
       g.classList.toggle('is-warn', !!warnRing && gb.CITY[id].ring === warnRing);
+      g.classList.toggle('is-flood', !!S.flood && gb.CITY[id].zone === S.flood);
+      g.classList.toggle('is-headliner', !!S.headliner && gb.CITY[id].zone === S.headliner);
       g.classList.toggle('can-move', t.walk.includes(id));
       g.classList.toggle('can-fly', t.fly.includes(id));
       g.classList.toggle('is-here', S.phase === 'play' && disp(cur) === id);
@@ -1598,7 +1775,7 @@
     const s2 = S.cities[to], cc = GB().CITY[to];
     const o = s2 ? P(s2.owner) : null;
     const toll = o && o.id !== cur.id ? W.rentFor(S, to, cur) : 0;
-    const tag = !s2 ? ({ free: cc.hub ? '⇄ Umsteigen' : 'frei', event: cc.deck === 'studio' ? '💜 Studio-Karte' : '💖 April-Karte', loot: '🎁 Loot', portal: '🌀 Portal', lift: '⬆ Aufzug', slide: '⬇ Rutsche' }[cc.type] || '')
+    const tag = !s2 ? ({ free: cc.hub ? (cc.icon === '⚓' ? '⚓ Hafen' : '⇄ Umsteigen') : 'frei', event: cc.deck === 'studio' ? '💜 Studio-Karte' : '💖 April-Karte', loot: '🎁 Loot', portal: '🌀 Portal', lift: '⬆ Aufzug', slide: '⬇ Rutsche' }[cc.type] || '')
       : !o ? `frei · ${M(cc.price)}` : o.id === cur.id ? 'deins' : `${rentWord()} ${M(toll)}`;
     const color = s2 ? GB().ZONES[cc.zone].color : '#efeaf7';
     return `<button class="dest ${toll ? 'is-toll' : ''}" data-act='${esc(JSON.stringify(action))}' data-pid="${esc(cur.id)}" style="--g:${color}">
@@ -1616,6 +1793,8 @@
         ? `<div class="news is-storm"><strong>📈 ${S.mode === 'world' ? 'Weltwirtschaftskrise' : 'Dulidan-Krise'}</strong><span>Alle ${rw} +${Math.round(S.inflation * 100)} % – und es wird jede Runde schlimmer.</span></div>`
         : `<div class="news"><strong>📈 Krise in Runde ${crisis.from}</strong><span>Ab dann steigen alle ${rw} jede Runde. Spiel läuft, bis alle bis auf einen pleite sind.</span></div>`;
     }
+    if (S.flood) h += `<div class="news is-storm"><strong>🌊 Flut</strong><span>${esc(GB().ZONES[S.flood].name)} steht unter Wasser. Dort zahlt diese Runde niemand Miete.</span></div>`;
+    if (S.headliner) h += `<div class="news"><strong>🎤 Headliner</strong><span>${esc(GB().ZONES[S.headliner].name)} spielt heute! Miete dort 3×.</span></div>`;
     h += moodNewsHTML();
     if (S.trade) {
       const from = P(S.trade.from), to = P(S.trade.to);
@@ -1632,7 +1811,7 @@
     }
     const me = canControl(cur.id);
     h += `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${me ? (App.mode === 'local' || cur.id !== myId ? `${esc(cur.name)} ist dran` : 'Du bist dran!') : `${esc(cur.name)} ist dran`}</h3>
-      <small>${M(cur.money)} · ${esc(GB().CITY[cur.loc].name)}</small></div></div>`;
+      <small>${moneyTxt(cur)} · ${esc(GB().CITY[cur.loc].name)}</small></div></div>`;
     if (Date.now() < (App.busyUntil || 0)) {
       el.innerHTML = h + `<p class="action-note rolling">${S.sub === 'walk' ? '🧭 unterwegs …' : '🎲 Die Würfel rollen …'}</p>`;
       return;
@@ -1653,6 +1832,8 @@
           metro: 'Du würfelst und fährst die Augenzahl durchs U-Bahn-Netz. Durch fremde komplette Linien zahlst du Fahrpreis.',
           royale: 'Du würfelst und läufst im Uhrzeigersinn um deinen Ring. Portale bringen dich nach innen oder außen.',
           tower: 'Du würfelst und läufst um deine Etage. Aufzüge bringen dich hoch, Rutschen runter.',
+          islands: 'Du würfelst und läufst über Strände und Seewege. Der Dulidan-Würfel kann dir eine Fähre schenken.',
+          festival: 'Du würfelst und läufst übers Festivalgelände. Achte auf den Headliner – dort ist alles 3× so teuer.',
         }[S.mode]}</p>`;
         if (cur.items && (cur.items.shield || cur.items.boost)) h += `<p class="action-note">Deine Items: ${cur.items.shield ? `🛡️ ×${cur.items.shield} ` : ''}${cur.items.boost ? `⚡ ×${cur.items.boost}` : ''}</p>`;
         if (canTrade) h += uiBtn('Handeln', 'trade', 'btn-ghost');
@@ -1670,6 +1851,8 @@
       case 'jet': {
         h += S.mode === 'metro'
           ? `<p class="action-note">🚄 <strong>Express!</strong> Spring zu einem Umsteigebahnhof deiner Wahl – oder fahr ganz normal ${S.steps} Stationen.</p>`
+          : S.mode === 'islands'
+          ? `<p class="action-note">⛴️ <strong>Fähre!</strong> Fahr zu einem Hafen deiner Wahl – oder lauf ganz normal ${S.steps} Schritte.</p>`
           : `<p class="action-note">✈️ <strong>Jetset!</strong> Flieg zu einem Flughafen deiner Wahl – oder lauf ganz normal ${S.steps} Schritte.</p>`;
         h += `<div class="dests">${GB().HUBS.filter((x) => x !== cur.loc).map((to) => destBtn(S, cur, to, { type: 'fly', to })).join('')}</div>`;
         h += btn(`Lieber laufen (${S.steps} Schritte)`, { type: 'walkInstead' }, pid, 'btn-ghost');
@@ -1748,7 +1931,7 @@
           <div class="swatches">${owned.map((id) => `<i class="${S.cities[id].mort ? 'is-mort' : ''}" style="--g:${GB().ZONES[GB().CITY[id].zone].color}" title="${esc(GB().CITY[id].name)}"></i>`).join('')}</div>
           ${likeHTML(p)}
           <div class="pmeta">${meta.join('')}</div></div>
-        <div class="pmoney">${M(p.money)}</div>${goalBar(p)}</li>`;
+        <div class="pmoney">${moneyTxt(p)}</div>${goalBar(p)}</li>`;
     }).join('');
   }
 
@@ -1782,6 +1965,8 @@
     world: '<li>Die Weltkarte: Routen über Land und See, ✈ Flughäfen für Jetset-Flüge.</li><li>📈 Ab Runde 8 kommt die Weltwirtschaftskrise: Alle Mauten steigen jede Runde um 20 %. Gespielt wird, bis alle bis auf einen pleite sind.</li>',
     royale: '<li>🌀 Drei Ringe. Portale verbinden sie. Je weiter innen, desto teurer.</li><li>🌪️ Der April-Sturm zerstört in Runde 7 den äußeren und in Runde 14 den mittleren Ring. Wer dort steht, fliegt nach innen. Zerstörte Planeten zahlen die Hälfte zurück.</li><li>🔥 Danach steigen alle Mieten jede Runde um 30 %, bis nur noch einer übrig ist.</li><li>🎁 Loot-Kisten: 🛡️ Schild blockt eine Miete, ⚡ Boost bringt dich 3 Felder weiter.</li>',
     metro: '<li>🚇 Sieben U-Bahn-Linien, fünf Umsteigebahnhöfe.</li><li>🎫 Gehört jemandem eine ganze Linie, zahlst du Fahrpreis für jede seiner Stationen, durch die du nur durchfährst.</li><li>🚄 Express-Seite des Dulidan-Würfels: Spring zu einem beliebigen Umsteigebahnhof.</li>',
+    islands: '<li>🏝️ Sieben Inseln, verbunden über Seewege. Jede Insel hat einen ⚓ Hafen.</li><li>⛴️ Fähre auf dem Dulidan-Würfel: Fahr direkt zu einem Hafen deiner Wahl.</li><li>🌊 Ab Runde 3 kann jede Runde eine Insel überflutet werden. Dort zahlt dann niemand Miete.</li><li>🎁 Schatzkisten und Flaschenpost liegen mitten im Meer.</li><li>📈 Ab Runde 8 steigen alle Mieten jede Runde. Gespielt wird, bis alle bis auf einen pleite sind.</li>',
+    festival: '<li>🎪 Ein Rundgang übers Festival: Campingplatz, Foodcourt, Techno-Zelt, Rap-Bühne, Rock-Stage, VIP und Main Stage.</li><li>🎤 Jede Runde ist eine Area Headliner. Dort kostet die Miete das Dreifache.</li><li>🔁 Zugabe auf dem Dulidan-Würfel: nochmal würfeln. 🏄 Crowdsurfen: 3 Felder extra.</li><li>📈 Ab Runde 8 steigen alle Mieten jede Runde. Gespielt wird, bis alle bis auf einen pleite sind.</li>',
     tower: '<li>🏙️ Fünf Etagen, jede ein eigener Rundgang. Ganz oben das Penthouse.</li><li>⬆ Aufzüge bringen dich einen Stock hoch, ⬇ Rutschen einen runter.</li><li>Gehört jemandem eine ganze Etage, kassiert er Aufzug-Gebühr von allen, die dort ankommen.</li><li>🎁 Auf dem Helipad liegen Loot-Kisten.</li>',
   };
   function worldRulesHTML() {
@@ -2017,7 +2202,7 @@
   }
 
   function popMoney(p, d) {
-    const txt = `${d > 0 ? '+' : '−'}Ð${Math.abs(d).toLocaleString('de-DE')}`;
+    const txt = hideMoney(p) ? (d > 0 ? '+Ð???' : '−Ð???') : `${d > 0 ? '+' : '−'}Ð${Math.abs(d).toLocaleString('de-DE')}`;
     const big = Math.abs(d) >= 500;
     const spawn = (el, cls) => {
       if (!el) return;
@@ -2123,6 +2308,7 @@
       if (i > steps.length) finish();
     }, 320);
   }
+  buildHome();
   runBoot();
   applyTempo();
 
@@ -2167,7 +2353,11 @@
     if (S.phase === 'over' && App.lastPhase !== 'over') {
       FX.confetti();
       const w = P(S.winner);
-      openModal(`<div class="winner">${tokHTML(w.token, w.color)}<h2>${esc(w.name)} gewinnt!</h2><p>${world ? 'Die Welt gehört jetzt Dulidan. 🌍💜' : 'Herzlichen Glückwunsch zum Dulidanopoly-Sieg. 💜'}</p>${awardsHTML()}</div>`);
+      const fresh = checkAchievements();
+      openModal(`<div class="winner">${tokHTML(w.token, w.color)}<h2>${esc(w.name)} gewinnt!</h2><p>${world ? 'Die Welt gehört jetzt Dulidan. 🌍💜' : 'Herzlichen Glückwunsch zum Dulidanopoly-Sieg. 💜'}</p>
+        ${chartHTML()}
+        ${fresh.length ? `<h3 class="ach-title">🏅 Neue Erfolge</h3><div class="ach-grid">${fresh.map((a) => `<div class="ach is-got is-new"><span class="ach-ic">${a.icon}</span><strong>${a.name}</strong><small>${a.text}</small></div>`).join('')}</div>` : ''}
+        ${awardsHTML()}</div>`);
     }
     App.lastPhase = S.phase;
   }

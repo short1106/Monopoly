@@ -56,32 +56,59 @@
   </div>
   <!-- Startseite -->
   <section id="screen-home" class="screen">
-    <div class="home">
-      <p class="status-pill"><i></i>System online · Duisburg ⇄ Öhringen · 2 Bretter</p>
-      <div class="home-logo" data-logo></div>
-      <h1 class="wordmark">DULIDAN<span>OPOLY</span></h1>
-      <p class="tagline">Monopoly, das hochfährt.</p>
-      <p class="tagline-sub">Von Marxloh bis ins DULIDAN HQ – oder einmal um die ganze Welt. Mit April als Moderatorin.</p>
-
-      <div class="home-card">
-        <label class="field">
-          <span>Dein Name</span>
-          <input id="in-name" maxlength="16" autocomplete="nickname" placeholder="z. B. Shaquille">
-        </label>
-        <button id="btn-create" class="btn btn-primary">Raum erstellen</button>
-        <div class="divider"><span>oder</span></div>
-        <div class="join-row">
-          <label class="field">
-            <span>Raum-Code</span>
-            <input id="in-code" maxlength="4" autocomplete="off" placeholder="ABCD">
-          </label>
-          <button id="btn-join" class="btn">Beitreten</button>
+    <div class="hero2">
+      <div class="hero2-logo" data-logo aria-hidden="true"></div>
+      <div class="hero2-in">
+        <div class="hero2-left">
+          <p class="hero-kicker"><span class="status-dot"></span>System online · Duisburg ⇄ Öhringen · v3.0</p>
+          <h1 class="hero2-title"><span class="l"><span>Dulidan</span></span><span class="l l2"><span class="outline">opoly</span></span></h1>
+          <p class="hero2-claim">Monopoly, das hochfährt.</p>
+          <p class="hero2-sub">Acht Modi, drei Brettgrößen, 16 Figuren, 17 Hausregeln und April als Moderatorin. Online mit Freunden oder alle an einem Gerät.</p>
         </div>
-        <button id="btn-resume" class="btn btn-ghost" hidden></button>
-        <button id="btn-local" class="btn btn-ghost">Auf einem Gerät spielen</button>
+        <div class="home-card term">
+          <div class="term-bar"><i></i><i></i><i></i><span>dulidanopoly://start</span></div>
+          <div class="term-body">
+            <label class="field">
+              <span>Dein Name</span>
+              <input id="in-name" maxlength="16" autocomplete="nickname" placeholder="z. B. Shaquille">
+            </label>
+            <p class="home-pick" id="home-pick" hidden></p>
+            <button id="btn-create" class="btn btn-primary">Raum erstellen</button>
+            <div class="divider"><span>oder</span></div>
+            <div class="join-row">
+              <label class="field">
+                <span>Raum-Code</span>
+                <input id="in-code" maxlength="4" autocomplete="off" placeholder="ABCD">
+              </label>
+              <button id="btn-join" class="btn">Beitreten</button>
+            </div>
+            <button id="btn-resume" class="btn btn-ghost" hidden></button>
+            <button id="btn-local" class="btn btn-ghost">Auf einem Gerät spielen</button>
+            <button class="link-btn home-ach" data-ui="achievements" type="button">🏅 Erfolge ansehen</button>
+          </div>
+          <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+        </div>
       </div>
-      <p class="home-foot">Ein Spiel von Dulidan Studios · Keine Tracker. Nur Pixel.</p>
+      <div class="hero2-meta">
+        <div>Modi<b class="mono">08</b></div>
+        <div>Figuren<b class="mono">16</b></div>
+        <div>Hausregeln<b class="mono">17</b></div>
+        <div>Karten<b class="mono">160+</b></div>
+      </div>
     </div>
+    <div class="marquee" aria-hidden="true"><div class="marquee-track" id="marquee"></div></div>
+    <section class="home-sec">
+      <p class="sec-label"><span class="n">01</span>Spielmodi</p>
+      <h2 class="h2">Acht Modi. <em>Null Langeweile.</em></h2>
+      <p class="lead">Tipp einen Modus an, dann ist er in deiner Lobby schon ausgewählt.</p>
+      <div class="mode-grid home-modes" id="home-modes"></div>
+    </section>
+    <section class="home-sec">
+      <p class="sec-label"><span class="n">02</span>Features</p>
+      <h2 class="h2">Mehr als <em>nur würfeln.</em></h2>
+      <div class="feat-grid" id="home-feats"></div>
+    </section>
+    <p class="home-foot">Ein Spiel von Dulidan Studios · Keine Tracker. Nur Pixel.</p>
   </section>
 
   <!-- Lobby -->
@@ -98,20 +125,30 @@
       </header>
       <p class="lobby-hint" id="lobby-hint">Schick deinen Freunden den Link oder den Code. Jeder wählt eine Figur.</p>
 
-      <div id="local-add" class="local-add" hidden>
-        <label class="field"><span>Spielername</span><input id="in-local-name" maxlength="16" placeholder="Name"></label>
-        <button id="btn-local-add" class="btn">Spieler hinzufügen</button>
+      <div class="lobby-grid">
+        <div class="lobby-col">
+          <p class="sec-label"><span class="n">01</span>Spieler</p>
+          <div id="local-add" class="local-add" hidden>
+            <label class="field"><span>Spielername</span><input id="in-local-name" maxlength="16" placeholder="Name"></label>
+            <button id="btn-local-add" class="btn">Spieler hinzufügen</button>
+          </div>
+          <ul id="lobby-players" class="lobby-players"></ul>
+          <div class="lobby-tools" id="lobby-tools"><button id="btn-add-bot" class="btn btn-small">+ Bot hinzufügen</button></div>
+
+          <p class="sec-label" id="token-title-wrap"><span class="n">02</span><span id="token-title">Wähle deine Figur</span></p>
+          <div id="token-grid" class="token-grid"></div>
+        </div>
+        <div class="lobby-col" id="settings">
+          <p class="sec-label"><span class="n">03</span>Spielmodus</p>
+          <div class="mode-grid" id="mode-grid"></div>
+          <p class="sec-label"><span class="n">04</span>Variante</p>
+          <div id="variant-box"></div>
+          <p class="sec-label"><span class="n">05</span>Hausregeln <span class="rule-count" id="rule-count"></span></p>
+          <div class="rule-grid" id="rule-grid"></div>
+          <p class="sec-label"><span class="n">06</span>Feinschliff</p>
+          <div class="settings" id="fine-settings"></div>
+        </div>
       </div>
-
-      <h2 class="section-title">Spieler</h2>
-      <ul id="lobby-players" class="lobby-players"></ul>
-      <div class="lobby-tools" id="lobby-tools"><button id="btn-add-bot" class="btn btn-small">🤖 Bot hinzufügen</button></div>
-
-      <h2 class="section-title">Hausregeln</h2>
-      <div id="settings" class="settings"></div>
-
-      <h2 class="section-title" id="token-title">Wähle deine Figur</h2>
-      <div id="token-grid" class="token-grid"></div>
 
       <div class="lobby-actions">
         <button id="btn-start" class="btn btn-primary">Spiel starten</button>
@@ -196,6 +233,7 @@
   <script src="js/data.js"></script>
   <script src="js/mood.js"></script>
   <script src="js/casino.js"></script>
+  <script src="js/rules.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/world-data.js"></script>
   <script src="js/boards-data.js"></script>
