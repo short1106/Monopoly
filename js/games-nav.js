@@ -23,6 +23,7 @@
     { href: 'schiffe.html', name: 'Schiffe versenken', sub: 'Seeschlacht · 2 online', ic: '🚢' },
     { href: 'kniffel.html', name: 'Kniffel', sub: 'Würfelspiel · 1–6 online', ic: '🎲' },
     { href: 'slf.html', name: 'Stadt Land Fluss', sub: 'Schreibspiel · 2–10 online', ic: '✍️' },
+    { href: 'geo.html', name: 'GeoGuessr', sub: 'Satellit · Wo ist das? · online', ic: '🌍' },
     { href: 'leben.html', name: 'Spiel des Lebens', sub: 'KI-Spielleiterin April · online', ic: '🚶' },
     { href: './#arcade', name: 'Spielhalle', sub: '6 Spiele für zwischendurch', ic: '🕹️' },
   ];

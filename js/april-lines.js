@@ -47,6 +47,15 @@
     { id: 'slf-start-1', on: 'slf-start', text: 'Neuer Buchstabe. Hirn an, Brainrot aus.' },
     { id: 'slf-stop-1', on: 'slf-stop', text: 'STOPP! Stifte weg, Six seven!' },
     { id: 'slf-stop-2', on: 'slf-stop', text: 'Stopp! Wer jetzt noch schreibt, ist ein NPC.' },
+    // GeoGuessr
+    { id: 'geo-perfect-1', on: 'geo-perfect', text: 'Bist du ein Satellit? Das war fast auf den Meter.' },
+    { id: 'geo-perfect-2', on: 'geo-perfect', text: 'Okay, du wohnst da. Gib es zu.' },
+    { id: 'geo-good-1', on: 'geo-good', text: 'Nicht schlecht. Aura plus hundert.' },
+    { id: 'geo-bad-1', on: 'geo-bad', text: 'Du warst nicht mal auf dem richtigen Kontinent.' },
+    { id: 'geo-bad-2', on: 'geo-bad', text: 'Google Maps weint gerade.' },
+    { id: 'country-right-1', on: 'country-right', text: 'Richtiges Land. Six seven.' },
+    { id: 'country-wrong-1', on: 'country-wrong', text: 'Falsches Land. Ich schäm mich fremd.' },
+    { id: 'country-wrong-2', on: 'country-wrong', text: 'Erdkunde: sechs. Setzen.' },
     // Periode
     { id: 'period-on', on: 'period-on', text: 'Das ist mein Leid. Weil Shaqy mir als KI eine Periode gegeben hat.' },
     { id: 'period-on-2', on: 'period-on', text: 'Ich hab Krämpfe, ich hab keinen Körper, und trotzdem. Danke, Shaqy.' },

@@ -43,6 +43,7 @@ Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo,
   - `js/leben.js` (Regeln, Grenzen für Aprils Vorschläge, Immobilien) · `js/leben-ai.js` (Prompt, Claude-Aufruf, Stimme) · `js/leben-ui.js` · `vendor/anthropic-sdk.js` (Anthropic TypeScript SDK, MIT) · `vendor/leaflet/` (Leaflet, BSD-2). Adressen: Nominatim/OpenStreetMap.
 - 🎲 **KNIFFEL** (`kniffel.html`): 1–6 Personen online plus Bots. Würfel halten, drei Würfe, gemeinsamer Block, Revanche.
 - ✍️ **STADT LAND FLUSS** (`slf.html`): 2–10 Personen online. Eigene Kategorien (oder Vorlagen Klassisch, Dulidan, 18+), STOPP mit 10 Sekunden Gnadenfrist, Veto gegen Quatsch-Antworten, Punkte 20/10/5.
+- 🌍 **GEOGUESSR** (`geo.html`): 1–10 Personen online. Alle sehen dasselbe Satellitenbild (Esri World Imagery) und tippen auf der OpenStreetMap-Karte, wo das ist. Modi: **so nah wie möglich** (bis 5.000 Punkte) oder **nur das Land** (richtig = 5.000). Orte: Welt (192), Europa, Deutschland, Duisburg & Ruhrpott, Hohenlohe. Timer und „Umschauen erlaubt“ einstellbar. Orte stehen in `js/geo-data.js`.
 - Alle nutzen `js/party.js` (Lobby, Raum-Code, Bots, Host schickt jeder Person nur ihre eigene Sicht).
 
 ## Aprils Sprüche und Stimme
