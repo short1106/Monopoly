@@ -362,7 +362,7 @@
     if (!b || App.mode === 'client' || !App.S) return;
     E.setSettings(App.S, { variant: b.dataset.variant });
     const v = VARIANTS.find((x) => x.id === b.dataset.variant);
-    if (v) aprilSay({ normal: 'Klassisch. Solide Wahl. Langweilig, aber solide.', blitz: 'Blitz! Alles verteilt, 20 Runden, keine Gnade.', million: 'Millionär! Ich zähl mit. Ð5.000 und Schluss.', chaos: 'April-Chaos?! Endlich darf ich mal richtig. Hehe.', hardcore: 'Hardcore. Ð800. Ich hoffe, ihr könnt rechnen.' }[v.id]);
+    if (v) aprilSay({ normal: 'Klassisch. Solide Wahl. Langweilig, aber solide.', blitz: 'Blitz! Alles verteilt, keine Gnade.', million: 'Millionär! Ich zähl mit. Ð5.000 und Schluss.', chaos: 'April-Chaos?! Endlich darf ich mal richtig. Hehe.', hardcore: 'Hardcore. Ð800. Ich hoffe, ihr könnt rechnen.' }[v.id]);
     commit();
   });
 
@@ -393,13 +393,13 @@
     const ro = App.mode === 'client' ? 'disabled' : '';
     const world = W.MODES.includes(st.mode);
     const curVar = st.variant || 'normal';
-    const variantsHTML = `<div class="row-block"><span class="vb-title">Spielvariante<small>${esc(VARIANTS.find((v) => v.id === curVar).text)}</small></span>
-      <div class="variant-grid">${VARIANTS.map((v) => `<button type="button" class="variant ${v.id === curVar ? 'is-on' : ''}" data-variant="${v.id}" ${ro}><span class="v-ic">${v.ic}</span><strong>${v.name}</strong><small>${v.text}</small></button>`).join('')}</div></div>`;
+    const vText = (v) => (world && v.id === 'blitz' ? 'Alles wird am Start verteilt. Die Krise kommt schon in Runde 3 – bis alle pleite sind.' : v.text);
+    const variantsHTML = `<div class="row-block"><span class="vb-title">Spielvariante<small>${esc(vText(VARIANTS.find((v) => v.id === curVar)))}</small></span>
+      <div class="variant-grid">${VARIANTS.map((v) => `<button type="button" class="variant ${v.id === curVar ? 'is-on' : ''}" data-variant="${v.id}" ${ro}><span class="v-ic">${v.ic}</span><strong>${v.name}</strong><small>${vText(v)}</small></button>`).join('')}</div></div>`;
     $('#settings').innerHTML = variantsHTML + `
       <label class="row"><span>Spielmodus<small>${world ? esc(W.board(st.mode).tagline) : 'Das Brett mit Duisburg und Öhringen'}</small></span>
         <select id="set-mode" ${ro}>${[['classic', '🎲 Klassisch'], ['world', '🌍 DULIDAN WORLD'], ['royale', '🌀 DULIDAN ROYALE'], ['metro', '🚇 DULIDAN METRO'], ['tower', '🏙️ DULIDAN TOWER']].map(([v, l]) => `<option value="${v}" ${(st.mode || 'classic') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      ${world && st.mode !== 'royale' ? `<label class="row"><span>Runden-Limit<small>Danach gewinnt der Reichste – vorher gewinnt, wer als Letzter nicht pleite ist</small></span>
-        <select id="set-rounds" ${ro}>${[0, 15, 20, 30, 50].map((r) => `<option value="${r}" ${(st.maxRounds ?? (W.board(st.mode).RULES.noLimit ? 0 : 30)) === r ? 'selected' : ''}>${r ? r + ' Runden' : 'Kein Limit – bis alle pleite sind'}</option>`).join('')}</select></label>` : ''}
+      ${world ? `<p class="row"><span>Spielende<small>Kein Runden-Limit: Es gewinnt, wer zuletzt noch nicht pleite ist.${st.mode === 'royale' ? ' Der April-Sturm sorgt dafür.' : ` Ab Runde ${W.board(st.mode).RULES.crisis.from} steigen alle Mieten jede Runde (Krise).`}</small></span></p>` : ''}
       <label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
         <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
       ${world ? '' : `<label class="row"><span>🐷 Aprils Spardose<small>Steuern und Strafen sammeln sich auf „Aprils Pause“</small></span>
@@ -540,6 +540,7 @@
         tokEl.dataset.key = tokKey;
         tokEl.innerHTML = here.map((p) => tokHTML(p.token, p.color).replace('<span class="tok', `<span data-tokpid="${esc(p.id)}" class="tok`)).join('');
       }
+      tokEl.querySelectorAll('.tok').forEach((t) => t.classList.toggle('is-cur-tok', S.phase === 'play' && t.dataset.tokpid === curP().id));
       el.classList.toggle('is-last', !isBusy() && S.lastLand === i);
       if (i === 20) {
         el.classList.toggle('has-pot', S.pot > 0);
@@ -1143,9 +1144,9 @@
   function nodeHTML(c, x, y, g, lab) {
     const [lx, ly, anchor] = { n: [0, -17, 'middle'], s: [0, 26, 'middle'], e: [16, 4, 'start'], w: [-16, 4, 'end'] }[lab || 'n'];
     const t = c.type || 'prop';
-    const color = t === 'prop' ? g.ZONES[c.zone].color : { portal: '#3ad1ff', loot: '#ffd83a', event: '#ff7ae6', lift: '#3ce08a', slide: '#ff4fd8', free: '#efeaf7' }[t] || '#efeaf7';
+    const color = t === 'prop' ? g.ZONES[c.zone].color : t === 'event' && c.deck === 'studio' ? '#a78bff' : { portal: '#3ad1ff', loot: '#ffd83a', event: '#ff7ae6', lift: '#3ce08a', slide: '#ff4fd8', free: '#efeaf7' }[t] || '#efeaf7';
     const icon = { portal: '🌀', loot: '🎁', lift: '⬆', slide: '⬇' }[t];
-    const inner = t === 'event' ? '<use href="#april" x="-9" y="-9" width="18" height="18"/>'
+    const inner = t === 'event' ? (c.deck === 'studio' ? '<text class="nicon" y="4.5">💜</text>' : '<use href="#april" x="-9" y="-9" width="18" height="18"/>')
       : icon ? `<text class="nicon" y="4.5">${icon}</text>`
       : t === 'free' ? `<text class="nicon" y="4">${c.hub ? '⇄' : c.id === 'r3s' ? '🚀' : c.id === 'in' ? '🚪' : '•'}</text>` : '';
     return `<g class="city n-${t}${c.hub ? ' n-hub' : ''}" data-city="${c.id}" transform="translate(${x},${y})" tabindex="0" role="button" aria-label="${esc(c.name)}">
@@ -1385,7 +1386,7 @@
   const NODE_INFO = {
     portal: (c, g) => `🌀 Portal: Springt auf Ring ${g.CITY[c.link] ? g.CITY[c.link].ring : '?'}. Du entscheidest, ob du durchgehst.`,
     loot: () => '🎁 Loot-Kiste: Schild, Boost, Dulis – oder eine Falle.',
-    event: () => '💖 April-Funk: April macht irgendwas. Gut oder schlecht.',
+    event: (c) => (c.deck === 'studio' ? '💜 Studio-Karte: Zieh eine Karte aus dem Studio-Stapel. Gut oder schlecht.' : '💖 April-Karte: April zieht für dich eine Karte. Gut oder schlecht.'),
     lift: (c, g) => `⬆ Aufzug: Fährt dich in den ${g.CITY[c.link].floor}. Stock. Wem die Ziel-Etage komplett gehört, kassiert Ð${g.RULES.liftFee}.`,
     slide: (c, g) => `⬇ Rutsche: Wuuuh, runter in den ${g.CITY[c.link].floor}. Stock.`,
     free: (c) => (c.hub ? '⇄ Umsteigebahnhof: Hier kreuzen sich Linien. Mit 🚄 Express kannst du direkt hierher springen.' : 'Hier passiert nichts. Einfach durchatmen.'),
@@ -1457,11 +1458,27 @@
         tg.dataset.key = key;
         tg.innerHTML = here.map((p, i) => {
           const tk = TOKENS[p.token];
-          const ox = (i - (here.length - 1) / 2) * 20;
-          return `<g class="wtok" data-tokpid="${esc(p.id)}" transform="translate(${ox},-30)"><circle r="10" style="stroke:${p.color}"/>${p.token === 'april' ? '<use href="#april" x="-10" y="-10" width="20" height="20"/>' : `<text y="4.5">${p.token === 'dulidan' ? 'D' : tk.emoji}</text>`}</g>`;
+          const ox = (i - (here.length - 1) / 2) * 34;
+          // Ganz oben am Rand hängen die Figuren unter dem Feld, sonst werden sie abgeschnitten
+          const low = Number((g.getAttribute('transform').match(/,\s*([-\d.]+)\)/) || [])[1]) < 60;
+          return `<g class="wtok" data-tokpid="${esc(p.id)}" transform="translate(${ox},${low ? 40 : -40})" style="--pc:${p.color}"><line class="pin" y1="${low ? -14 : 14}" y2="${low ? -30 : 30}"/><circle class="halo" r="24"/><g class="bob"><circle class="body" r="17"/>${p.token === 'april' ? '<use href="#april" x="-16" y="-16" width="32" height="32"/>' : `<text y="6.5">${p.token === 'dulidan' ? 'D' : tk.emoji}</text>`}</g></g>`;
         }).join('');
       }
+      tg.querySelectorAll('.wtok').forEach((el) => el.classList.toggle('is-cur', S.phase === 'play' && el.dataset.tokpid === cur.id));
+      if (here.some((p) => p.id === cur.id) && g.nextElementSibling) g.parentNode.appendChild(g);
     });
+    let mc = $('#world .map-card');
+    if (!mc) { mc = document.createElement('div'); mc.className = 'map-card'; mc.hidden = true; $('#world').appendChild(mc); }
+    if (S.sub === 'card' && S.card && S.phase === 'play' && !isBusy()) {
+      const x = gb.CARDS[S.card.deck][S.card.i];
+      const k = `${S.turnNo}|${S.card.deck}|${S.card.i}`;
+      if (mc.dataset.key !== k || mc.hidden) {
+        mc.dataset.key = k;
+        mc.className = `map-card deck-${S.card.deck}`;
+        mc.innerHTML = `<div class="mc-icon">${S.card.deck === 'april' ? aprilIcon('mc-april') : '💜'}</div><div class="mc-kind">${S.card.deck === 'april' ? 'April-Karte' : 'Studio-Karte'}</div><div class="mc-text">${esc(x.t)}</div><div class="mc-who">${esc(cur.name)} hat gezogen</div>`;
+        mc.hidden = false;
+      }
+    } else mc.hidden = true;
     document.querySelectorAll('#world .route').forEach((r) => {
       const [a, b] = r.dataset.r.split('-');
       r.classList.toggle('is-open', (a === cur.loc && t.walk.includes(b)) || (b === cur.loc && t.walk.includes(a)));
@@ -1472,7 +1489,7 @@
     const s2 = S.cities[to], cc = GB().CITY[to];
     const o = s2 ? P(s2.owner) : null;
     const toll = o && o.id !== cur.id ? W.rentFor(S, to, cur) : 0;
-    const tag = !s2 ? ({ free: cc.hub ? '⇄ Umsteigen' : 'frei', event: '💖 April-Funk', loot: '🎁 Loot', portal: '🌀 Portal', lift: '⬆ Aufzug', slide: '⬇ Rutsche' }[cc.type] || '')
+    const tag = !s2 ? ({ free: cc.hub ? '⇄ Umsteigen' : 'frei', event: cc.deck === 'studio' ? '💜 Studio-Karte' : '💖 April-Karte', loot: '🎁 Loot', portal: '🌀 Portal', lift: '⬆ Aufzug', slide: '⬇ Rutsche' }[cc.type] || '')
       : !o ? `frei · ${M(cc.price)}` : o.id === cur.id ? 'deins' : `${rentWord()} ${M(toll)}`;
     const color = s2 ? GB().ZONES[cc.zone].color : '#efeaf7';
     return `<button class="dest ${toll ? 'is-toll' : ''}" data-act='${esc(JSON.stringify(action))}' data-pid="${esc(cur.id)}" style="--g:${color}">
@@ -1484,11 +1501,11 @@
     const cur = curP();
     let h = '';
     if (S.event) h += `<div class="news ${S.event.storm ? 'is-storm' : ''}"><strong>${S.event.storm ? '🌪️ April-Sturm' : '📰 April-News'} · Runde ${S.round}${S.maxRounds ? '/' + S.maxRounds : ''}</strong><span>${esc(S.event.t)}</span></div>`;
-    const crisis = GB().RULES.crisis;
+    const crisis = S.crisis || GB().RULES.crisis, rw = S.mode === 'world' ? 'Mauten' : 'Mieten';
     if (crisis && !S.event?.storm) {
       h += S.inflation
-        ? `<div class="news is-storm"><strong>📈 Weltwirtschaftskrise</strong><span>Alle Mauten +${Math.round(S.inflation * 100)} % – und es wird jede Runde schlimmer.</span></div>`
-        : `<div class="news"><strong>📈 Krise in Runde ${crisis.from}</strong><span>Ab dann steigen alle Mauten jede Runde. Spiel läuft, bis alle bis auf einen pleite sind.</span></div>`;
+        ? `<div class="news is-storm"><strong>📈 ${S.mode === 'world' ? 'Weltwirtschaftskrise' : 'Dulidan-Krise'}</strong><span>Alle ${rw} +${Math.round(S.inflation * 100)} % – und es wird jede Runde schlimmer.</span></div>`
+        : `<div class="news"><strong>📈 Krise in Runde ${crisis.from}</strong><span>Ab dann steigen alle ${rw} jede Runde. Spiel läuft, bis alle bis auf einen pleite sind.</span></div>`;
     }
     if (S.trade) {
       const from = P(S.trade.from), to = P(S.trade.to);
@@ -1511,7 +1528,7 @@
       return;
     }
     if (!me) {
-      const what = { roll: 'würfelt gleich', pick: 'wählt die Schritte', jet: 'sucht sich ein Ziel aus', walk: 'navigiert durchs Netz', buy: 'überlegt, ob gekauft wird', end: 'beendet gleich den Zug', debt: 'muss Schulden begleichen', portal: 'steht vor einem Portal' }[S.sub] || '';
+      const what = { roll: 'würfelt gleich', pick: 'wählt die Schritte', jet: 'sucht sich ein Ziel aus', walk: 'navigiert durchs Netz', buy: 'überlegt, ob gekauft wird', end: 'beendet gleich den Zug', debt: 'muss Schulden begleichen', portal: 'steht vor einem Portal', card: 'liest eine Karte' }[S.sub] || '';
       el.innerHTML = h + `<p class="action-note">${esc(cur.name)} ${what} …</p>`;
       return;
     }
@@ -1550,6 +1567,12 @@
       case 'walk': {
         h += `<p class="action-note">🧭 <strong>Navigator:</strong> Noch ${S.steps} ${S.steps === 1 ? 'Schritt' : 'Schritte'}. Wohin geht's?</p>`;
         h += `<div class="dests">${W.walkOptions(S).map((to) => destBtn(S, cur, to, { type: 'step', to })).join('')}</div>`;
+        break;
+      }
+      case 'card': {
+        const x = GB().CARDS[S.card.deck][S.card.i];
+        h += `<div class="card-mini deck-${S.card.deck}"><span class="ck">${S.card.deck === 'april' ? `${aprilIcon('ck-april')} April-Karte` : '💜 Studio-Karte'}</span><p>${esc(x.t)}</p></div>`;
+        h += `<div class="btn-row">${btn('OK', { type: 'cardOk' }, pid, 'btn-primary')}</div>`;
         break;
       }
       case 'portal': {

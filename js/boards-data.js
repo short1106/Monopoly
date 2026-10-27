@@ -26,6 +26,34 @@
   };
   const node = (id, name, extra) => Object.assign({ id, name, type: 'prop' }, extra);
 
+  // Karten zum Ziehen auf den Brett-Modi (Kartenfelder)
+  const CARDS = {
+    april: [
+      { t: 'TUNG TUNG TUNG SAHUR! April schenkt dir Ð100.', money: 100, good: true },
+      { t: '67! 😂 April findet das so lustig, dass sie dir Ð67 gibt.', money: 67, good: true },
+      { t: 'April hatte Zugriff auf deine Karte 💳 und hat 50 Energy-Drinks bestellt. Zahle Ð100.', money: -100 },
+      { t: 'April hat ihre Periode 🩸, ist genervt und will Schokolade. Zahle Ð50.', money: -50 },
+      { t: 'No rizz. Dein Pitch ist gefloppt. Zahle jedem Mitspieler Ð30.', payEach: 30 },
+      { t: 'April macht auf TikTok Werbung für dich. Jeder Mitspieler zahlt dir Ð30.', collect: 30, good: true },
+      { t: '„April regelt das.“ 🛡️ Du bekommst ein Schild gegen die nächste Miete.', item: 'shield', good: true },
+      { t: 'April gibt dir Red Bull. ⚡ Dein nächster Wurf geht 3 Felder weiter.', item: 'boost', good: true },
+      { t: 'April hat sich verklickt und dich teleportiert. 🌀 Ab auf ein zufälliges Feld!', teleport: true },
+      { t: 'April hackt den reichsten Mitspieler. Der zahlt dir Ð100. Robin Hood, aber cringe.', fromRichest: 100, good: true },
+    ],
+    studio: [
+      { t: 'Der Kunde zahlt endlich die Rechnung! Erhalte Ð200.', money: 200 },
+      { t: 'Logo-Pitch gewonnen! Erhalte Ð100.', money: 100 },
+      { t: '3D-Modell verkauft. Erhalte Ð50.', money: 50 },
+      { t: 'Folierungsauftrag für einen Berlingo! Erhalte Ð150.', money: 150 },
+      { t: 'Neue Grafikkarte nötig. Zahle Ð100.', money: -100 },
+      { t: 'Server-Kosten für die Website. Zahle Ð50.', money: -50 },
+      { t: 'Der Kunde will „das Logo größer, aber kleiner“. 12 Korrekturschleifen. Zahle Ð75 für Kaffee.', money: -75 },
+      { t: 'Deine Werbekampagne geht viral! Jeder Mitspieler zahlt dir Ð20.', collect: 20 },
+      { t: 'Studio-Renovierung: Zahle Ð30 pro Ausbaustufe auf deinen Feldern.', repairs: 30 },
+      { t: 'Security-Ausweis 🛡️: Schild gegen die nächste Miete.', item: 'shield' },
+    ],
+  };
+
   // =====================================================================
   // 🌀 DULIDAN ROYALE – drei Ringe im All, der April-Sturm frisst sie von außen
   // =====================================================================
@@ -66,7 +94,7 @@
       p('tig', 'Tiger-&-Turtle-Station', 'rhe', 220),
       p('lpn', 'Landschaftspark-Pulsar', 'rhe', 240),
       node('r2p3', 'Portal Gamma', { type: 'portal', link: 'r1p1' }),
-      node('r2f', 'April-Funk', { type: 'event' }),
+      node('r2f', 'April-Karte', { type: 'event', deck: 'april' }),
       p('hof', 'Hofgarten-Orbit', 'ohr', 260, 'Enten im Orbit. Ich liebe es.'),
       p('sch', 'Schloss-Satellit', 'ohr', 260),
       node('r2p2', 'Portal Beta', { type: 'portal', link: 'r3p2' }),
@@ -104,7 +132,7 @@
       id: 'royale', title: 'DULIDAN ROYALE', icon: '🌀',
       tagline: 'Drei Ringe im All. Der April-Sturm frisst sie von außen. Der Letzte gewinnt.',
       walk: 'ring', ZONES, CITIES, ROUTES, LEVELS, RENT_PCT: [0.15, 0.8, 2.2, 4.5, 7],
-      RULES: { startMoney: 1500, salary: 50, takeoverMult: 1.5, maxRounds: 40 },
+      RULES: { startMoney: 1500, salary: 50, takeoverMult: 1.5, noLimit: true },
       FACES: [], CHAOS: [], EVENTS: [], FUNK, POWERS,
       STORM: [{ warn: 5, at: 7, ring: 3 }, { warn: 12, at: 14, ring: 2 }],
       INFLATION: 0.3,
@@ -138,9 +166,9 @@
     const s = (id, name, zone, price, x, y, lab, quip) => node(id, name, { zone, price, x, y, lab, quip });
     const hub = (id, name, x, y, lab, type, quip) => node(id, name, { type: type || 'free', hub: true, x, y, lab, quip });
     const CITIES = [
-      hub('bhf', 'Duisburg Hbf', 500, 310, 'e', 'event', 'Duisburg Hbf. Gleis 9 ¾ gibt’s nicht. Nur Verspätung.'),
+      Object.assign(hub('bhf', 'Duisburg Hbf', 500, 310, 'e', 'event', 'Duisburg Hbf. Gleis 9 ¾ gibt’s nicht. Nur Verspätung.'), { deck: 'april' }),
       hub('koe', 'Königstraße', 280, 150, 'w', 'free', 'Umsteigen an der Kö. Die echte Kö.'),
-      hub('ruh', 'Ruhrort', 720, 150, 'e', 'event', 'Ruhrort: Hafen, Möwen, Umsteigen.'),
+      Object.assign(hub('ruh', 'Ruhrort', 720, 150, 'e', 'event', 'Ruhrort: Hafen, Möwen, Umsteigen.'), { deck: 'studio' }),
       hub('ohb', 'Öhringen Hbf', 280, 480, 'w', 'free', 'Öhringen Hbf. Endstation Gemütlichkeit.'),
       hub('plz', 'Dulidan Plaza', 720, 480, 'e', 'free', 'Dulidan Plaza: Hier steigt man stilvoll um.'),
       // U1 oben
@@ -187,7 +215,7 @@
       walk: 'random', ZONES, CITIES, ROUTES, LEVELS: ['Unbebaut', 'Kiosk', 'Café', 'Shop', 'Mall'],
       LEVEL_ART: ['', 'einen Kiosk', 'ein Café', 'einen Shop', 'eine Mall'],
       RENT_PCT: [0.2, 1, 2.8, 5.5, 8.5],
-      RULES: { startMoney: 1500, salary: 40, takeoverMult: 1.5, fare: true },
+      RULES: { startMoney: 1500, salary: 40, takeoverMult: 1.5, fare: true, crisis: { from: 8, step: 0.2 }, noLimit: true },
       FACES: [
         { id: 'nav', icon: '🧭', name: 'Navigator', text: 'Du wählst an jedem Bahnhof selbst, wohin es geht.' },
         { id: 'jet', icon: '🚄', name: 'Express', text: 'Statt zu fahren springst du zu einem beliebigen Umsteigebahnhof.' },
@@ -236,7 +264,7 @@
         ? node(`${f.z}dn`, 'Rutsche', { type: 'slide', link: fl > 2 ? `f${fl - 1}dn` : 'in', quip: 'Wuuuuuuh!' })
         : node('in', 'Eingang', { type: 'free', quip: 'Willkommen im DULIDAN TOWER.' });
       const flur = node(`${f.z}fl`, `Flur ${fl}`, { type: 'free' });
-      const funk = node(`${f.z}ev`, 'April-Funk', { type: 'event' });
+      const funk = fl % 2 ? node(`${f.z}ev`, 'April-Karte', { type: 'event', deck: 'april' }) : node(`${f.z}ev`, 'Studio-Karte', { type: 'event', deck: 'studio' });
       // Rundgang: Flur links, vorne nach rechts, hinten zurück nach links
       const loop = [flur, n[0], n[1], funk, lift, n[2], n[3], slide];
       const pos = [[150, 0, 'w'], [300, 1, 's'], [460, 1, 's'], [620, 1, 's'], [800, 1, 's'], [800, -1, 'n'], [560, -1, 'n'], [320, -1, 'n']];
@@ -259,7 +287,7 @@
       walk: 'ring', ZONES, CITIES, ROUTES, LEVELS: ['Leer', 'Schreibtisch', 'Büro', 'Suite', 'Chefetage'],
       LEVEL_ART: ['', 'einen Schreibtisch', 'ein Büro', 'eine Suite', 'eine Chefetage'],
       RENT_PCT: [0.2, 1, 2.8, 5.5, 8.5],
-      RULES: { startMoney: 1500, salary: 40, takeoverMult: 1.5, liftFee: 60 },
+      RULES: { startMoney: 1500, salary: 40, takeoverMult: 1.5, liftFee: 60, crisis: { from: 6, step: 0.3 }, noLimit: true },
       FACES: [], CHAOS: [], EVENTS: WD.EVENTS, FUNK, POWERS,
       LOOT: [
         { id: 'money', t: '💰 Auf dem Helipad liegt ein Koffer voller Dulis. +Ð200.', money: 200 },
@@ -272,6 +300,9 @@
     };
   }
 
+  for (const b of Object.values(BOARDS)) b.CARDS = CARDS;
   root.DULI_BOARDS = Object.assign(root.DULI_BOARDS || {}, BOARDS);
+  if (root.DULI_BOARDS.world) root.DULI_BOARDS.world.CARDS = CARDS;
+  root.DULI_BOARD_CARDS = CARDS;
   if (isNode) module.exports = BOARDS;
 })(typeof window !== 'undefined' ? window : globalThis);

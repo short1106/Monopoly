@@ -27,7 +27,7 @@
     compiled[mode] = Object.assign({}, d, {
       CITY, NEIGH, PROPS, ZONE_CITIES, HUBS,
       LEVEL_ART: d.LEVEL_ART || ['', 'ein Studio', 'ein Büro', 'einen Tower', 'ein Wahrzeichen'],
-      FUNK: d.FUNK || [], LOOT: d.LOOT || [], FACES: d.FACES || [], EVENTS: d.EVENTS || [], CHAOS: d.CHAOS || [],
+      FUNK: d.FUNK || [], LOOT: d.LOOT || [], CARDS: d.CARDS || { april: [], studio: [] }, FACES: d.FACES || [], EVENTS: d.EVENTS || [], CHAOS: d.CHAOS || [],
       words: d.words || { zone: 'Zone', city: 'Stadt', cities: 'Städte' },
     });
     return compiled[mode];
@@ -149,6 +149,9 @@
     for (const id of g.PROPS) S.cities[id] = { owner: null, level: 0, mort: false };
     S.dead = {};
     S.inflation = 0;
+    const deck = (k) => (g.CARDS[k] || []).map((_, i) => i).sort(() => rng() - 0.5);
+    S.decks = { april: deck('april'), studio: deck('studio') };
+    S.card = null;
     S.players.forEach((p, i) => {
       const home = g.starts[i % g.starts.length];
       Object.assign(p, {
@@ -157,10 +160,11 @@
         stats: { rentPaid: 0, rentGot: 0, maxRent: 0, built: 0, bought: 0, takeovers: 0, flights: 0, km: 0, doubles: 0, loot: 0 },
       });
     });
-    S.maxRounds = g.RULES.maxRounds || (st.maxRounds ?? (g.RULES.noLimit ? 0 : 30));
+    // Auf allen Brettern gilt: Gespielt wird, bis nur noch eine Person nicht pleite ist
+    S.maxRounds = 0;
     const variant = st.variant || 'normal';
     S.goal = variant === 'million' ? 5000 : 0;
-    if (variant === 'blitz') S.maxRounds = 20;
+    S.crisis = g.RULES.crisis ? { ...g.RULES.crisis, from: variant === 'blitz' ? 3 : g.RULES.crisis.from } : null;
     if (variant === 'hardcore') S.players.forEach(p => { p.money = 800; });
     if (variant === 'blitz') {
       const ids = g.PROPS.slice().sort(() => rng() - 0.5);
@@ -231,11 +235,12 @@
 
   // WORLD: Weltwirtschaftskrise – Mauten steigen jede Runde, damit am Ende jemand pleite geht
   function crisisTick(S) {
-    const c = G(S).RULES.crisis;
+    const c = S.crisis;
     if (!c || S.round < c.from) return;
+    const w = G(S).id === 'world' ? 'Mauten' : 'Mieten';
     S.inflation = +(c.step * (S.round - c.from + 1)).toFixed(2);
-    if (S.round === c.from) log(S, `📈 WELTWIRTSCHAFTSKRISE! Ab jetzt steigen alle Mauten jede Runde um ${Math.round(c.step * 100)} %.`);
-    else log(S, `📈 Krise: Alle Mauten sind jetzt ${Math.round(S.inflation * 100)} % teurer.`);
+    if (S.round === c.from) log(S, `📈 WELTWIRTSCHAFTSKRISE! Ab jetzt steigen alle Mauten jede Runde um ${Math.round(c.step * 100)} %.`.replace('Mauten', w));
+    else log(S, `📈 Krise: Alle ${w} sind jetzt ${Math.round(S.inflation * 100)} % teurer.`);
   }
 
   function collapse(S, ring) {
@@ -445,16 +450,22 @@
         break;
       }
       case 'event': {
-        const pool = p.token === 'april' ? g.FUNK.filter(x => (x.money || 0) > 0 || x.collect) : g.FUNK;
-        if (!pool.length) break;
-        const x = pick(pool);
-        log(S, `💖 April-Funk: ${x.t}`);
-        const others = active(S).filter(o => o.id !== p.id);
-        if (x.money > 0) p.money += x.money;
-        if (x.collect) for (const o of others) { const v = Math.min(o.money, x.collect); o.money -= v; p.money += v; }
-        if (x.money < 0 && !charge(S, p, [{ to: null, amt: -x.money }])) return;
-        if (x.payEach && !charge(S, p, others.map(o => ({ to: o.id, amt: x.payEach })))) return;
-        break;
+        // Karte ziehen: Spieler sieht sie groß und bestätigt mit OK
+        const deck = c.deck || 'april';
+        const list = g.CARDS[deck] || [];
+        if (!list.length) break;
+        if (!S.decks[deck] || !S.decks[deck].length) S.decks[deck] = list.map((_, i) => i).sort(() => rng() - 0.5);
+        let i = S.decks[deck].shift();
+        // April-Figur: April-Karten treffen sie nur positiv
+        if (p.token === 'april' && deck === 'april' && !list[i].good) {
+          const goodIdx = list.map((x, k) => (x.good ? k : -1)).filter(k => k >= 0);
+          i = pick(goodIdx);
+        }
+        S.decks[deck].push(i);
+        S.card = { deck, i };
+        S.sub = 'card';
+        log(S, `${p.name} zieht eine ${deck === 'april' ? 'April-Karte 💖' : 'Studio-Karte 💜'}.`);
+        return;
       }
       case 'loot': {
         if (!g.LOOT.length) break;
@@ -602,6 +613,35 @@
         if (S.sub !== 'portal') return 'Geht gerade nicht.';
         S.sub = 'end';
         return null;
+      case 'cardOk': {
+        if (S.sub !== 'card' || !S.card) return 'Keine Karte offen.';
+        const x = g.CARDS[S.card.deck][S.card.i];
+        S.card = null;
+        S.sub = 'end';
+        log(S, `${x.t}`);
+        const others = active(S).filter(o => o.id !== p.id);
+        if (x.money > 0) p.money += x.money;
+        if (x.collect) for (const o of others) { const v = Math.min(o.money, x.collect); o.money -= v; p.money += v; }
+        if (x.fromRichest) {
+          const rich = others.slice().sort((a, b) => b.money - a.money)[0];
+          if (rich) { const v = Math.min(rich.money, x.fromRichest); rich.money -= v; p.money += v; log(S, `${rich.name} zahlt ${M(v)} an ${p.name}.`); }
+        }
+        if (x.item) p.items[x.item] = (p.items[x.item] || 0) + 1;
+        if (x.money < 0) charge(S, p, [{ to: null, amt: -x.money }]);
+        else if (x.payEach) charge(S, p, others.map(o => ({ to: o.id, amt: x.payEach })));
+        else if (x.repairs) {
+          const lv = Object.values(S.cities).filter(st => st.owner === p.id).reduce((a, st) => a + st.level, 0);
+          if (lv) { log(S, `${p.name} zahlt ${M(lv * x.repairs)} für ${lv} Ausbaustufen.`); charge(S, p, [{ to: null, amt: lv * x.repairs }]); }
+        } else if (x.teleport) {
+          const targets = g.PROPS.filter(id => alive(S, id) && id !== here);
+          const to = pick(targets);
+          S.path = [here];
+          moveLink(S, to, 'fly');
+          log(S, `🌀 ${p.name} wird nach ${g.CITY[to].name} teleportiert.`);
+          land(S);
+        }
+        return null;
+      }
       case 'buy': {
         if (S.sub !== 'buy') return 'Geht gerade nicht.';
         const price = buyPrice(p, here, S);
@@ -821,6 +861,7 @@
         const choice = S.steps === 1 ? opts.slice().sort((a, b) => cityValue(S, p, b) - cityValue(S, p, a))[0] : pick(opts);
         return go({ type: 'step', to: choice });
       }
+      case 'card': return go({ type: 'cardOk' });
       case 'portal': {
         const c = g.CITY[p.loc], to = g.CITY[c.link];
         const warned = !!S.event && S.event.warn === c.ring;

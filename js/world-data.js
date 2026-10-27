@@ -47,16 +47,21 @@
     c('lon', 'Londulidan', 'London', 'eur', 420, -14, 56, true, 'Londulidan: Regen, Tee und überteuerte Mieten. Wie erwartet.'),
     c('ber', 'Berlin Beton-Studio', 'Berlin', 'eur', 440, 20, 57, false, 'Berlin: Aus Prinzip unfertig. Wie unsere Website.'),
     c('dui', 'DUISBURG · DULIDAN HQ', 'Duisburg', 'eur', 500, 3, 46, false, 'Heimathafen! Das HQ. Hier wird die Welt erobert. 💜'),
+    // Kartenfelder auf den Seerouten
+    { id: 'c_atl', name: 'April-Karte', real: 'Nordatlantik', type: 'event', deck: 'april', lon: -40, lat: 47 },
+    { id: 'c_sat', name: 'Studio-Karte', real: 'Südatlantik', type: 'event', deck: 'studio', lon: -22, lat: -12 },
+    { id: 'c_ind', name: 'April-Karte', real: 'Indischer Ozean', type: 'event', deck: 'april', lon: 60, lat: -7 },
+    { id: 'c_pac', name: 'Studio-Karte', real: 'Südchinesisches Meer', type: 'event', deck: 'studio', lon: 136, lat: -2 },
   ];
 
   // Routen: Land- und Seewege (sea = gestrichelt)
   const ROUTES = [
-    ['lon', 'dui'], ['dui', 'ber'], ['ber', 'ist'], ['lon', 'nyc', 'sea'],
+    ['lon', 'dui'], ['dui', 'ber'], ['ber', 'ist'], ['lon', 'c_atl', 'sea'], ['c_atl', 'nyc', 'sea'],
     ['ist', 'kai'], ['ist', 'dxb'], ['kai', 'dxb'],
     ['kai', 'lag'], ['kai', 'nbo'], ['lag', 'nbo'], ['nbo', 'cpt'], ['lag', 'cpt'],
-    ['lag', 'sao', 'sea'], ['nbo', 'bom', 'sea'], ['dxb', 'bom', 'sea'],
+    ['lag', 'c_sat', 'sea'], ['c_sat', 'sao', 'sea'], ['nbo', 'c_ind', 'sea'], ['c_ind', 'bom', 'sea'], ['dxb', 'bom', 'sea'],
     ['bom', 'del'], ['bom', 'blr'], ['del', 'blr'], ['del', 'sha'], ['blr', 'syd', 'sea'],
-    ['sha', 'sel'], ['sel', 'tyo'], ['sha', 'tyo'], ['tyo', 'sfo', 'sea'], ['sha', 'syd', 'sea'],
+    ['sha', 'sel'], ['sel', 'tyo'], ['sha', 'tyo'], ['tyo', 'sfo', 'sea'], ['sha', 'c_pac', 'sea'], ['c_pac', 'syd', 'sea'],
     ['syd', 'mel'], ['syd', 'akl', 'sea'], ['mel', 'akl', 'sea'], ['akl', 'lim', 'sea'],
     ['van', 'sfo'], ['sfo', 'lax'], ['van', 'tor'], ['lax', 'mex'],
     ['tor', 'nyc'], ['nyc', 'mia'], ['mia', 'hav', 'sea'],
@@ -161,6 +166,7 @@
     van: 'n', sfo: 'e', lax: 'w', sel: 'n', sha: 's', tyo: 'e',
     syd: 'e', mel: 's', akl: 's', del: 'n', bom: 'w', blr: 's',
     lag: 's', nbo: 'e', cpt: 's', lim: 'w', sao: 'e', bue: 's',
+    c_atl: 'n', c_sat: 's', c_ind: 's', c_pac: 'e',
   };
 
   root.DULI_WORLD_DATA = { ZONES, CITIES, ROUTES, LEVELS, RENT_PCT, RULES, FACES, CHAOS, POWERS, EVENTS, LAND, VIEW, LABELS };
