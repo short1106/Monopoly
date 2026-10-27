@@ -41,6 +41,7 @@
     if (st.level === 0 && zoneComplete(S, st.owner, c.zone)) r *= 2;
     if (ev(S).boom && ev(S).zone === c.zone) r *= 2;
     if (ev(S).rentMult) r *= ev(S).rentMult;
+    if (S.settings && S.settings.variant === 'hardcore') r *= 1.5;
     if (payer && payer.token === 'ship' && c.hub) r /= 2;
     return r5(r);
   }
@@ -115,12 +116,22 @@
       });
     });
     S.maxRounds = st.maxRounds ?? 30;
+    const variant = st.variant || 'normal';
+    S.goal = variant === 'million' ? 5000 : 0;
+    if (variant === 'blitz') S.maxRounds = 20;
+    if (variant === 'hardcore') S.players.forEach(p => { p.money = 800; });
+    if (variant === 'blitz') {
+      const ids = CITIES.map(c => c.id).sort(() => rng() - 0.5);
+      ids.forEach((id, i) => { S.cities[id].owner = S.players[i % S.players.length].id; });
+    }
     S.phase = 'play'; S.cur = 0; S.round = 1; S.turnNo = 1;
     S.event = { ...EVENTS[0] };
     S.dice = [1, 1]; S.die3 = null; S.face = null; S.rollId = 0;
     S.path = []; S.moveId = 0; S.mover = null;
     S.debt = null; S.trade = null; S.log = []; S.winner = null; S.ranking = null;
     log(S, 'DULIDAN WORLD startet! Würfeln, um die Welt reisen, Städte kaufen – wer zuletzt nicht pleite ist, gewinnt.');
+    const intro = { blitz: '⚡ Blitz: Alle Städte sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: '💸 Millionär: Wer zuerst Ð5000 Vermögen hat, gewinnt!', chaos: '🤖 April-Chaos: Jeden Zug eine neue Weltnachricht.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mauten ×1,5.' }[variant];
+    if (intro) log(S, intro);
     beginTurn(S);
     return null;
   }
@@ -168,7 +179,7 @@
       S.round++;
       if (S.maxRounds && S.round > S.maxRounds) return endGame(S, 'Rundenlimit erreicht.');
       drawEvent(S);
-    }
+    } else if (S.settings && S.settings.variant === 'chaos') drawEvent(S);
     beginTurn(S);
   }
 
@@ -296,8 +307,23 @@
     S.sub = 'end';
   }
 
+  function checkGoal(S) {
+    if (S.phase !== 'play' || !S.goal) return;
+    const hit = active(S).find(p => netWorth(S, p) >= S.goal);
+    if (hit) {
+      S.ranking = rank(S); S.phase = 'over'; S.winner = hit.id;
+      log(S, `💸 ${hit.name} knackt die ${M(S.goal)} und gewinnt!`);
+    }
+  }
+
   // ---------- Aktionen ----------
   function act(S, pid, a) {
+    const err = actInner(S, pid, a);
+    if (!err) checkGoal(S);
+    return err;
+  }
+
+  function actInner(S, pid, a) {
     if (S.phase !== 'play') return 'Das Spiel ist vorbei.';
     const p = P(S, pid);
     if (!p || p.bankrupt) return 'Du spielst nicht mit.';

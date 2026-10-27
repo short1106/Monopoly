@@ -5,20 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Dulidanopoly</title>
   <meta name="description" content="Dulidanopoly – das Monopoly von Dulidan Studios. Online mit Freunden spielen.">
-  <meta name="theme-color" content="#0e0b13">
+  <meta name="theme-color" content="#07060b">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+  <link rel="preload" href="assets/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/april.css">
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <!-- April, das Dulidan-Maskottchen (wie auf dulidan-studios.com) -->
+      <symbol id="april" viewBox="0 0 100 100">
+        <path fill="#ff7ae6" d="M24 38C6 44 2 70 10 92c6-6 12-26 20-38z"/>
+        <path fill="#ff7ae6" d="M76 38c18 6 22 32 14 54-6-6-12-26-20-38z"/>
+        <circle cx="25" cy="37" r="4.5" fill="#8122b5"/><circle cx="75" cy="37" r="4.5" fill="#8122b5"/>
+        <circle cx="50" cy="46" r="27" fill="#ff7ae6"/>
+        <path fill="#2a1736" d="M22 100c2-16 13-24 28-24s26 8 28 24z"/>
+        <path fill="#8122b5" d="M24 100c2-14 12-21 26-21s24 7 26 21z"/>
+        <path fill="#c020b8" d="M42 79l8 9 8-9-8 3z"/>
+        <path fill="#fff" opacity=".9" d="M62 88h7v7h-7z"/>
+        <ellipse cx="50" cy="54" rx="21" ry="20" fill="#ffe6f2"/>
+        <path fill="#ff7ae6" d="M28 50c0-16 10-25 22-25s22 9 22 25c-6-6-10-12-12-16-4 6-14 10-22 10-4 2-8 4-10 6z"/>
+        <ellipse cx="42" cy="56" rx="3.6" ry="4.6" fill="#5b1782"/><ellipse cx="58" cy="56" rx="3.6" ry="4.6" fill="#5b1782"/>
+        <circle cx="43.2" cy="54.4" r="1.3" fill="#fff"/><circle cx="59.2" cy="54.4" r="1.3" fill="#fff"/>
+        <path d="M46 65q4 3 8 0" stroke="#c0407a" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+        <ellipse cx="36" cy="63" rx="3.5" ry="2" fill="#ff9fd0" opacity=".7"/><ellipse cx="64" cy="63" rx="3.5" ry="2" fill="#ff9fd0" opacity=".7"/>
+      </symbol>
+    </defs>
+  </svg>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <div class="fx fx-noise" aria-hidden="true"></div>
+  <div class="fx fx-scan" aria-hidden="true"></div>
+
+  <!-- Boot-Sequenz -->
+  <div class="boot" id="boot" hidden>
+    <div class="boot-in">
+      <div class="boot-logo" data-logo></div>
+      <div class="boot-lines" id="boot-lines" aria-live="polite"></div>
+      <div class="boot-bar"><i id="boot-bar"></i></div>
+      <div class="boot-foot"><span>DULIDANOPOLY_OS v2.0</span><span id="boot-pct">0%</span></div>
+    </div>
+    <button class="boot-skip" id="boot-skip" type="button">Überspringen [Enter]</button>
+  </div>
+
+  <!-- April, die Begleiterin -->
+  <div class="april-buddy" id="april-buddy">
+    <div class="april-bubble" id="april-bubble" role="status" aria-live="polite"><small>APRIL</small><span id="april-text"></span></div>
+    <button class="april-av" id="april-av" type="button" aria-label="April, das Dulidan-Maskottchen. Klicken für einen Spruch."><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#april"/></svg></button>
+  </div>
   <!-- Startseite -->
   <section id="screen-home" class="screen">
     <div class="home">
+      <p class="status-pill"><i></i>System online · Duisburg ⇄ Öhringen · 2 Bretter</p>
       <div class="home-logo" data-logo></div>
       <h1 class="wordmark">DULIDAN<span>OPOLY</span></h1>
-      <p class="tagline">Von Marxloh bis ins DULIDAN HQ.</p>
+      <p class="tagline">Monopoly, das hochfährt.</p>
+      <p class="tagline-sub">Von Marxloh bis ins DULIDAN HQ – oder einmal um die ganze Welt. Mit April als Moderatorin.</p>
 
       <div class="home-card">
         <label class="field">
@@ -37,7 +80,7 @@
         <button id="btn-resume" class="btn btn-ghost" hidden></button>
         <button id="btn-local" class="btn btn-ghost">Auf einem Gerät spielen</button>
       </div>
-      <p class="home-foot">Ein Spiel von <strong>Dulidan Studios</strong></p>
+      <p class="home-foot">Ein Spiel von Dulidan Studios · Keine Tracker. Nur Pixel.</p>
     </div>
   </section>
 
@@ -80,7 +123,7 @@
   <section id="screen-game" class="screen" hidden>
     <header class="topbar">
       <div class="mini-logo" data-logo></div>
-      <span class="topbar-name">DULIDANOPOLY</span>
+      <span class="topbar-name">DULIDAN<span>OPOLY</span></span>
       <span id="room-chip" class="chip"></span>
       <span id="net-chip" class="chip chip-net"></span>
       <span class="spacer"></span>

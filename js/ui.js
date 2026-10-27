@@ -40,10 +40,11 @@
   }
   document.querySelectorAll('[data-logo]').forEach((el) => { el.innerHTML = logoSVG(); });
 
+  const aprilIcon = (cls = 'april-ic') => `<svg class="${cls}" viewBox="0 0 100 100" aria-hidden="true"><use href="#april"/></svg>`;
   function tokHTML(token, color, extraClass = '') {
     const t = TOKENS[token];
-    const inner = !t ? '?' : token === 'dulidan' ? logoSVG() : t.emoji;
-    return `<span class="tok ${extraClass}" style="--pc:${color || 'var(--line)'}">${inner}</span>`;
+    const inner = !t ? '?' : token === 'dulidan' ? logoSVG() : token === 'april' ? aprilIcon() : t.emoji;
+    return `<span class="tok ${extraClass}${token === 'april' ? ' is-april-tok' : ''}" style="--pc:${color || 'var(--line)'}">${inner}</span>`;
   }
 
   // ---------- Allgemeine UI ----------
@@ -334,6 +335,22 @@
     enterRoom();
   };
 
+  const VARIANTS = [
+    { id: 'normal', ic: '🎲', name: 'Klassisch', text: 'Die normalen Regeln.' },
+    { id: 'blitz', ic: '⚡', name: 'Blitz', text: 'Alles wird am Start verteilt. Nach 20 Runden gewinnt der Reichste.' },
+    { id: 'million', ic: '💸', name: 'Millionär', text: 'Wer zuerst Ð5.000 Vermögen hat, gewinnt.' },
+    { id: 'chaos', ic: '🤖', name: 'April-Chaos', text: 'April wirft ständig Chaos-Events rein. Nichts ist sicher.' },
+    { id: 'hardcore', ic: '💀', name: 'Hardcore', text: 'Nur Ð800 Startgeld, alle Mieten ×1,5.' },
+  ];
+  $('#settings').addEventListener('click', (e) => {
+    const b = e.target.closest('.variant');
+    if (!b || App.mode === 'client' || !App.S) return;
+    E.setSettings(App.S, { variant: b.dataset.variant });
+    const v = VARIANTS.find((x) => x.id === b.dataset.variant);
+    if (v) aprilSay({ normal: 'Klassisch. Solide Wahl. Langweilig, aber solide.', blitz: 'Blitz! Alles verteilt, 20 Runden, keine Gnade.', million: 'Millionär! Ich zähl mit. Ð5.000 und Schluss.', chaos: 'April-Chaos?! Endlich darf ich mal richtig. Hehe.', hardcore: 'Hardcore. Ð800. Ich hoffe, ihr könnt rechnen.' }[v.id]);
+    commit();
+  });
+
   function startByMode(S) {
     return S.settings && S.settings.mode === 'world' ? W.start(S) : E.startGame(S);
   }
@@ -360,7 +377,10 @@
     const st = S.settings || { startMoney: 1500, pot: true, goDouble: false };
     const ro = App.mode === 'client' ? 'disabled' : '';
     const world = st.mode === 'world';
-    $('#settings').innerHTML = `
+    const curVar = st.variant || 'normal';
+    const variantsHTML = `<div class="row-block"><span class="vb-title">Spielvariante<small>${esc(VARIANTS.find((v) => v.id === curVar).text)}</small></span>
+      <div class="variant-grid">${VARIANTS.map((v) => `<button type="button" class="variant ${v.id === curVar ? 'is-on' : ''}" data-variant="${v.id}" ${ro}><span class="v-ic">${v.ic}</span><strong>${v.name}</strong><small>${v.text}</small></button>`).join('')}</div></div>`;
+    $('#settings').innerHTML = variantsHTML + `
       <label class="row"><span>Spielmodus<small>${world ? 'Weltkarte mit Dulidan-Würfel: um die Welt laufen, Städte kaufen, Maut kassieren' : 'Das Brett mit Duisburg und Öhringen'}</small></span>
         <select id="set-mode" ${ro}><option value="classic" ${!world ? 'selected' : ''}>Klassisch</option><option value="world" ${world ? 'selected' : ''}>🌍 DULIDAN WORLD</option></select></label>
       ${world ? `<label class="row"><span>Runden-Limit<small>Danach gewinnt der Reichste – vorher gewinnt, wer als Letzter nicht pleite ist</small></span>
@@ -466,7 +486,7 @@
       } else if (sp.type === 'tax') {
         body = `<div class="cicon">${sp.icon}</div><div class="cname">${esc(sp.name)}</div><div class="cprice">${M(sp.amount)}</div>`;
       } else {
-        body = `<div class="cicon">${TYPE_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>`;
+        body = `<div class="cicon">${sp.type === 'april' ? aprilIcon() : TYPE_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>`;
       }
       el.innerHTML = (sp.type === 'prop' ? `<div class="band" style="--g:${GROUPS[sp.group].color}"></div>` : '')
         + `<div class="cell-body">${body}</div><div class="cell-tokens"></div>`;
@@ -527,7 +547,7 @@
     if (S.card && S.phase === 'play') {
       const c = E.CARDS[S.card.deck][S.card.id];
       cc.className = `center-card deck-${S.card.deck}`;
-      cc.innerHTML = `<div class="card-icon">${TYPE_ICON[S.card.deck]}</div><div class="card-kind">${S.card.deck === 'april' ? 'April-Karte' : 'Studio-Karte'}</div><div class="card-text">${esc(c.text)}</div>`;
+      cc.innerHTML = `<div class="card-icon">${S.card.deck === 'april' ? aprilIcon('card-april') : TYPE_ICON[S.card.deck]}</div><div class="card-kind">${S.card.deck === 'april' ? 'April-Karte' : 'Studio-Karte'}</div><div class="card-text">${esc(c.text)}</div>`;
       cc.hidden = false;
     } else cc.hidden = true;
   }
@@ -602,6 +622,8 @@
     }
     const cur = curP();
     let h = '';
+    if (S.event) h += `<div class="news"><strong>📰 April-News · Runde ${S.round}</strong><span>${esc(S.event.t)}</span></div>`;
+    else if (S.maxRounds) h += `<div class="news"><strong>⚡ Blitz · Runde ${S.round}/${S.maxRounds}</strong><span>Danach gewinnt der Reichste.</span></div>`;
 
     // Offenes Handelsangebot
     if (S.trade) {
@@ -747,8 +769,16 @@
         <div style="min-width:0"><div class="pname">${esc(p.name)} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</div>
           <div class="swatches">${owned.map((k) => `<i class="${S.props[k].mort ? 'is-mort' : ''}" style="--g:${SPACES[k].group ? GROUPS[SPACES[k].group].color : '#cfc3e6'}" title="${esc(SPACES[k].name)}"></i>`).join('')}</div>
           <div class="pmeta">${meta.join('')}</div></div>
-        <div class="pmoney">${M(p.money)}</div></li>`;
+        <div class="pmoney">${M(p.money)}</div>${goalBar(p)}</li>`;
     }).join('');
+  }
+
+  function goalBar(p) {
+    const S = App.S;
+    if (!S.goal || p.bankrupt) return '';
+    const w = isWorld() ? W.netWorth(S, p) : E.netWorth(S, p);
+    const pct = Math.min(100, Math.round((w / S.goal) * 100));
+    return `<div class="goal-row" title="Vermögen ${M(w)} von ${M(S.goal)}"><div class="goal-bar"><i style="width:${pct}%"></i></div><span>${pct}%</span></div>`;
   }
 
   function viewer() {
@@ -776,7 +806,7 @@
       let btns = '';
       if (manage) {
         if (sp.type === 'prop' && !st.mort && E.ownsGroup(S, v.id, sp.group)) {
-          const cost = E.houseCost(v, sp.group);
+          const cost = E.houseCost(v, sp.group, S);
           if (st.houses < 5) btns += btn(st.houses === 4 ? `+Hotel ${M(cost)}` : `+Haus ${M(cost)}`, { type: 'build', idx: k }, v.id, '', v.money < cost);
           if (st.houses > 0) btns += btn('−', { type: 'sell', idx: k }, v.id, 'btn-ghost', false, 'Gebäude verkaufen (halber Preis)');
         }
@@ -930,14 +960,10 @@
     setTimeout(() => b.remove(), 4600);
   }
 
-  function showApril(text) {
-    const b = document.createElement('div');
-    b.className = 'bubble is-chat is-april';
-    b.style.setProperty('--pc', '#da29cf');
-    b.style.left = (10 + Math.random() * 25) + '%';
-    b.innerHTML = `<span class="tok" style="--pc:#da29cf">🤖</span><span class="msg"><strong>April:</strong> ${esc(text)}</span>`;
-    // kurz warten, bis die Figur angekommen ist
-    setTimeout(() => { $('#bubbles').appendChild(b); setTimeout(() => b.remove(), 4600); }, 900);
+  // April spricht über ihre Begleiter-Sprechblase unten rechts
+  function showApril(text, delay = 900) {
+    clearTimeout(App.aprilShowT);
+    App.aprilShowT = setTimeout(() => aprilSay(text.replace(/^„|“$/g, '')), delay);
   }
 
   // ---------- Figuren laufen Feld für Feld ----------
@@ -972,8 +998,8 @@
     if (n <= 0) return;
     const freshLines = S.log.slice(-n);
     const fresh = freshLines.join('\n');
-    const aprilLine = freshLines.filter((l) => l.startsWith('April:')).pop();
-    if (aprilLine) showApril(aprilLine.replace(/^April:\s*/, ''));
+    const aprilLine = freshLines.filter((l) => l.startsWith('April:') || /April-News|April-Chaos|^(⚡|💸|🤖|💀) /.test(l)).pop();
+    if (aprilLine) showApril(aprilLine.replace(/^April:\s*/, '').replace(/^📰 April-News, Runde \d+: /, '📰 '));
     const hit = SOUND_RULES.find(([, re]) => re.test(fresh));
     if (hit) FX.play(hit[0]);
     const cur = curP();
@@ -1013,7 +1039,12 @@
       <li>🤖 Bots kann der Host in der Lobby hinzufügen. Sie spielen automatisch.</li>
       <li>Hausregeln (Startgeld, Spardose, Doppelt auf LOS) stellt der Host in der Lobby ein.</li>
       <li>Am Ende gibt es Awards wie Miethai, Pasch-König und Düsseldorf-Stammgast.</li></ul>
+    ${variantRulesHTML()}
     <h3>Figuren</h3><ul>${Object.values(TOKENS).map((t) => `<li><strong>${esc(t.name)}:</strong> ${esc(t.power)}</li>`).join('')}</ul></div>`));
+  function variantRulesHTML() {
+    const cur = (App.S && App.S.settings && App.S.settings.variant) || 'normal';
+    return `<h3>Spielvarianten</h3><ul>${VARIANTS.map((v) => `<li>${v.ic} <strong>${v.name}${v.id === cur ? ' (läuft gerade)' : ''}:</strong> ${esc(v.text)}</li>`).join('')}</ul>`;
+  }
   $('#btn-menu').onclick = () => {
     const host = App.mode !== 'client';
     openModal(`<h2>Menü</h2><div class="btn-row" style="flex-direction:column">
@@ -1272,7 +1303,7 @@
         tg.innerHTML = here.map((p, i) => {
           const tk = TOKENS[p.token];
           const ox = (i - (here.length - 1) / 2) * 20;
-          return `<g class="wtok" transform="translate(${ox},-30)"><circle r="10" style="stroke:${p.color}"/><text y="4.5">${p.token === 'dulidan' ? 'D' : tk.emoji}</text></g>`;
+          return `<g class="wtok" transform="translate(${ox},-30)"><circle r="10" style="stroke:${p.color}"/>${p.token === 'april' ? '<use href="#april" x="-10" y="-10" width="20" height="20"/>' : `<text y="4.5">${p.token === 'dulidan' ? 'D' : tk.emoji}</text>`}</g>`;
         }).join('');
       }
     });
@@ -1400,7 +1431,7 @@
         <div style="min-width:0"><div class="pname">${esc(p.name)} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</div>
           <div class="swatches">${owned.map((id) => `<i class="${S.cities[id].mort ? 'is-mort' : ''}" style="--g:${WD.ZONES[W.CITY[id].zone].color}" title="${esc(W.CITY[id].name)}"></i>`).join('')}</div>
           <div class="pmeta">${meta.join('')}</div></div>
-        <div class="pmoney">${M(p.money)}</div></li>`;
+        <div class="pmoney">${M(p.money)}</div>${goalBar(p)}</li>`;
     }).join('');
   }
 
@@ -1448,8 +1479,94 @@
       <h3>Geld knapp?</h3><ul>
         <li>Gebäude abreißen (halber Preis zurück) oder Hypotheken aufnehmen. Kannst du nicht zahlen, bist du pleite und raus.</li></ul>
       <h3>📰 April-News</h3><ul><li>Jede Runde eine Weltnachricht: Maut-Party, Stau, drei Würfel, Rezession und mehr.</li></ul>
+      ${variantRulesHTML()}
       <h3>Figuren</h3><ul>${Object.entries(WD.POWERS).map(([k, t]) => `<li><strong>${esc(TOKENS[k].name)}:</strong> ${esc(t)}</li>`).join('')}</ul></div>`;
   }
+
+
+  // ================= APRIL: Begleiterin, Boot, Easter Eggs =================
+  function aprilSay(text, ms = 5200) {
+    const bub = $('#april-bubble'), av = $('#april-av');
+    $('#april-text').textContent = text;
+    bub.classList.add('on');
+    av.classList.remove('is-talking'); void av.offsetWidth; av.classList.add('is-talking');
+    clearTimeout(App.aprilHideT);
+    App.aprilHideT = setTimeout(() => bub.classList.remove('on'), ms);
+  }
+  const APRIL_TIPS = [
+    'Tipp: Eine ganze Farbgruppe bringt doppelte Miete. Erst dann darfst du bauen.',
+    'Im Weltmodus würfelt der lila Dulidan-Würfel mit. 🧭 Navigator heißt: du wählst den Weg.',
+    'Schüttel dein Handy, dann würfle ich für dich. Oder tipp halt auf den Knopf, langweilig.',
+    'Kein Geld mehr? Hypotheken! Das ist wie Schulden, nur mit Stil.',
+    'Ich hab die Würfel nicht gezinkt. Wahrscheinlich.',
+    'Tung tung tung sahur. Mehr hab ich gerade nicht.',
+    'Pro-Tipp: Kauf die Bahnhöfe. Ich fahr gern Zug. Wenn er kommt.',
+    'Bots sind meine Kollegen. Sie sind nett, aber gnadenlos.',
+    'Psst: ↑ ↑ ↓ ↓ ← → ← → B A. Du hast das nicht von mir.',
+    'Ich hab Hunger. Ich bin eine KI. Trotzdem. Döner.',
+  ];
+  let tipIdx = Math.floor(Math.random() * APRIL_TIPS.length);
+  $('#april-av').addEventListener('click', () => {
+    tipIdx = (tipIdx + 1) % APRIL_TIPS.length;
+    aprilSay(APRIL_TIPS[tipIdx]);
+  });
+  $('#april-bubble').addEventListener('click', () => $('#april-bubble').classList.remove('on'));
+
+  // Konami-Code = April-Modus
+  const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+  let konamiPos = 0;
+  document.addEventListener('keydown', (e) => {
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    konamiPos = k === KONAMI[konamiPos] ? konamiPos + 1 : (k === KONAMI[0] ? 1 : 0);
+    if (konamiPos === KONAMI.length) {
+      konamiPos = 0;
+      const on = document.documentElement.classList.toggle('april-mode');
+      aprilSay(on ? 'APRIL-MODUS AKTIVIERT 💖 Alles ist jetzt pinker. Gern geschehen.' : 'April-Modus aus. Langweilig, aber okay.');
+      FX.play('pot');
+    }
+  });
+
+  // Boot-Sequenz beim ersten Öffnen pro Sitzung
+  function runBoot() {
+    let seen = false;
+    try { seen = sessionStorage.getItem('duli-booted') === '1'; sessionStorage.setItem('duli-booted', '1'); } catch (e) { seen = false; }
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const greet = () => setTimeout(() => aprilSay('Hi, ich bin April! Ich moderiere heute. Erstell einen Raum, spiel lokal oder gegen meine Bot-Kollegen.'), 500);
+    if (seen || reduce) { greet(); return; }
+    const boot = $('#boot'), lines = $('#boot-lines'), bar = $('#boot-bar'), pct = $('#boot-pct');
+    const steps = [
+      '&gt; DULIDANOPOLY_OS v2.0 startet …',
+      '&gt; Spielbrett Duisburg / Öhringen <b>OK</b>',
+      '&gt; Weltkarte: 30 Städte, 10 Zonen <b>OK</b>',
+      '&gt; 3D-Würfel kalibriert <b>OK</b>',
+      '&gt; Düsseldorf abgesichert <b>OK</b>',
+      '&gt; April wird geweckt … <span class="pk">sie ist genervt</span>',
+      '&gt; Bereit. Viel Glück.',
+    ];
+    boot.hidden = false;
+    let i = 0, done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearInterval(timer);
+      boot.classList.add('is-done');
+      setTimeout(() => { boot.hidden = true; }, 500);
+      document.removeEventListener('keydown', onKey);
+      greet();
+    };
+    const onKey = (e) => { if (e.key === 'Enter' || e.key === 'Escape') finish(); };
+    document.addEventListener('keydown', onKey);
+    $('#boot-skip').onclick = finish;
+    const timer = setInterval(() => {
+      if (i < steps.length) lines.innerHTML += `<div>${steps[i]}</div>`;
+      i++;
+      const p = Math.min(100, Math.round((i / steps.length) * 100));
+      bar.style.width = p + '%';
+      pct.textContent = p + '%';
+      if (i > steps.length) finish();
+    }, 320);
+  }
+  runBoot();
 
   // ---------- Render ----------
   function render() {

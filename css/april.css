@@ -1,0 +1,275 @@
+/* Dulidanopoly · April-Designpaket
+   Übernimmt den Look von dulidan-studios.com: fast schwarz, lila Raster, Scanlines,
+   Space Grotesk + JetBrains Mono, eckige Gradient-Buttons und April als Begleiterin. */
+
+@font-face { font-family: "Space Grotesk"; src: url("../assets/fonts/space-grotesk.woff2") format("woff2"); font-weight: 300 700; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("../assets/fonts/jetbrains-mono.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
+
+:root {
+  --bg: #07060b;
+  --bg-2: #0c0a13;
+  --surface: #110e1a;
+  --surface-2: #171323;
+  --line: #241d33;
+  --line-soft: rgba(239, 234, 247, .09);
+  --line-2: rgba(192, 32, 184, .35);
+  --fg: #efeaf7;
+  --muted: #a49cb6;
+  --dim: #8a83a0;
+  --purple: #8122b5;
+  --magenta: #c020b8;
+  --pink: #ff7ae6;
+  --grad: linear-gradient(135deg, #8122b5 0%, #c020b8 100%);
+  --font: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+.april-mode { --magenta: #ff4fd8; --line-2: rgba(255, 79, 216, .5); }
+
+body { background: var(--bg); font-size: 15px; -webkit-font-smoothing: antialiased; }
+body::before { display: none; }
+::selection { background: var(--magenta); color: #fff; }
+:focus-visible { outline-color: var(--pink); }
+
+/* ---------- Texturen wie auf der Website ---------- */
+.fx { position: fixed; inset: 0; pointer-events: none; z-index: 400; }
+.fx-scan { background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 3px); mix-blend-mode: overlay; }
+.fx-noise { opacity: .05; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.bg-grid {
+  position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background-image: linear-gradient(rgba(129, 34, 181, .07) 1px, transparent 1px), linear-gradient(90deg, rgba(129, 34, 181, .07) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 10%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 10%, transparent 70%);
+}
+.bg-glow {
+  position: fixed; z-index: -1; pointer-events: none;
+  width: 70vmax; height: 70vmax; left: 50%; top: -30vmax; transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(129, 34, 181, .22), transparent 60%);
+  filter: blur(10px);
+}
+
+/* ---------- Buttons: eckig, Mono, Großbuchstaben ---------- */
+.btn {
+  border-radius: var(--radius);
+  border-color: var(--line-2);
+  background: transparent;
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 13px 18px;
+  transition: transform .15s var(--ease), background .25s, border-color .25s, box-shadow .25s, opacity .2s;
+}
+.btn:hover:not(:disabled) { border-color: var(--magenta); background: rgba(192, 32, 184, .08); }
+.btn-primary { background: var(--grad); border-color: transparent; box-shadow: 0 10px 30px -10px rgba(192, 32, 184, .8); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--grad); box-shadow: 0 12px 34px -8px rgba(192, 32, 184, .95); }
+.btn-ghost { border-color: var(--line-soft); }
+.btn-small { padding: 8px 12px; font-size: 11px; letter-spacing: .12em; }
+.btn-roll { font-size: 15px; padding-block: 16px; letter-spacing: .18em; }
+.btn-row.nums .btn { font-family: var(--mono); letter-spacing: 0; }
+.prop-row .btn { padding: 6px 9px; font-size: 10.5px; letter-spacing: .08em; }
+
+/* Labels im HUD-Stil */
+.field > span, .section-title, .panel-title, .eyebrow, .dests-title, .ap-row, .news strong,
+.center-card .card-kind, .chip, .bot-tag, .trade-col h3, .boot-foot, .tray-label, .center-sub {
+  font-family: var(--mono);
+  font-weight: 500;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.panel-title { font-size: 10.5px; color: var(--dim); }
+.chip { border-radius: var(--radius); font-size: 10.5px; border-color: var(--line-soft); background: var(--bg-2); color: var(--muted); }
+.chip-net.is-online::before { background: #3ce08a; box-shadow: 0 0 10px #3ce08a; }
+
+.field input, .field select, .settings select, .chat-form input {
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  border-color: var(--line-soft);
+  font-family: var(--font);
+}
+#in-code { font-family: var(--mono); }
+.field input:focus, .chat-form input:focus { border-color: var(--magenta); box-shadow: 0 0 0 3px rgba(192, 32, 184, .15); }
+
+/* Zahlen in Mono */
+.pmoney, .money-big, .cprice, .room-code, .rank li, .tray-label strong, .deed td:last-child {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.pmoney { font-weight: 600; font-size: 15px; letter-spacing: -.02em; }
+
+/* ---------- Wortmarke wie DULIDAN / STUDIOS ---------- */
+.wordmark, .center-word, .topbar-name {
+  font-family: var(--font);
+  font-weight: 700;
+  font-stretch: normal;
+  letter-spacing: -.04em;
+  line-height: .9;
+}
+.wordmark span, .center-word span {
+  background: none;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--fg);
+}
+.wordmark { font-size: clamp(44px, 13vw, 76px); display: flex; flex-direction: column; align-items: center; }
+.center-word { font-size: 7.4cqi; }
+.center-word span { -webkit-text-stroke-width: .18cqi; }
+.topbar-name { font-size: 15px; letter-spacing: -.01em; }
+.topbar-name span { color: transparent; -webkit-text-stroke: 1px var(--fg); }
+.center-sub { font-size: 1.35cqi; letter-spacing: .45em; color: var(--dim); }
+
+/* ---------- Startseite ---------- */
+.home { max-width: 520px; gap: 16px; }
+.status-pill {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin: 0; padding: 8px 14px;
+  border: 1px solid var(--line-soft); border-radius: 99px; background: rgba(12, 10, 19, .7);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+}
+.status-pill i { width: 7px; height: 7px; border-radius: 50%; background: #3ce08a; box-shadow: 0 0 10px #3ce08a; animation: pulseDot 2s ease-in-out infinite; }
+@keyframes pulseDot { 50% { opacity: .35; } }
+.tagline { font-size: 20px; font-weight: 600; color: var(--fg); letter-spacing: -.01em; }
+.tagline-sub { margin: -6px 0 0; color: var(--muted); max-width: 42ch; }
+.home-card { border-radius: var(--radius); background: rgba(17, 14, 26, .85); border-color: var(--line-soft); backdrop-filter: blur(6px); }
+.home-foot { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+.divider { font-family: var(--mono); }
+
+/* ---------- Flächen ---------- */
+.panel, .settings, .lobby-players li, .token-card, .modal, .offer, .auction-box, .here, .dest, .prop-row, .deed, .awards li, .rank li, .news {
+  border-radius: var(--radius);
+}
+.panel { background: rgba(17, 14, 26, .9); border-color: var(--line-soft); }
+.panel-action { border-color: var(--line-2); background: linear-gradient(170deg, rgba(129, 34, 181, .16), rgba(17, 14, 26, .95) 55%); box-shadow: 0 20px 60px -30px rgba(192, 32, 184, .55); }
+.token-card { border-color: var(--line-soft); background: var(--surface); transition: border-color .25s, transform .25s var(--ease); }
+.token-card:hover:not(:disabled) { border-color: var(--line-2); transform: translateY(-2px); }
+.token-card.is-picked { border-color: var(--magenta); background: linear-gradient(160deg, rgba(192, 32, 184, .2), var(--surface)); }
+.lobby-players li { border-color: var(--line-soft); }
+.modal { border-color: var(--line-2); background: #0f0c17; box-shadow: 0 40px 120px -40px rgba(192, 32, 184, .6); }
+.topbar { background: rgba(7, 6, 11, .82); border-bottom-color: var(--line-soft); }
+.deed-head { font-family: var(--font); font-weight: 700; letter-spacing: -.01em; }
+.player.is-cur { background: rgba(129, 34, 181, .12); }
+.log { font-size: 12.5px; }
+.log li { font-family: var(--mono); letter-spacing: -.01em; line-height: 1.5; }
+.log li.is-april { color: var(--pink); }
+.news { background: rgba(192, 32, 184, .08); border-color: var(--line-2); }
+.news strong { color: var(--pink); font-size: 10px; }
+.room-code { letter-spacing: .2em; font-weight: 700; }
+
+/* Brett */
+.board { background: var(--line); border-radius: 8px; box-shadow: 0 0 0 1px var(--line-2), 0 40px 100px -40px rgba(192, 32, 184, .55); }
+.cell { background: var(--surface); }
+.cell:hover { background: var(--surface-2); }
+.cname { font-family: var(--font); font-weight: 600; letter-spacing: -.01em; }
+.csub { font-family: var(--mono); }
+.center {
+  background:
+    linear-gradient(rgba(129, 34, 181, .06) 1px, transparent 1px) 0 0 / 4cqi 4cqi,
+    linear-gradient(90deg, rgba(129, 34, 181, .06) 1px, transparent 1px) 0 0 / 4cqi 4cqi,
+    radial-gradient(circle at 50% 40%, rgba(129, 34, 181, .3), transparent 65%),
+    var(--bg);
+}
+.center-card { border-radius: 1.2cqi; border: 1px solid rgba(255, 255, 255, .15); }
+.center-card.deck-april { background: linear-gradient(150deg, #c020b8, #5b1782); }
+.center-card .card-april { width: 11cqi; height: 11cqi; filter: drop-shadow(0 .6cqi 1.4cqi rgba(0, 0, 0, .5)); }
+.cicon svg.april-ic { width: 3.4cqi; height: 3.4cqi; }
+.cell.corner .cicon svg.april-ic { width: 5.6cqi; height: 5.6cqi; }
+.world, .dice-tray { border-radius: var(--radius); border-color: var(--line-soft); }
+.reactions button { border-radius: var(--radius); border-color: var(--line-soft); }
+.reactions button.txt { font-family: var(--mono); font-weight: 700; letter-spacing: .1em; font-stretch: normal; }
+
+/* Spielfigur April mit Avatar */
+.tok svg.april-ic { width: 92%; height: 92%; }
+.tok.is-april-tok { overflow: hidden; }
+
+/* ---------- April-Begleiterin ---------- */
+.april-buddy {
+  position: fixed; z-index: 300;
+  right: max(14px, env(safe-area-inset-right, 0px));
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: flex-end; gap: 10px;
+  pointer-events: none;
+}
+.april-av {
+  width: 62px; height: 62px; flex: none; padding: 0;
+  border-radius: 50%; border: 1px solid var(--line-2); background: #120d1b;
+  pointer-events: auto; overflow: hidden; cursor: pointer;
+  transition: transform .3s var(--ease);
+  box-shadow: 0 10px 30px -10px rgba(192, 32, 184, .6);
+}
+.april-av:hover { transform: translateY(-3px) rotate(-4deg); }
+.april-av.is-talking { animation: aprilTalk .5s ease-in-out 3; }
+@keyframes aprilTalk { 50% { transform: translateY(-4px) rotate(3deg); } }
+.april-av svg { width: 100%; height: 100%; display: block; }
+.april-bubble {
+  max-width: min(270px, calc(100vw - 110px));
+  padding: 12px 14px;
+  border-radius: 12px 12px 2px 12px;
+  background: #140f1f; border: 1px solid var(--line-2);
+  font-size: 14px; line-height: 1.45; color: var(--fg);
+  opacity: 0; transform: translateY(8px) scale(.98);
+  transition: opacity .3s, transform .3s;
+  pointer-events: none;
+}
+.april-bubble.on { opacity: 1; transform: none; }
+@media (min-width: 901px) { .april-bubble.on { pointer-events: auto; } }
+.april-bubble small { display: block; font-family: var(--mono); font-size: 9px; letter-spacing: .18em; color: var(--pink); margin-bottom: 4px; }
+@media (max-width: 900px) {
+  .april-av { width: 50px; height: 50px; }
+  .april-bubble { font-size: 13px; }
+  .screen { padding-bottom: 84px; }
+}
+/* Im Spiel stört die alte April-Sprechblase über dem Brett nicht mehr */
+.bubble.is-april { display: none; }
+
+/* ---------- Boot-Sequenz ---------- */
+.boot {
+  position: fixed; inset: 0; z-index: 900;
+  display: grid; place-items: center;
+  background: var(--bg);
+  padding: 24px;
+}
+.boot-in { width: min(460px, 100%); display: grid; gap: 18px; }
+.boot-logo { width: 54px; }
+.boot-lines { font-family: var(--mono); font-size: 13px; line-height: 1.8; color: var(--muted); min-height: 9em; }
+.boot-lines b { color: #3ce08a; font-weight: 500; }
+.boot-lines .pk { color: var(--pink); }
+.boot-bar { height: 2px; background: var(--line); overflow: hidden; }
+.boot-bar i { display: block; height: 100%; width: 0; background: var(--grad); box-shadow: 0 0 12px var(--magenta); transition: width .25s linear; }
+.boot-foot { display: flex; justify-content: space-between; font-size: 10px; color: var(--dim); }
+.boot-skip {
+  position: fixed; right: 20px; bottom: 20px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--muted); background: none; border: 1px solid var(--line-soft); border-radius: var(--radius);
+  padding: 10px 14px; cursor: pointer;
+}
+.boot.is-done { opacity: 0; transition: opacity .5s; pointer-events: none; }
+
+/* Modus-Karten in der Lobby */
+.row-block { display: grid; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line-soft); }
+.vb-title { font-weight: 700; }
+.vb-title small { display: block; color: var(--muted); font-weight: 500; font-size: 12px; }
+.goal-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.goal-row .goal-bar { flex: 1; margin: 0; }
+.variant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.variant {
+  appearance: none; text-align: left; cursor: pointer;
+  display: grid; gap: 4px; padding: 12px;
+  background: var(--surface); color: var(--fg);
+  border: 1px solid var(--line-soft); border-radius: var(--radius);
+  transition: border-color .2s, transform .2s var(--ease);
+}
+.variant strong { font-size: 14px; }
+.variant small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.variant .v-ic { font-size: 22px; line-height: 1; }
+.variant:hover:not(:disabled) { border-color: var(--line-2); transform: translateY(-2px); }
+.variant.is-on { border-color: var(--magenta); background: linear-gradient(160deg, rgba(192, 32, 184, .2), var(--surface)); }
+.variant:disabled { cursor: default; }
+.variant:disabled:not(.is-on) { opacity: .45; }
+.goal-bar { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; margin-top: 4px; }
+.goal-bar i { display: block; height: 100%; background: var(--grad); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-scan { display: none; }
+}

@@ -29,6 +29,22 @@
     };
   }
 
+  const VARIANTS = ['normal', 'blitz', 'million', 'chaos', 'hardcore'];
+  const GOAL_WORTH = 5000;
+  // April-Chaos im klassischen Modus: ein Event pro Runde
+  const CHAOS_EVENTS = [
+    { t: 'Mietparty! Alle Mieten diese Runde ×2.', rentMult: 2 },
+    { t: 'Mietstreik: Diese Runde gibt es nur halbe Miete.', rentMult: 0.5 },
+    { t: 'Baurausch: Häuser kosten diese Runde die Hälfte.', buildMult: 0.5 },
+    { t: 'April hackt die Bank: Alle bekommen Ð150.', gift: 150 },
+    { t: 'Steuer-Chaos: Alle zahlen 10 % ihres Geldes in Aprils Spardose.', taxPct: 0.1 },
+    { t: 'Robin April: Der reichste Spieler verteilt Ð300 an alle anderen.', robin: 300 },
+    { t: 'Teleport-Chaos! Alle Figuren tauschen zufällig die Plätze.', swap: true },
+    { t: 'Düsseldorf-Razzia: Alle, die in Düsseldorf sitzen, kommen sofort frei.', freeJail: true },
+    { t: 'Immobilien-Boom: Besitzer bekommen Ð25 pro Haus (Hotel = 5 Häuser).', houseBonus: 25 },
+    { t: 'Ruhige Runde. April macht ein Nickerchen.' },
+  ];
+
   const BOT_NAMES = ['April-Bot', 'KI-Kevin', 'Bot Bernd', 'Captain Cache', 'Lady Algorithmus', 'Robo-Rüdiger'];
   const newStats = () => ({ rentPaid: 0, rentGot: 0, maxRent: 0, jail: 0, doubles: 0, pot: 0, cards: 0, bought: 0, built: 0 });
 
@@ -56,7 +72,10 @@
   function groupIdx(g) { return SPACES.map((s, i) => (s.group === g ? i : -1)).filter(i => i >= 0); }
   function ownsGroup(S, pid, g) { return groupIdx(g).every(i => S.props[i].owner === pid); }
   function groupHasHouses(S, g) { return groupIdx(g).some(i => S.props[i].houses > 0); }
-  function houseCost(p, g) { return GROUPS[g].house - (p.token === 'pen' ? 25 : 0); }
+  function houseCost(p, g, S) {
+    const mult = (S && S.event && S.event.buildMult) || 1;
+    return Math.round((GROUPS[g].house - (p.token === 'pen' ? 25 : 0)) * mult);
+  }
   function buyPrice(p, idx) {
     const base = SPACES[idx].price;
     return p.token === 'dulidan' ? Math.round(base * 0.9) : base;
@@ -72,6 +91,13 @@
   }
 
   function calcRent(S, idx, payer) {
+    let r = baseRent(S, idx, payer);
+    if (S.settings && S.settings.variant === 'hardcore') r *= 1.5;
+    if (S.event && S.event.rentMult) r *= S.event.rentMult;
+    return Math.round(r);
+  }
+
+  function baseRent(S, idx, payer) {
     const sp = SPACES[idx], st = S.props[idx], owner = st.owner;
     if (sp.type === 'prop') {
       if (st.houses > 0) return sp.rent[st.houses];
@@ -145,6 +171,7 @@
     if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
     if (o.mode === 'classic' || o.mode === 'world') S.settings.mode = o.mode;
+    if (VARIANTS.includes(o.variant)) S.settings.variant = o.variant;
     if ([0, 15, 20, 30, 50].includes(Number(o.maxRounds))) S.settings.maxRounds = Number(o.maxRounds);
     return null;
   }
@@ -170,9 +197,19 @@
     S.props = {};
     SPACES.forEach((s, i) => { if (BUYABLE.includes(s.type)) S.props[i] = { owner: null, houses: 0, mort: false }; });
     S.decks = { april: shuffle(APRIL_CARDS.map((_, i) => i)), studio: shuffle(STUDIO_CARDS.map((_, i) => i)) };
-    S.phase = 'play'; S.cur = 0; S.sub = 'roll'; S.turnNo = 1; S.pot = 0;
+    S.phase = 'play'; S.cur = 0; S.sub = 'roll'; S.turnNo = 1; S.pot = 0; S.round = 1; S.event = null;
+    const variant = S.settings.variant || 'normal';
+    S.maxRounds = variant === 'blitz' ? 20 : 0;
+    S.goal = variant === 'million' ? GOAL_WORTH : 0;
+    if (variant === 'hardcore') S.players.forEach(p => { p.money = 800; });
+    if (variant === 'blitz') {
+      const idx = shuffle(Object.keys(S.props).map(Number));
+      idx.forEach((k, i) => { S.props[k].owner = S.players[i % S.players.length].id; });
+    }
     S.log = [];
     log(S, `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
+    const intro = { blitz: '⚡ Blitz: Alle Felder sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: `💸 Millionär: Wer zuerst ${money(GOAL_WORTH)} Vermögen hat, gewinnt!`, chaos: '🤖 April-Chaos: Jede Runde passiert irgendwas. Ihr wurdet gewarnt.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5. Viel Glück.' }[variant];
+    if (intro) log(S, intro);
     return null;
   }
 
@@ -345,8 +382,10 @@
   function nextTurn(S) {
     S.rolledDouble = false; S.doublesCount = 0; S.berlingoArmed = false; S.pendingMove = null;
     const n = S.players.length;
+    let wrapped = false;
     for (let guard = 0; guard < n * 3; guard++) {
       S.cur = (S.cur + 1) % n;
+      if (S.cur === 0) wrapped = true;
       const p = S.players[S.cur];
       if (p.bankrupt) continue;
       if (p.skip > 0) {
@@ -358,7 +397,50 @@
     }
     S.sub = 'roll';
     S.turnNo++;
+    if (wrapped) {
+      S.round = (S.round || 1) + 1;
+      if (S.maxRounds && S.round > S.maxRounds) { log(S, `Runde ${S.maxRounds} ist vorbei!`); return endGame(S); }
+      if (S.settings && S.settings.variant === 'chaos') chaosEvent(S);
+      else S.event = null;
+    }
     log(S, `${curP(S).name} ist dran.`);
+  }
+
+  function chaosEvent(S) {
+    const e = { ...CHAOS_EVENTS[Math.floor(rng() * CHAOS_EVENTS.length)] };
+    S.event = e;
+    log(S, `📰 April-News, Runde ${S.round}: ${e.t}`);
+    const act = active(S);
+    if (e.gift) act.forEach(p => { p.money += e.gift; });
+    if (e.taxPct) act.forEach(p => { const x = Math.floor(p.money * e.taxPct); p.money -= x; toBank(S, x); });
+    if (e.robin) {
+      const rich = act.slice().sort((a, b) => b.money - a.money)[0];
+      const others = act.filter(p => p !== rich);
+      const each = Math.floor(Math.min(rich.money, e.robin) / Math.max(1, others.length));
+      others.forEach(o => { rich.money -= each; o.money += each; });
+    }
+    if (e.swap) {
+      const pos = shuffle(act.map(p => p.pos));
+      act.forEach((p, i) => { if (!p.inJail) p.pos = pos[i]; else p.pos = 10; });
+    }
+    if (e.freeJail) act.forEach(p => { if (p.inJail) { p.inJail = false; p.jailTries = 0; } });
+    if (e.houseBonus) {
+      for (const k in S.props) {
+        const st = S.props[k];
+        if (st.owner && st.houses) P(S, st.owner).money += e.houseBonus * st.houses;
+      }
+    }
+  }
+
+  function checkGoal(S) {
+    if (S.phase !== 'play' || !S.goal) return;
+    const hit = active(S).find(p => netWorth(S, p) >= S.goal);
+    if (hit) {
+      S.ranking = rank(S);
+      S.phase = 'over';
+      S.winner = hit.id;
+      log(S, `💸 ${hit.name} knackt die ${money(S.goal)} und gewinnt!`);
+    }
   }
 
   // ---------- Karten ----------
@@ -525,7 +607,7 @@
     if (st.houses >= 5) return 'Hier steht schon ein Hotel.';
     const min = Math.min(...g.map(i => S.props[i].houses));
     if (st.houses > min) return 'Gleichmäßig bauen! Erst die anderen Felder der Gruppe.';
-    const cost = houseCost(p, sp.group);
+    const cost = houseCost(p, sp.group, S);
     if (p.money < cost) return 'Nicht genug Dulis.';
     const sup = bankSupply(S);
     if (st.houses === 4 ? sup.hotels < 1 : sup.houses < 1) return 'Die Bank hat keine Gebäude mehr.';
@@ -695,6 +777,12 @@
 
   // ---------- Aktionen ----------
   function act(S, pid, a) {
+    const err = actInner(S, pid, a);
+    if (!err) checkGoal(S);
+    return err;
+  }
+
+  function actInner(S, pid, a) {
     const p = P(S, pid);
     if (!a || !a.type) return 'Ungültige Aktion.';
     if (S.phase === 'lobby') {
@@ -816,7 +904,7 @@
       const sp = SPACES[k], st = S.props[k], g = groupIdx(sp.group);
       if (st.houses >= 5 || g.some(i => S.props[i].mort)) continue;
       if (st.houses > Math.min(...g.map(i => S.props[i].houses))) continue;
-      if (p.money - houseCost(p, sp.group) < RESERVE + 100) continue;
+      if (p.money - houseCost(p, sp.group, S) < RESERVE + 100) continue;
       if (st.houses === 4 ? sup.hotels < 1 : sup.houses < 1) continue;
       return { type: 'build', idx: k };
     }
@@ -883,7 +971,7 @@
   }
 
   const ENGINE = {
-    newGame, addPlayer, addBot, removePlayer, setSettings, botStep, pickToken, startGame, act, endGame, bankrupt, calcRent, netWorth,
+    newGame, addPlayer, addBot, removePlayer, setSettings, botStep, pickToken, startGame, act, endGame, bankrupt, calcRent, netWorth, GOAL_WORTH,
     buyPrice, houseCost, unmortgageCost, ownsGroup, groupIdx, groupHasHouses, bankSupply, CARDS,
     setRng: (f) => { rng = f; },
   };
