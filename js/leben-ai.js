@@ -116,10 +116,19 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
       res = model === 'claude-haiku-5-5'
         ? await client.messages.create(params)
         : await client.beta.messages.create(Object.assign({}, params, { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' }));
-    } catch (e) {
+    } catch (e0) {
+      // 400 bei Sonnet/Opus: vielleicht kennt das Konto die Beta noch nicht – einmal ohne Fallback-Beta versuchen
+      let e = e0;
+      if (e0 && e0.status === 400 && model !== 'claude-haiku-5-5') {
+        try { res = await client.messages.create(params); e = null; } catch (e1) { e = e1; }
+      }
+      if (!e) return parse(res);
       const status = e && e.status;
       return { error: status === 401 ? 'badkey' : status === 429 ? 'ratelimit' : status === 400 ? 'badrequest' : 'network', detail: String((e && e.message) || e).slice(0, 300) };
     }
+    return parse(res);
+  }
+  function parse(res) {
     if (res.stop_reason === 'refusal') return { error: 'refusal' };
     const text = (res.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
     try { return { data: JSON.parse(text) }; } catch (e) { return { error: res.stop_reason === 'max_tokens' ? 'toolong' : 'badjson' }; }

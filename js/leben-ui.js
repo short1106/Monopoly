@@ -1,7 +1,7 @@
 // DULIDAN – Spiel des Lebens: Oberfläche (Figurenwahl, eigene Figuren, Werte, Karte, Aprils Erzählung)
 // Der Host ruft hier auch April (Claude) und ihre Stimme auf und schickt die Stimme an alle.
 (function () {
-  const L = window.DULI_LEBEN, AI = window.DULI_LEBEN_AI, FX = window.DULI_FX, esc = window.DULI_PARTY.esc;
+  const L = window.DULI_LEBEN, D = window.DULI_LEBEN_DECK, AI = window.DULI_LEBEN_AI, FX = window.DULI_FX, esc = window.DULI_PARTY.esc;
   const $ = (s, r = document) => r.querySelector(s);
   const CHAR_STORE = 'duli-leben-chars';
   const eur = L.eur;
@@ -127,7 +127,7 @@
   function controller(V, api) {
     if (!api.isHost) return;
     if (V.phase === 'act' && V.deadline && Date.now() > V.deadline && forcedFor !== V.aiSeq) { forcedFor = V.aiSeq; api.act({ type: 'force' }); return; }
-    if (V.phase !== 'think' || aiRun === V.aiSeq || (aiErr && aiErr.seq === V.aiSeq)) return;
+    if (V.phase !== 'think' || V.gm !== 'ai' || aiRun === V.aiSeq || (aiErr && aiErr.seq === V.aiSeq)) return;
     const seq = V.aiSeq;
     aiRun = seq;
     AI.runAI(V).then((r) => {
@@ -152,7 +152,14 @@
     else renderMain(root, V, me, api);
     // Ton, wenn eine neue Runde losgeht
     const pk = `${V.phase}|${V.aiSeq}`;
-    if (pk !== lastPhaseKey && V.phase === 'act' && lastPhaseKey) FX && FX.play('turn');
+    if (pk !== lastPhaseKey && V.phase === 'act' && lastPhaseKey && FX) {
+      const ck = V.checks[me];
+      FX.play(ck && V.round > 0 ? (ck.success ? 'coinUp' : 'coinDown') : 'turn');
+      // Neue Runde: nach oben, damit man Ergebnis und Ereignis sieht
+      if (V.round > 0 && innerWidth < 1100) { const st = root.querySelector('.lb-stage'); if (st) st.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      if (window.DULI_VOICE && V.gm !== 'ai' && ck && (ck.roll === 20 || ck.roll === 1)) window.DULI_VOICE.say(ck.roll === 20 ? 'win' : 'loss');
+    }
+    if (pk !== lastPhaseKey && V.phase === 'act' && V.gm !== 'ai' && api.isHost && V.round > 0) voiceFor(V.aiSeq);
     lastPhaseKey = pk;
     controller(V, api);
   }
@@ -237,7 +244,7 @@
         <ul class="p-players">${who}</ul>
         ${!rejoin && api.isHost ? `<div class="btn-row"><button class="btn btn-primary" id="lb-begin" ${allPicked ? '' : 'disabled'}>Leben starten</button></div>` : !rejoin ? '<p class="p-wait">Wenn alle eine Figur haben, startet der Host.</p>' : ''}
         ${mine && !mine.dead && !rejoin ? `<p class="p-sub">Du spielst <b>${esc(mine.name)}</b>. Bis zum Start kannst du noch wechseln.</p>` : ''}`)) {
-      if ($('#lb-begin')) $('#lb-begin').onclick = () => last.api.act({ type: 'begin' });
+      if ($('#lb-begin')) $('#lb-begin').onclick = () => last.api.act({ type: 'begin', ai: !!AI.keys().anthropic });
     }
     const presets = Object.values(L.PRESETS).map((c) => {
       const t = takenBy[c.key];
@@ -268,12 +275,13 @@
   }
 
   // ----- Hauptbildschirm -----
+  // Mitte: Ergebnis der letzten Runde und das neue Ereignis. Links: deine Figur. Rechts: Karte und die anderen.
   function ensureSkel(root, V, me) {
     if (skel && root.contains(skel.el)) return;
     killSkel();
     root.innerHTML = `<div class="lb-main"><aside class="lb-left" id="lb-left"></aside>
-      <section class="lb-center"><div class="lb-map" id="lb-map"></div><p class="lb-maphint">Tipp: Klick auf die Karte, um dort zu wohnen oder zu kaufen.</p></section>
-      <aside class="lb-right"><div id="lb-head"></div><div id="lb-err"></div><div id="lb-story"></div><div id="lb-quiz"></div><div id="lb-input"></div><div id="lb-who"></div><div id="lb-more"></div></aside></div>`;
+      <section class="lb-stage"><div id="lb-head"></div><div id="lb-err"></div><div id="lb-story"></div><div id="lb-quiz"></div><div id="lb-input"></div><div id="lb-who"></div><div id="lb-more"></div></section>
+      <aside class="lb-right"><div class="lb-mapbox"><div class="lb-map" id="lb-map"></div><p class="lb-maphint">Klick auf die Karte: dort mieten, kaufen oder hinziehen.</p></div><div id="lb-others"></div></aside></div>`;
     const el = root.querySelector('.lb-main');
     const map = window.L.map($('#lb-map', el), { worldCopyJump: true, zoomControl: true }).setView([50.6, 9], 6);
     window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende' }).addTo(map);
@@ -288,8 +296,15 @@
   function fx(e) {
     const p = [];
     if (e.money) p.push(`<b class="${e.money > 0 ? 'up' : 'down'}">${e.money > 0 ? '+' : ''}${eur(e.money)}</b>`);
-    ['health', 'happy', 'power'].forEach((k) => { if (e[k]) p.push(`<b class="${e[k] > 0 ? 'up' : 'down'}">${STAT_NAMES[k]} ${e[k] > 0 ? '+' : ''}${e[k]}</b>`); });
+    const perYear = e.yr && last && L.months(last.V) !== 12 ? '/Jahr' : '';
+    ['health', 'happy', 'power'].forEach((k) => { if (e[k]) p.push(`<b class="${e[k] > 0 ? 'up' : 'down'}">${STAT_NAMES[k]} ${e[k] > 0 ? '+' : ''}${e[k]}${perYear}</b>`); });
     return p.join(' ') || '<b>±0</b>';
+  }
+  function goalLine(c) {
+    const G = D && D.GOALS[c.goal];
+    if (!G) return '';
+    const done = G.test(c, D.netWorth(c));
+    return `<p class="lb-goal ${done ? 'done' : ''}"><span>Lebensziel</span><b>${esc(G.name)}</b>${done ? '<i>erreicht</i>' : ''}</p>`;
   }
   function sheet(V, pid, mine) {
     const c = V.chars[pid], p = V.players.find((x) => x.id === pid);
@@ -299,76 +314,95 @@
     const money = `<div class="lb-money ${c.stats.money < 0 ? 'neg' : ''}"><span>Geld</span><b>${eur(c.stats.money)}</b></div>`;
     const bars = bar('health', c.stats.health) + bar('happy', c.stats.happy) + bar('power', c.stats.power);
     if (!mine) {
-      return `<div class="lb-sheet lb-other ${c.dead ? 'is-dead' : ''}">${head}${money}${bars}<p class="lb-line">${esc(c.job)} · ${esc(c.location || '')}</p>${c.dead ? `<p class="lb-dead">${esc(c.deathReason || '')}</p>` : ''}</div>`;
+      const r = V.recap && V.recap[pid];
+      return `<div class="lb-sheet lb-other ${c.dead ? 'is-dead' : ''}" style="--pc:${esc(c.color)}">${head}${money}${bars}<p class="lb-line">${esc(c.job)} · ${esc(c.location || '')}</p>${r && Object.keys(r).length ? `<div class="lb-deltas sm">${fx(r)}</div>` : ''}${c.dead ? `<p class="lb-dead">${esc(c.deathReason || '')}</p>` : ''}</div>`;
     }
     const per = L.STEPS[V.settings.step].name;
     const eff = c.effects.length ? c.effects.map((e) => `<li><span>${esc(e.name)}${e.until ? ` <small>noch ${e.until - V.round} R.</small>` : ''}</span>${fx(e)}</li>`).join('') : '<li><span>keine</span></li>';
+    const sum = c.effects.reduce((a, e) => a + e.money, 0);
     const props = c.props.map((q) => `<li><span><b>${esc(L.KINDS[q.kind].name)}</b> ${esc(q.label)}<small>Wert ${eur(q.value)}${q.leased ? ' · vermietet' : ''}</small></span>
       <span class="btn-row">${q.kind !== 'plot' ? `<button class="btn btn-small btn-ghost" data-move="${q.id}">Einziehen</button><button class="btn btn-small btn-ghost" data-lease="${q.id}">${q.leased ? 'Vermietung beenden' : 'Vermieten'}</button>` : ''}<button class="btn btn-small btn-ghost" data-sell="${q.id}">Verkaufen</button><button class="btn btn-small btn-ghost" data-fly="${q.lat},${q.lng}">Karte</button></span></li>`).join('');
     const rel = c.relations.map((r) => `<li><span>${esc(r.name)} <small>${esc(r.kind || '')}</small></span><i class="lb-rel" style="--v:${r.val}%"></i></li>`).join('');
-    return `<div class="lb-sheet ${c.dead ? 'is-dead' : ''}">${head}${money}${bars}
+    return `<div class="lb-sheet lb-mine ${c.dead ? 'is-dead' : ''}" style="--pc:${esc(c.color)}">${head}${money}${bars}${goalLine(c)}
       <dl class="lb-facts"><dt>Job</dt><dd>${esc(c.job)}</dd><dt>Ausbildung</dt><dd>${esc(c.education)}</dd><dt>Wohnen</dt><dd>${esc(c.living)}</dd><dt>Ort</dt><dd>${esc(c.location || '')}</dd></dl>
-      <h4>Laufend <small>pro ${per}</small></h4><ul class="lb-list">${eff}</ul>
+      <h4>Laufend <small>pro ${per} · Summe <b class="${sum >= 0 ? 'up' : 'down'}">${sum >= 0 ? '+' : ''}${eur(sum)}</b></small></h4><ul class="lb-list">${eff}</ul>
       ${props ? `<h4>Besitz</h4><ul class="lb-list lb-props">${props}</ul>` : ''}
       ${rel ? `<h4>Beziehungen</h4><ul class="lb-list">${rel}</ul>` : ''}</div>`;
   }
+  // Ergebnis der letzten Runde: Wahl, W20-Wurf, Erzählung, Änderungen
+  function resultHTML(V, me) {
+    const c = V.chars[me], ck = V.checks[me], r = V.recap && V.recap[me], did = V.lastAction && V.lastAction[me];
+    const story = para(V.stories[me]);
+    if (!story) return '';
+    const head = V.round === 0 ? 'Dein Start' : `Runde ${V.round} · Ergebnis`;
+    const roll = ck ? `<div class="lb-roll ${ck.success ? 'ok' : 'bad'}"><span class="lb-d20" data-seq="${V.aiSeq}"><b>${ck.roll}</b></span>
+      <div><small>W20 ${ck.mod ? `${ck.mod > 0 ? '+' : '−'} ${Math.abs(ck.mod)} ${esc(ck.stat || '')}` : esc(ck.stat || '')} = <b>${ck.roll + (ck.mod || 0)}</b> gegen ${ck.dc}</small>
+      <strong>${ck.roll === 20 ? 'Glückswurf!' : ck.roll === 1 ? 'Totalausfall' : ck.success ? 'Geschafft' : 'Verkackt'}</strong></div></div>` : '';
+    return `<div class="lb-result ${ck ? (ck.success ? 'ok' : 'bad') : ''}"><span class="lb-k">${head}</span>
+      ${did && did !== '•' && V.round > 0 ? `<p class="lb-did">Du: „${esc(did)}“</p>` : ''}${roll}${story}
+      ${r && Object.keys(r).length ? `<div class="lb-deltas"><small>Bilanz der Runde, mit laufenden Kosten:</small>${fx(r)}</div>` : ''}${c && c.dead ? `<p class="lb-dead">${esc(c.deathReason || '')}</p>` : ''}</div>`;
+  }
+  const KIND = { real: 'Alltag', odd: 'Ungewöhnlich', absurd: 'Absurd' };
   function renderMain(root, V, me, api) {
     ensureSkel(root, V, me);
     const mine = V.chars[me];
-    // Links: eigene Werte und die anderen
-    const others = V.players.filter((p) => p.id !== me && V.chars[p.id]).map((p) => sheet(V, p.id, false)).join('');
-    if (put($('#lb-left'), `${mine ? sheet(V, me, true) : '<p class="p-sub">Du schaust zu.</p>'}${others ? `<h3 class="lb-h">Die anderen</h3>${others}` : ''}`)) {
+    // Links: deine Figur
+    if (put($('#lb-left'), mine ? sheet(V, me, true) : '<p class="p-sub">Du schaust zu.</p>')) {
       const left = $('#lb-left');
       left.querySelectorAll('[data-move]').forEach((b) => { b.onclick = () => api.act({ type: 'move', prop: b.dataset.move }); });
       left.querySelectorAll('[data-lease]').forEach((b) => { b.onclick = () => api.act({ type: 'lease', prop: b.dataset.lease }); });
       left.querySelectorAll('[data-sell]').forEach((b) => { b.onclick = () => { if (confirm('Wirklich verkaufen? Makler und Restkredit gehen ab.')) api.act({ type: 'sell', prop: b.dataset.sell }); }; });
       left.querySelectorAll('[data-fly]').forEach((b) => { b.onclick = () => { const [a, c] = b.dataset.fly.split(',').map(Number); skel.map.flyTo([a, c], 15); }; });
     }
+    // Rechts: die anderen
+    const others = V.players.filter((p) => p.id !== me && V.chars[p.id]).map((p) => sheet(V, p.id, false)).join('');
+    put($('#lb-others'), others ? `<h3 class="lb-h">Die anderen</h3>${others}` : '');
     drawMap(V);
-    // Rechts: April
+    // Mitte oben: Datum, Lebenszeit, Weltgeschehen
     const k = AI.keys();
-    put($('#lb-head'), `<div class="lb-date"><span>${esc(L.dateText(V))}</span><small>Runde ${V.round} · pro Runde 1 ${esc(L.STEPS[V.settings.step].name)}${V.settings.years ? ` · Ende nach ${V.settings.years} Jahren` : ''}</small>
-      <span class="chip lb-voice" id="lb-voice" hidden>Stimme pausiert</span></div>
-      ${V.world[0] ? `<div class="lb-world"><span class="lb-k">Weltgeschehen · ${esc(V.world[0].d)}</span>${para(V.world[0].t)}</div>` : ''}`);
+    const yearsDone = (V.round * L.months(V)) / 12;
+    const pct = V.settings.years ? Math.min(100, Math.round((yearsDone / V.settings.years) * 100)) : 0;
+    put($('#lb-head'), `<div class="lb-date"><div><span>${esc(L.dateText(V))}</span><small>Runde ${V.round + 1} · pro Runde vergeht 1 ${esc(L.STEPS[V.settings.step].name)}${mine ? ` · ${esc(mine.name)} ist ${mine.age}` : ''}</small></div>
+      <span class="chip lb-gm">${V.gm === 'ai' ? 'April (KI) erzählt' : 'April (Karten)'}</span><span class="chip lb-voice" id="lb-voice" hidden>Stimme pausiert</span></div>
+      ${V.settings.years ? `<div class="lb-life" title="Spielzeit"><i style="--v:${pct}%"></i><small>${Math.floor(yearsDone)} von ${V.settings.years} Jahren</small></div>` : ''}
+      ${V.world[0] && V.world[0].d === L.dateText(V) ? `<div class="lb-world"><span class="lb-k">Weltgeschehen</span>${para(V.world[0].t)}</div>` : ''}`);
     paintVoiceChip();
     // Fehler beim Host
     if (api.isHost && aiErr && V.phase === 'think' && aiErr.seq === V.aiSeq) {
-      if (put($('#lb-err'), `<div class="lb-error"><b>April antwortet nicht.</b><p>${esc(ERRORS[aiErr.code] || aiErr.code)}</p>${aiErr.detail ? `<small>${esc(aiErr.detail)}</small>` : ''}
-        <div class="btn-row"><button class="btn btn-small btn-primary" id="lb-retry">Nochmal</button><button class="btn btn-small" data-open-keys>KI & Stimme</button><button class="btn btn-small btn-ghost" id="lb-skip">Ohne April weiter</button></div></div>`)) {
+      if (put($('#lb-err'), `<div class="lb-error"><b>April (KI) antwortet nicht.</b><p>${esc(ERRORS[aiErr.code] || aiErr.code)}</p>${aiErr.detail ? `<small>${esc(aiErr.detail)}</small>` : ''}
+        <div class="btn-row"><button class="btn btn-small btn-primary" id="lb-retry">Nochmal</button><button class="btn btn-small" id="lb-skip">Diese Runde mit Karten</button><button class="btn btn-small btn-ghost" id="lb-togm">Ganz auf Karten umstellen</button><button class="btn btn-small btn-ghost" data-open-keys>KI & Stimme</button></div></div>`)) {
         $('#lb-retry').onclick = () => { aiErr = null; $('#lb-err')._html = null; $('#lb-err').innerHTML = ''; redraw(); };
         $('#lb-skip').onclick = () => { const s = aiErr.seq; aiErr = null; api.act({ type: 'ai', seq: s, data: {}, failed: true }); };
+        $('#lb-togm').onclick = () => { aiErr = null; api.act({ type: 'gm', gm: 'builtin' }); };
       }
     } else put($('#lb-err'), '');
-    const ck = mine && V.checks[me];
     const story = V.phase === 'think' && api.isHost && aiErr && aiErr.seq === V.aiSeq ? ''
       : V.phase === 'think'
-      ? `<div class="lb-think"><svg viewBox="0 0 100 100"><use href="#april"/></svg><div><b>April ${V.aiTask === 'final' ? 'schreibt eure Lebensbilanz' : V.aiTask === 'intro' ? 'baut eure Welt' : 'wertet die Runde aus'} …</b><small>${api.isHost ? (k.anthropic ? 'Das dauert meist 10–40 Sekunden.' : 'Kein Schlüssel eingetragen.') : 'Der Host fragt April gerade.'}</small></div></div>`
-      : mine && mine.dead ? `<div class="lb-story"><span class="lb-k">Tot</span><p>${esc(mine.name)} ist gestorben. ${esc(mine.deathReason || '')}</p><p class="p-sub">Du schaust ab jetzt zu.</p></div>`
-        : mine ? `<div class="lb-story">${ck ? `<span class="lb-check ${ck.success ? 'ok' : 'bad'}">W20: ${ck.roll} gegen ${ck.dc}${ck.stat ? ` (${esc(ck.stat)})` : ''} · ${ck.success ? 'geschafft' : 'verkackt'}</span>` : ''}
-            <span class="lb-k">Was passiert ist</span>${para(V.stories[me]) || '<p>…</p>'}
-            <div class="lb-event"><span class="lb-k">${V.exam[me] ? 'Prüfung' : 'Neues Event'}</span>${para(V.events[me])}</div></div>` : '';
+        ? `<div class="lb-think"><svg viewBox="0 0 100 100"><use href="#april"/></svg><div><b>April ${V.aiTask === 'final' ? 'schreibt eure Lebensbilanz' : V.aiTask === 'intro' ? 'baut eure Welt' : 'wertet die Runde aus'} …</b><small>${api.isHost ? (k.anthropic ? 'Das dauert meist 10–40 Sekunden.' : 'Kein Schlüssel eingetragen.') : 'Der Host fragt April gerade.'}</small></div></div>`
+        : mine && mine.dead ? `<div class="lb-result bad"><span class="lb-k">Tot</span><p>${esc(mine.name)} ist gestorben. ${esc(mine.deathReason || '')}</p><p class="p-sub">Du schaust ab jetzt zu.</p></div>`
+          : mine ? resultHTML(V, me) : '';
     put($('#lb-story'), story);
     renderQuiz(V, me);
     renderInput(V, me, api);
-    // Wer hat schon geschrieben + Host-Knöpfe
+    // Wer ist fertig + Host-Knöpfe
     const living = L.alive(V);
-    const who = V.phase === 'act' ? `<div class="lb-who"><span class="lb-k">Züge</span><ul>${living.map((p) => `<li class="${V.actions[p.id] ? 'done' : ''}" style="--pc:${p.color}">${esc(p.name)} <small>${V.actions[p.id] ? 'fertig' : 'schreibt …'}</small></li>`).join('')}</ul>
+    const who = V.phase === 'act' && (living.length > 1 || api.isHost) ? `<div class="lb-who">${living.length > 1 ? `<span class="lb-k">Wer ist fertig?</span><ul>${living.map((p) => `<li class="${V.actions[p.id] ? 'done' : ''}" style="--pc:${p.color}">${esc(p.name)} <small>${V.actions[p.id] ? 'fertig' : 'überlegt …'}</small></li>`).join('')}</ul>` : ''}
       <span id="lb-timer" class="lb-timer"></span>
       ${api.isHost ? `<div class="btn-row"><button class="btn btn-small" id="lb-force">Jetzt auswerten</button><button class="btn btn-small btn-ghost" id="lb-end">Spiel beenden</button></div>` : ''}</div>` : '';
     if (put($('#lb-who'), who)) {
-      if ($('#lb-force')) $('#lb-force').onclick = () => { if (Object.keys(V.actions).length || confirm('Noch hat niemand geschrieben. Trotzdem auswerten?')) api.act({ type: 'force' }); };
+      if ($('#lb-force')) $('#lb-force').onclick = () => { if (Object.keys(V.actions).length || confirm('Noch hat niemand entschieden. Trotzdem auswerten?')) api.act({ type: 'force' }); };
       if ($('#lb-end')) $('#lb-end').onclick = () => { if (confirm('Spiel jetzt beenden? April schreibt dann die Lebensbilanz.')) api.act({ type: 'endGame' }); };
     }
     if (V.phase === 'act' && V.deadline) {
       const t = () => { const el = $('#lb-timer'); if (!el) return; const s = Math.max(0, Math.round((V.deadline - Date.now()) / 1000)); el.textContent = `Noch ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; el.classList.toggle('low', s < 20); if (s <= 0 && api.isHost) controller(last.V, api); };
       t(); tick = setInterval(t, 1000);
     }
-    // Mehr: andere Geschichten, Chronik, Protokoll
-    const otherStories = V.players.filter((p) => p.id !== me && V.chars[p.id] && V.stories[p.id]).map((p) => `<div class="lb-os" style="--pc:${p.color}"><b>${esc(V.chars[p.id].name)}</b>${para(V.stories[p.id])}</div>`).join('');
+    // Unten: was bei den anderen los ist, Chronik, Protokoll
+    const otherStories = V.players.filter((p) => p.id !== me && V.chars[p.id] && V.stories[p.id]).map((p) => `<div class="lb-os" style="--pc:${p.color}"><b>${esc(V.chars[p.id].name)}</b>${V.lastAction && V.lastAction[p.id] && V.lastAction[p.id] !== '•' && V.round > 0 ? `<small>„${esc(V.lastAction[p.id])}“</small>` : ''}${para(V.stories[p.id])}</div>`).join('');
     const chron = mine ? mine.chronicle.slice().reverse().map((x) => `<li><small>${esc(x.d)}</small> ${esc(x.t)}</li>`).join('') : '';
     put($('#lb-more'), `${otherStories ? `<details open><summary>Was bei den anderen los ist</summary>${otherStories}</details>` : ''}
+      ${chron ? `<details><summary>Dein Lebenslauf</summary><ul class="lb-log">${chron}</ul></details>` : ''}
       ${V.world.length > 1 ? `<details><summary>Weltgeschehen</summary><ul class="lb-log">${V.world.map((w) => `<li><small>${esc(w.d)}</small> ${esc(w.t)}</li>`).join('')}</ul></details>` : ''}
-      ${chron ? `<details><summary>Deine Lebenschronik</summary><ul class="lb-log">${chron}</ul></details>` : ''}
       <details><summary>Protokoll</summary><ul class="lb-log">${V.log.slice().reverse().map((m) => `<li>${esc(m)}</li>`).join('')}</ul></details>`);
   }
   function renderQuiz(V, me) {
@@ -401,15 +435,33 @@
     const c = V.chars[me];
     if (V.phase !== 'act' || !c || c.dead) { put(el, ''); return; }
     const sent = V.actions[me];
+    const card = V.cards && V.cards[me];
     const quizBlock = V.settings.exam === 'quiz' && V.exam[me] && !(quiz && quiz.key === V.aiSeq && quiz.done);
     if (sent) {
-      if (put(el, `<div class="lb-sent"><span class="lb-k">Dein Zug</span><p>${esc(sent)}</p><button class="btn btn-small btn-ghost" id="lb-undo">Ändern</button></div>`)) {
-        $('#lb-undo').onclick = () => { draft = sent; api.act({ type: 'undo' }); };
+      if (put(el, `<div class="lb-sent"><span class="lb-k">Deine Entscheidung</span><p>„${esc(sent)}“</p><small class="p-sub">Warte auf die anderen. Danach würfelt April und erzählt, was passiert.</small><div class="btn-row"><button class="btn btn-small btn-ghost" id="lb-undo">Ändern</button></div></div>`)) {
+        $('#lb-undo').onclick = () => { if (!V.picks || V.picks[me] == null) draft = sent; api.act({ type: 'undo' }); };
       }
       return;
     }
-    if (put(el, `<div class="lb-form-do"><label class="field"><span>Was machst du? (frei schreiben)</span><textarea id="lb-text" rows="4" maxlength="600" placeholder="Schreib einfach, was ${esc(c.name)} tut, sagt oder plant."></textarea></label>
-      <div class="btn-row"><button class="btn btn-primary" id="lb-send" ${quizBlock ? 'disabled' : ''}>${quizBlock ? 'Erst die Prüfung' : 'Abschicken'}</button></div><small class="p-sub">Du kannst nebenbei auf der Karte wohnen, kaufen und verkaufen.</small></div>`)) {
+    const free = `<textarea id="lb-text" rows="3" maxlength="600" placeholder="Schreib einfach, was ${esc(c.name)} tut, sagt oder plant."></textarea>
+      <div class="btn-row"><button class="btn ${card ? '' : 'btn-primary'}" id="lb-send" ${quizBlock ? 'disabled' : ''}>${quizBlock ? 'Erst die Prüfung' : 'Abschicken'}</button></div>`;
+    let html;
+    if (card) {
+      const opts = card.opts.map((o, i) => {
+        const p = D ? D.chance(c, o) : 50, poor = o.cost && c.stats.money < o.cost;
+        const odds = o.dc ? `<span class="lb-odds"><i>${esc(D.SKILLS[o.stat] || o.stat)}</i> ${p} %</span>` : '<span class="lb-odds sure">sicher</span>';
+        return `<button type="button" class="lb-opt ${poor ? 'is-poor' : ''}" data-choice="${i}" style="--odds:${o.dc ? p : 100}%" ${poor || quizBlock ? 'disabled' : ''}>
+          <b>${esc(o.t)}</b>${odds}${o.cost ? `<small>${poor ? 'zu teuer: ' : 'kostet '}${eur(o.cost)}</small>` : ''}</button>`;
+      }).join('');
+      html = `<div class="lb-card kind-${esc(card.kind || 'real')}"><span class="lb-k">${card.exam ? 'Prüfung' : `Neues Ereignis · ${KIND[card.kind] || 'Alltag'}`}</span>
+        <p class="lb-card-t">${esc(card.text)}</p><div class="lb-opts">${opts}</div>
+        <details class="lb-free" ${draft ? 'open' : ''}><summary>Oder etwas ganz anderes machen</summary><div class="lb-form-do">${free}<small class="p-sub">April würfelt auch auf eigene Ideen: lernen, arbeiten, feiern, flirten, investieren, gründen, Politik …</small></div></details></div>`;
+    } else {
+      html = `${V.events[me] ? `<div class="lb-card"><span class="lb-k">${V.exam[me] ? 'Prüfung' : 'Neues Ereignis'}</span>${para(V.events[me])}</div>` : ''}
+        <div class="lb-form-do"><label class="field"><span>Was machst du? (frei schreiben)</span></label>${free}<small class="p-sub">Strg + Enter schickt ab. Nebenbei kannst du auf der Karte wohnen, kaufen und verkaufen.</small></div>`;
+    }
+    if (put(el, html)) {
+      el.querySelectorAll('[data-choice]').forEach((b) => { b.onclick = () => { FX && FX.play('pop'); api.act({ type: 'do', choice: Number(b.dataset.choice) }); }; });
       const ta = $('#lb-text');
       ta.value = draft;
       ta.oninput = () => { draft = ta.value; };
@@ -470,14 +522,18 @@
 
   // ----- Spielende -----
   function renderOver(root, V, me, api) {
-    const cards = V.players.filter((p) => V.chars[p.id]).map((p) => {
+    const ranked = V.players.filter((p) => V.chars[p.id]).sort((a, b) => ((V.finals[b.id] || {}).score || 0) - ((V.finals[a.id] || {}).score || 0));
+    const PART = { money: 'Vermögen', happy: 'Happiness', health: 'Gesundheit', power: 'Macht', people: 'Menschen', goal: 'Lebensziel', dead: 'Tod' };
+    const cards = ranked.map((p, i) => {
       const c = V.chars[p.id], f = V.finals[p.id] || {};
-      return `<div class="p-card lb-final" style="--pc:${esc(c.color)}"><div class="lb-sh-head">${c.img ? `<img class="lb-av" src="${esc(c.img)}" alt="">` : `<span class="lb-av lb-av-x">${esc(c.name[0])}</span>`}<div><strong>${esc(c.name)}</strong>${f.title ? `<em>${esc(f.title)}</em>` : ''}<small>${esc(p.name)} · ${c.age} Jahre${c.dead ? ' · tot' : ''}</small></div></div>
+      const G = D && D.GOALS[c.goal];
+      const parts = f.parts ? Object.entries(f.parts).filter(([, v]) => v).map(([k, v]) => `<span class="${v < 0 ? 'down' : ''}">${PART[k] || k} ${v > 0 ? '+' : ''}${v}</span>`).join('') : '';
+      return `<div class="p-card lb-final ${i === 0 && ranked.length > 1 ? 'is-best' : ''}" style="--pc:${esc(c.color)}"><div class="lb-rank"><b>${i + 1}.</b><span>${f.score || 0} Punkte</span></div>${G ? `<p class="lb-goal ${f.goalDone ? 'done' : ''}"><span>Lebensziel</span><b>${esc(G.name)}</b><i>${f.goalDone ? 'erreicht' : 'verfehlt'}</i></p>` : ''}${parts ? `<div class="lb-parts">${parts}</div>` : ''}<div class="lb-sh-head">${c.img ? `<img class="lb-av" src="${esc(c.img)}" alt="">` : `<span class="lb-av lb-av-x">${esc(c.name[0])}</span>`}<div><strong>${esc(c.name)}</strong>${f.title ? `<em>${esc(f.title)}</em>` : ''}<small>${esc(p.name)} · ${c.age} Jahre${c.dead ? ' · tot' : ''}</small></div></div>
         <div class="lb-money"><span>Geld</span><b>${eur(c.stats.money)}</b></div>${bar('health', c.stats.health)}${bar('happy', c.stats.happy)}${bar('power', c.stats.power)}
         ${para(f.story)}${c.chronicle.length ? `<details><summary>Lebenschronik</summary><ul class="lb-log">${c.chronicle.map((x) => `<li><small>${esc(x.d)}</small> ${esc(x.t)}</li>`).join('')}</ul></details>` : ''}</div>`;
     }).join('');
     root.innerHTML = `<div class="lb-over"><div class="p-hero"><p class="sec-label"><span class="n">ENDE</span>${esc(L.dateText(V))}</p><h1 class="p-title">Lebens<span class="outline">bilanz</span></h1>
-      ${V.world[0] ? `<p class="p-lead">${esc(V.world[0].t)}</p>` : ''}</div><div class="lb-finals">${cards}</div>
+      ${V.world[0] ? `<p class="p-lead">${esc(V.world[0].t)}</p>` : ''}${ranked.length > 1 && V.chars[ranked[0].id] ? `<p class="p-lead">Bestes Leben: <b>${esc(V.chars[ranked[0].id].name)}</b> (${esc(ranked[0].name)})</p>` : ''}</div><div class="lb-finals">${cards}</div>
       ${api.isHost ? '<div class="btn-row lb-over-btns"><button class="btn btn-primary" id="lb-again">Neues Leben</button><button class="btn" id="lb-lobby">Zur Lobby</button></div>' : '<p class="p-wait">Der Host entscheidet, wie es weitergeht.</p>'}</div>`;
     if (api.isHost) { $('#lb-again').onclick = api.again; $('#lb-lobby').onclick = api.lobby; }
   }
@@ -515,9 +571,10 @@
   app = window.DULI_PARTY.start({
     id: 'leben', title: 'Spiel des Lebens', kicker: 'KI-SPIEL', titleHTML: 'Spiel des <span class="outline">Lebens</span>',
     min: 1, max: 6, soloBots: 0, noBots: true, soloLabel: 'Alleine spielen', soloChip: 'Alleine',
-    tagline: 'Ihr seid 18 und lebt euer Leben – April erzählt, was draus wird. Schreib frei, was du tust: Abi, Job, Liebe, Drama, Präsident werden. Echte Karte, echte Kosten.',
-    defaults: { step: 'y', years: 20, death: 'rejoin', exam: 'dice', timer: 0 },
+    tagline: 'Ihr seid 18 und lebt euer Leben: Abi, Job, Liebe, Drama, Präsident werden. April stellt euch vor Entscheidungen, der W20 entscheidet. Echte Karte, echte Kosten. Läuft auch ohne KI-Schlüssel.',
+    defaults: { step: 'y', years: 20, death: 'rejoin', exam: 'dice', timer: 0, gm: 'auto' },
     settingsHTML: (st, host) => `
+      <label class="row"><span>Spielleitung<small>Karten laufen immer. Die KI erzählt frei, braucht aber einen Schlüssel beim Host.</small></span>${sel('gm', st, host, [['auto', 'automatisch'], ['builtin', 'April mit Ereigniskarten'], ['ai', 'April als KI (Claude)']])}</label>
       <label class="row"><span>Eine Runde ist<small>So viel Zeit vergeht pro Runde</small></span>${sel('step', st, host, [['m', 'ein Monat'], ['q', 'ein Quartal'], ['h', 'ein Halbjahr'], ['y', 'ein Jahr']])}</label>
       <label class="row"><span>Spieldauer<small>Danach schreibt April die Lebensbilanz</small></span>${sel('years', st, host, [[10, '10 Jahre'], [20, '20 Jahre'], [40, '40 Jahre'], [0, 'offen']])}</label>
       <label class="row"><span>Wenn jemand stirbt<small>Tod ist endgültig</small></span>${sel('death', st, host, [['rejoin', 'mit neuer Figur weiter'], ['win', 'wer übrig bleibt, gewinnt']])}</label>
@@ -526,16 +583,18 @@
     lobbyNote: (host) => {
       if (!host) return '<p class="p-sub">April läuft über die Schlüssel des Hosts. Du brauchst nichts.</p>';
       const k = AI.keys();
-      return k.anthropic ? `<p class="p-sub lb-ok">April ist bereit (${esc((AI.MODELS.find(([id]) => id === k.model) || AI.MODELS[0])[1].split(' (')[0])}${k.eleven ? ', mit Stimme' : ', ohne Stimme'}). <a href="#" data-open-keys>Ändern</a></p>`
-        : '<div class="lb-warn"><b>Ohne Schlüssel keine April.</b> Als Host brauchst du einen Anthropic-API-Schlüssel (console.anthropic.com). Er bleibt nur in deinem Browser. <button class="btn btn-small btn-primary" data-open-keys>KI & Stimme</button></div>';
+      return k.anthropic ? `<p class="p-sub lb-ok">April als KI ist bereit (${esc((AI.MODELS.find(([id]) => id === k.model) || AI.MODELS[0])[1].split(' (')[0])}${k.eleven ? ', mit Stimme' : ', ohne Stimme'}). Bei „automatisch“ erzählt die KI, bei Problemen springen die Karten ein. <a href="#" data-open-keys>Ändern</a></p>`
+        : '<div class="lb-warn"><b>Kein KI-Schlüssel? Kein Problem.</b> April leitet das Spiel dann mit über 50 Ereigniskarten, Lebensphasen, Würfelproben und Weltgeschehen. Mit einem Anthropic-Schlüssel erzählt sie stattdessen frei. <button class="btn btn-small" data-open-keys>KI & Stimme</button></div>';
     },
     rulesHTML: `<div class="p-card"><h3>So geht's</h3><ul>
       <li>Alle starten mit <b>18</b>, mitten im Abi oder in der Ausbildung. Links stehen deine Werte: <b>Gesundheit, Geld, Macht, Happiness</b>.</li>
-      <li>Jede Runde bekommt jede Person ein <b>Event</b> von April. Du antwortest <b>frei</b> – keine Vorschläge, du machst, was du willst.</li>
-      <li>Riskantes entscheidet ein <b>W20</b>. Realistische und dumm-lustige Ideen klappen, übermächtige Ideen scheitern.</li>
+      <li>Jede Runde bekommt jede Person ein <b>Ereignis</b>. Du wählst eine Möglichkeit oder schreibst eine eigene Idee. Mit KI-Schlüssel antwortest du komplett frei.</li>
+      <li>Riskantes entscheidet ein <b>W20</b> plus deine Stärke (Köpfchen, Charme, Körper, Fleiß, Glück). Bei jeder Wahl siehst du die Chance in Prozent. 20 ist ein Glückswurf, 1 ein Totalausfall.</li>
+      <li>Das Leben hat Phasen: <b>Abi</b>, danach Studium, Ausbildung, Job, Gründen oder Work and Travel. Jede Figur hat ein geheimes <b>Lebensziel</b>.</li>
+      <li>Am Ende zählt das beste Leben: Vermögen, Happiness, Gesundheit, Macht, Menschen und das Lebensziel.</li>
       <li>Auf der <b>echten Karte</b> kannst du mieten, Wohnungen, Häuser und Grundstücke kaufen, finanzieren, vermieten und verkaufen. Miete, Unterhalt und Kredite laufen jede Runde.</li>
       <li>Präsident werden, Diktaturen übernehmen, Kriege anfangen – alles geht, alles hat Folgen. <b>Tod ist endgültig.</b></li>
-      <li>Ab 18. April roastet gnadenlos. Der Host braucht einen Anthropic-Schlüssel, Aprils Stimme (ElevenLabs) ist optional.</li></ul></div>`,
+      <li>Ab 18. April roastet gnadenlos. Ein Anthropic-Schlüssel ist optional (freies Erzählen), Aprils Stimme (ElevenLabs) auch.</li></ul></div>`,
     engine: L, render,
     onCustom: (d) => { if (d && d.kind === 'voice' && d.audio) AI.play(d.audio); },
   });

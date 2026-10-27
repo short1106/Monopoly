@@ -2,6 +2,7 @@
 // Die KI (April) erzählt und schlägt Änderungen vor. Diese Datei hält die Werte fest, begrenzt die Vorschläge
 // der KI, rechnet laufende Effekte, Immobilien, Zeit und Tod. Läuft beim Host; alle anderen bekommen ihre Sicht.
 (function (root) {
+  const DECK = root.DULI_LEBEN_DECK || (typeof require !== 'undefined' ? require('./leben-deck') : null);
   const STEPS = { m: { months: 1, name: 'Monat' }, q: { months: 3, name: 'Quartal' }, h: { months: 6, name: 'Halbjahr' }, y: { months: 12, name: 'Jahr' } };
   const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const STATS = ['health', 'happy', 'power'];
@@ -80,13 +81,13 @@
   let seq = 0;
   const uid = (p) => `${p}${Date.now().toString(36)}${(seq++).toString(36)}`;
   function start(players, settings) {
-    const st = Object.assign({ step: 'y', years: 20, death: 'rejoin', exam: 'dice', timer: 0 }, settings || {});
+    const st = Object.assign({ step: 'y', years: 20, death: 'rejoin', exam: 'dice', timer: 0, gm: 'auto' }, settings || {});
     const now = new Date();
     return {
       host: players[0] && players[0].id, players: players.map((p) => ({ id: p.id, name: p.name, color: p.color })),
       settings: st, phase: 'pick', round: 0, date: { y: now.getFullYear(), m: now.getMonth() },
       chars: {}, actions: {}, rolls: {}, checks: {}, quiz: {}, stories: {}, events: {}, exam: {}, world: [], aiTask: null, aiSeq: 0,
-      log: [], over: null, finals: {},
+      log: [], over: null, finals: {}, gm: null, cards: {}, picks: {}, recap: {}, lastAction: {},
     };
   }
   const months = (S) => STEPS[S.settings.step].months;
@@ -113,6 +114,9 @@
     // Vorlagen nennen Geld pro Monat; ein laufender Effekt zählt pro Runde
     base.effects = base.effects.map((e) => Object.assign({ id: uid('e'), health: 0, happy: 0, power: 0, money: 0, until: 0 }, e, { money: (e.money || 0) * months(S) }));
     base.props = [];
+    base.flags = { company: def.key === 'shaquille' ? 1 : 0, partner: def.key === 'kimberly' ? 'Justin' : def.key === 'justin' ? 'Kimberly' : '' };
+    const goals = DECK ? Object.keys(DECK.GOALS) : [];
+    base.goal = DECK && DECK.GOALS[def.goal] ? def.goal : goals[Math.floor(Math.random() * goals.length)] || '';
     base.chronicle = [];
     base.dead = false;
     return base;
@@ -130,7 +134,11 @@
         const c = makeChar(S, def);
         if (me && me.dead) c.chronicle.push({ d: dateText(S), t: `Neues Leben nach ${me.name}.` });
         S.chars[pid] = c;
-        if (S.phase === 'act') { S.stories[pid] = `${c.name} betritt die Welt. ${c.living}.`; S.events[pid] = 'Was machst du als Erstes?'; }
+        if (S.phase === 'act') {
+          S.stories[pid] = `${c.name} betritt die Welt. ${c.living}.`; S.events[pid] = 'Was machst du als Erstes?';
+          delete S.cards[pid]; delete S.recap[pid]; delete S.checks[pid];
+          if (S.gm === 'builtin' && DECK) { const card = DECK.cardFor(S, pid); S.cards[pid] = card; S.events[pid] = card.text; }
+        }
         log(S, `${S.players.find((p) => p.id === pid).name} spielt ${c.name}.`);
         return null;
       }
@@ -139,22 +147,34 @@
         if (S.phase !== 'pick') return 'Läuft schon.';
         const missing = S.players.filter((p) => !S.chars[p.id]);
         if (missing.length) return `${missing.map((p) => p.name).join(', ')} hat noch keine Figur.`;
+        S.gm = S.settings.gm === 'builtin' || !DECK ? (DECK ? 'builtin' : 'ai') : S.settings.gm === 'ai' ? 'ai' : (a.ai ? 'ai' : 'builtin');
         S.phase = 'think'; S.aiTask = 'intro'; S.aiSeq++;
+        builtinNow(S);
         return null;
       }
       case 'do': {
         if (S.phase !== 'act') return 'Gerade wird nicht gespielt.';
         if (!me || me.dead) return 'Deine Figur lebt nicht mehr.';
-        const t = cleanText(a.text, 600);
-        if (t.length < 2) return 'Schreib, was du tust.';
-        S.actions[pid] = t;
+        const card = S.cards[pid];
+        if (Number.isInteger(a.choice) && card) {
+          const o = card.opts[a.choice];
+          if (!o) return 'Diese Wahl gibt es nicht.';
+          if (o.cost && me.stats.money < o.cost) return `Dafür fehlen dir ${eur(o.cost - me.stats.money)}.`;
+          S.picks[pid] = a.choice;
+          S.actions[pid] = o.t;
+        } else {
+          const t = cleanText(a.text, 600);
+          if (t.length < 2) return 'Schreib, was du tust.';
+          delete S.picks[pid];
+          S.actions[pid] = t;
+        }
         if (a.quiz && S.exam[pid]) S.quiz[pid] = { ok: num(a.quiz.ok, 0, 10), total: num(a.quiz.total, 1, 10) };
         if (alive(S).every((p) => S.actions[p.id])) toThink(S);
         return null;
       }
       case 'undo': {
         if (S.phase !== 'act') return null;
-        delete S.actions[pid];
+        delete S.actions[pid]; delete S.picks[pid];
         return null;
       }
       case 'force': {
@@ -166,13 +186,25 @@
       case 'ai': {
         if (!isHost) return 'Nur der Host.';
         if (S.phase !== 'think' || a.seq !== S.aiSeq) return null;
-        applyAI(S, a.data || {}, a.failed);
+        // Ohne April weiter = die eingebaute Spielleitung übernimmt diese Runde
+        if (a.failed && DECK) applyAI(S, DECK.run(S));
+        else applyAI(S, a.data || {}, a.failed);
         return null;
       }
       case 'endGame': {
         if (!isHost) return 'Nur der Host.';
         if (S.phase === 'over' || S.phase === 'think') return null;
         S.phase = 'think'; S.aiTask = 'final'; S.aiSeq++;
+        builtinNow(S);
+        return null;
+      }
+      case 'gm': {
+        // Host schaltet die Spielleitung um (z. B. Schlüssel nachgetragen oder KI streikt)
+        if (!isHost) return 'Nur der Host.';
+        if (!DECK && a.gm === 'builtin') return null;
+        S.gm = a.gm === 'ai' ? 'ai' : 'builtin';
+        if (S.gm === 'builtin' && S.phase === 'act') alive(S).forEach((p) => { if (!S.cards[p.id]) { const card = DECK.cardFor(S, p.id); S.cards[p.id] = card; S.events[p.id] = card.text; } });
+        builtinNow(S);
         return null;
       }
       case 'buy': case 'rent': case 'move': case 'lease': case 'sell':
@@ -184,6 +216,11 @@
     S.phase = 'think'; S.aiTask = 'resolve'; S.aiSeq++;
     // Würfel für jede Person, die eine Aktion hat (W20) – die KI muss mit diesem Wurf arbeiten
     alive(S).forEach((p) => { S.rolls[p.id] = 1 + Math.floor(Math.random() * 20); });
+    builtinNow(S);
+  }
+  // Eingebaute Spielleitung rechnet sofort, ohne auf eine KI zu warten
+  function builtinNow(S) {
+    if (S.gm === 'builtin' && DECK && S.phase === 'think') applyAI(S, DECK.run(S));
   }
 
   // ---------- Immobilien (ohne KI, feste Regeln) ----------
@@ -267,11 +304,39 @@
   // ---------- KI-Antwort übernehmen (mit Grenzen) ----------
   function applyAI(S, data, failed) {
     const task = S.aiTask;
+    const before = {};
+    Object.entries(S.chars).forEach(([id, c]) => { before[id] = Object.assign({}, c.stats); });
+    if (task === 'resolve') S.lastAction = Object.assign({}, S.actions);
+    applyData(S, task, data, failed);
+    if (task !== 'final') S.recap = {};
+    if (task !== 'final') Object.entries(S.chars).forEach(([id, c]) => {
+      const b = before[id];
+      if (!b) return;
+      const r = {};
+      ['money', 'health', 'happy', 'power'].forEach((k) => { if (c.stats[k] !== b[k]) r[k] = c.stats[k] - b[k]; });
+      S.recap[id] = r;
+    });
+    // Karten der eingebauten Spielleitung (bei KI-Antworten frei schreiben)
+    if (task !== 'final') {
+      S.cards = {};
+      if (data.builtin) (data.players || []).forEach((x) => { if (x && x.card && S.chars[x.id] && !S.chars[x.id].dead) S.cards[x.id] = x.card; });
+    }
+    S.picks = {};
+    // Zeit abgelaufen → bei eingebauter Spielleitung gleich die Lebensbilanz
+    builtinNow(S);
+  }
+  function applyData(S, task, data, failed) {
     S.aiTask = null;
+    const M = months(S);
     const byId = {};
     (Array.isArray(data.players) ? data.players : []).forEach((x) => { if (x && S.chars[x.id]) byId[x.id] = x; });
     if (task === 'final') {
-      S.players.forEach((p) => { const x = byId[p.id] || {}; S.finals[p.id] = { story: cleanText(x.story, 1500) || 'Ein Leben. Gelebt. Mehr sagt April dazu heute nicht.', title: cleanText(x.title, 80) }; });
+      S.players.forEach((p) => {
+        const x = byId[p.id] || {}, c = S.chars[p.id];
+        const sc = c && DECK ? DECK.score(c) : null;
+        S.finals[p.id] = { story: cleanText(x.story, 1500) || 'Ein Leben. Gelebt. Mehr sagt April dazu heute nicht.', title: cleanText(x.title, 80),
+          score: sc ? sc.total : 0, parts: sc ? sc.parts : null, goalDone: !!(sc && sc.parts.goal) };
+      });
       const fw = cleanText(data.world, 400);
       if (fw) S.world.unshift({ d: dateText(S), t: fw });
       S.phase = 'over';
@@ -280,7 +345,6 @@
     }
     if (task === 'resolve') {
       // Zeit vergeht, laufende Effekte greifen
-      const M = months(S);
       S.round++;
       const mm = S.date.m + M;
       S.date = { y: S.date.y + Math.floor(mm / 12), m: mm % 12 };
@@ -292,9 +356,11 @@
       const c = S.chars[p.id], x = byId[p.id];
       if (task === 'resolve') {
         c.age = Math.floor((S.date.y * 12 + S.date.m - c.bornIdx) / 12);
+        // Werte-Effekte der eingebauten Spielleitung gelten pro Jahr und werden auf die Rundenlänge umgerechnet
+        const f = M / 12, stoch = (v) => Math.floor(v + Math.random());
         c.effects.forEach((e) => {
           c.stats.money += e.money;
-          STATS.forEach((k) => { c.stats[k] = clampStat(c.stats[k] + (e[k] || 0)); });
+          STATS.forEach((k) => { if (e[k]) c.stats[k] = clampStat(c.stats[k] + (e.yr ? stoch(e[k] * f) : e[k])); });
         });
         c.effects = c.effects.filter((e) => !e.until || e.until > S.round);
       }
@@ -309,7 +375,7 @@
       S.events[p.id] = cleanText(x.next_event, 600) || 'Was machst du als Nächstes?';
       S.exam[p.id] = !!x.exam;
       const ck = x.check || {};
-      if (task === 'resolve' && ck.used) S.checks[p.id] = { stat: cleanText(ck.stat, 40), dc: num(ck.dc, 1, 30), roll: S.rolls[p.id] || 0, success: !!ck.success };
+      if (task === 'resolve' && ck.used) S.checks[p.id] = { stat: cleanText(ck.stat, 40), dc: num(ck.dc, 1, 30), roll: S.rolls[p.id] || 0, success: !!ck.success, mod: num(ck.mod, -15, 15) };
       else if (task === 'resolve') delete S.checks[p.id];
       // Einmalige Änderungen, begrenzt
       const d = x.delta || {};
@@ -326,7 +392,7 @@
         if (!name || c.effects.length >= 18) return;
         const mcap = Math.max(4000, Math.abs(c.stats.money) * 0.3) * Math.max(1, months(S) / 3);
         c.effects = c.effects.filter((o) => o.name !== name);
-        c.effects.push({ id: uid('e'), name, money: num(e.money, -mcap, mcap), health: num(e.health, -12, 12), happy: num(e.happy, -12, 12), power: num(e.power, -12, 12), until: num(e.rounds, 0, 400) ? S.round + num(e.rounds, 0, 400) : 0 });
+        c.effects.push({ id: uid('e'), name, money: num(e.money, -mcap, mcap), health: num(e.health, -12, 12), happy: num(e.happy, -12, 12), power: num(e.power, -12, 12), until: num(e.rounds, 0, 400) ? S.round + num(e.rounds, 0, 400) : 0, yr: !!e.yr });
       });
       // Beziehungen
       (Array.isArray(x.relations) ? x.relations : []).slice(0, 6).forEach((r) => {
@@ -371,7 +437,10 @@
   // Sicht: Alle sehen alles außer den noch nicht ausgewerteten Zügen der anderen
   function view(S, pid) {
     const V = JSON.parse(JSON.stringify(S));
-    if (pid !== S.host) Object.keys(V.actions).forEach((k) => { if (k !== pid) V.actions[k] = '•'; });
+    if (pid !== S.host) {
+      Object.keys(V.actions).forEach((k) => { if (k !== pid) V.actions[k] = '•'; });
+      Object.keys(V.picks || {}).forEach((k) => { if (k !== pid) delete V.picks[k]; });
+    }
     return V;
   }
   const bot = () => null;
