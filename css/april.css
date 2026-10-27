@@ -1156,3 +1156,29 @@ b.warn { color: #ff7a93; }
 .pol-camp small { flex-basis: 100%; color: var(--muted); }
 .rc-new { font-style: normal; font: 700 9px var(--mono); letter-spacing: .1em; padding: 1px 5px; border-radius: 3px; background: var(--grad); color: #fff; vertical-align: middle; }
 .mc-src { margin-top: 4px; font: 500 max(8px, 1.1cqi) var(--mono); color: var(--dim); opacity: .8; }
+
+/* ================= WAR v2 ================= */
+.board[data-kind="war"] .band { gap: 2px; font-size: max(7px, 1.2cqi); line-height: 1; }
+.band .wb-cap { filter: drop-shadow(0 0 3px #ffd83a); }
+.band .wb-n { font: 800 max(7px, 1.1cqi) var(--mono); color: #0b0812; background: rgba(255, 255, 255, .85); border-radius: 2px; padding: 0 2px; }
+.war-file .re-kpis { margin: 8px 0; }
+.war-defs { display: grid; gap: 6px; margin: 8px 0; }
+.war-def { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); }
+.war-def small { grid-column: 1; color: var(--muted); font-size: 11px; }
+.war-def .btn { grid-row: 1 / span 2; grid-column: 2; }
+.war-def.is-on { border-color: rgba(60, 224, 138, .5); background: rgba(60, 224, 138, .05); }
+.war-acts { margin: 8px 0; }
+.war-targets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.war-tgt { display: grid; text-align: left; padding: 6px 10px; border: 1px solid var(--line); border-left: 4px solid var(--g); border-radius: var(--radius); background: var(--bg-2); color: var(--fg); font: 600 13px var(--font); cursor: pointer; }
+.war-tgt small { color: var(--muted); font-size: 11px; font-weight: 400; }
+.war-tgt.is-on { border-color: #ff3d5e; box-shadow: 0 0 0 1px #ff3d5e; }
+.war-plan { display: grid; gap: 8px; }
+.war-plan p { margin: 0; font-size: 13px; }
+.war-unit { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); }
+.war-unit small { display: block; color: var(--muted); font-size: 11px; }
+.war-cnt { display: flex; align-items: center; gap: 6px; }
+.war-cnt b { font-family: var(--mono); min-width: 38px; text-align: center; }
+.war-odds { display: flex; align-items: center; gap: 8px; font: 700 12px var(--mono); }
+.odds-bar { flex: 1; height: 10px; border-radius: 5px; background: #4a6bff; overflow: hidden; }
+.odds-bar b { display: block; height: 100%; background: #ff3d5e; }
+.war-row { margin-top: 6px; }

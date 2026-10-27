@@ -6,6 +6,7 @@
   const CASINO = isNode ? require('./casino.js') : root.DULI_CASINO;
   const RL = isNode ? require('./rules.js') : root.DULI_RULES;
   const LG = isNode ? require('./logistics.js') : root.DULI_LOGI;
+  const WR = isNode ? require('./war.js') : root.DULI_WAR;
   const { GROUPS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, PLAYER_COLORS, APRIL_SAYS, BOARDS } = D;
   // Normales Brett oder MEGA-Brett: wird vor jeder Aktion passend zum Spielstand gesetzt
   let BD, SPACES, RAILS, UTILS, APRIL_FIELD, N, JAIL, RS = null;
@@ -128,6 +129,7 @@
     if (S.settings && S.settings.variant === 'hardcore') r *= 1.5;
     if (S.event && S.event.rentMult != null) r *= S.event.rentMult;
     r *= RL.rentFactor(S);
+    if (S.isWar && (S.round || 1) > 30) r *= 1 + 0.1 * (S.round - 30);
     if (S.pol && S.pol.law === 'mietbremse') r *= 0.7;
     if (S.pol && S.pol.law === 'deregulierung') r *= 1.3;
     return Math.round(r);
@@ -136,6 +138,7 @@
   function baseRent(S, idx, payer) {
     const sp = SPACES[idx], st = S.props[idx], owner = st.owner;
     if (sp.type === 'prop') {
+      if (st.cap) return Math.round((st.houses > 0 ? sp.rent[st.houses] : sp.rent[0] * 2) * 1.5);
       if (st.houses > 0) return sp.rent[st.houses];
       return ownsGroup(S, owner, sp.group) ? sp.rent[0] * RL.monoMult(S) : sp.rent[0];
     }
@@ -147,6 +150,7 @@
       return r;
     }
     if (sp.type === 'station') return LG.stationRent(S, idx);
+    if (sp.type === 'util' && S.isWar) return 25 * Math.pow(2, UTILS.filter(i => S.props[i].owner === owner).length - 1);
     if (sp.type === 'util' && S.isLogi) {
       const n = UTILS.filter(i => S.props[i].owner === owner).length;
       return LG.portRent(n) * (S.utilCard ? 2 : 1);
@@ -250,6 +254,7 @@
     if (S.isLogi) S.size = 'logi';
     S.tracks = [];
     S.isWar = S.settings.mode === 'war';
+    if (S.isWar) S.size = 'war';
     S.isPol = S.settings.mode === 'politics';
     S.pol = S.isPol ? { law: null, kanzler: null, vize: null, every: 5, wins: {}, last: null, pending: null } : null;
     S.sos = null; S.sosShow = null; S.war = null; S.battle = null;
@@ -272,7 +277,8 @@
     if (variant === 'hardcore') S.players.forEach(p => { p.money = Math.round(800 * BD.moneyMult); });
     if (variant === 'rich') S.players.forEach(p => { p.money = Math.round(5000 * BD.moneyMult); });
     if (variant === 'tycoon') S.players.forEach(p => { p.money = Math.max(500, p.money - 500); });
-    S.players.forEach(p => { if (p.token === 'rocket') p.money += 150; p.troops = S.isWar ? 12 : 0; p.camp = 0; });
+    S.players.forEach(p => { if (p.token === 'rocket') p.money += 150; p.camp = 0; p.army = {}; });
+    if (S.isWar) warSetup(S);
     if (variant === 'tycoon') giveRandomProps(S, 3);
     if (RL.on(S, 'startProps')) giveRandomProps(S, 2);
     if (variant === 'blitz') {
@@ -300,11 +306,7 @@
     const amt = Math.max(0, BD.go + (p.token === 'zebra' ? 50 : 0) + MOOD.salaryBonus(S) - (S.pol && S.pol.law === 'maut' ? 100 : 0));
     p.money += amt;
     log(S, `${p.name} zieht über LOS und kassiert ${money(amt)}.`);
-    if (S.isWar) {
-      const t = 4 + Math.floor(Object.keys(S.props).filter(k => S.props[k].owner === p.id).length / 3);
-      p.troops = (p.troops || 0) + t;
-      log(S, `🪖 ${p.name} rekrutiert ${t} Truppen (jetzt ${p.troops}).`);
-    }
+
     if (RL.on(S, 'interest')) {
       const z = Math.min(100, Math.floor(p.money * 0.05));
       if (z > 0) { p.money += z; log(S, `🏦 Zinsen: ${p.name} bekommt ${money(z)}.`); }
@@ -392,7 +394,6 @@
       if (rent <= 0) { log(S, `Mietfrei! ${p.name} zahlt nichts.`); return proceed(S); }
       if (p.token === 'ghost' && !p.used.ghost && rent >= 100) { p.used.ghost = true; log(S, `👻 ${p.name} geht als Geist durch die Wand und zahlt keine ${money(rent)}!`); return proceed(S); }
       if (S.isCasino && sp.type === 'prop') return enterCasino(S, p, p.pos, owner, Math.max(20, rent * 2));
-      if (S.isWar && sp.type === 'prop') { S.war = { idx: p.pos, att: p.id, def: owner.id, rent }; S.sub = 'war'; log(S, `⚔️ ${p.name} steht in ${sp.name} von ${owner.name}: Tribut zahlen oder angreifen?`); return; }
       lobbyCut(S, p, rent);
       log(S, `${p.name} zahlt ${money(rent)} Miete an ${owner.name}.`);
       if (p.stats) { p.stats.rentPaid += rent; p.stats.maxRent = Math.max(p.stats.maxRent, rent); }
@@ -576,6 +577,13 @@
   function moodApi(S) {
     return {
       tearDown(p) {
+        if (S.isWar) {
+          const k = Object.keys(S.props).find(i => S.props[i].owner === p.id && S.props[i].def && (S.props[i].def.flak || S.props[i].def.radar || S.props[i].def.bunker));
+          if (k == null) return null;
+          const d = S.props[k].def, key = ['flak', 'radar', 'bunker'].find(x => d[x]);
+          d[key]--; warLevel(S.props[k]);
+          return `${WR.DEFS[key].name} in ${SPACES[k].name}`;
+        }
         if (S.isLogi) {
           const mine = (S.tracks || []).filter(t => t.owner === p.id);
           if (!mine.length) return null;
@@ -850,6 +858,7 @@
 
   // ---------- Häuser & Hypotheken ----------
   function build(S, p, idx) {
+    if (S.isWar) return 'In WAR baust du Flak, Radar und Bunker statt Häuser.';
     const sp = SPACES[idx], st = S.props[idx];
     if (!sp || sp.type !== 'prop' || st.owner !== p.id) return 'Das gehört dir nicht.';
     if (!ownsGroup(S, p.id, sp.group)) return 'Du brauchst zuerst die ganze Farbgruppe.';
@@ -874,6 +883,15 @@
   function sell(S, p, idx) {
     const sp = SPACES[idx], st = S.props[idx];
     if (!sp || sp.type !== 'prop' || st.owner !== p.id || st.houses === 0) return 'Hier gibt es nichts zu verkaufen.';
+    if (S.isWar) {
+      const key = ['bunker', 'radar', 'flak'].find(x => st.def[x]);
+      if (!key) return 'Hier gibt es nichts abzubauen.';
+      st.def[key]--; warLevel(st);
+      const back = Math.floor(WR.DEFS[key].cost / 2);
+      p.money += back;
+      log(S, `${p.name} baut ${WR.DEFS[key].name} in ${sp.name} ab (+${money(back)}).`);
+      return null;
+    }
     const g = groupIdx(sp.group);
     const max = Math.max(...g.map(i => S.props[i].houses));
     if (st.houses < max && !RL.on(S, 'freeBuild')) return 'Gleichmäßig verkaufen! Erst die anderen Felder der Gruppe.';
@@ -888,7 +906,8 @@
     const sp = SPACES[idx], st = S.props[idx];
     if (!st || st.owner !== p.id) return 'Das gehört dir nicht.';
     if (st.mort) return 'Schon hypothekiert.';
-    if (sp.type === 'prop' && groupHasHouses(S, sp.group)) return 'Erst alle Häuser der Gruppe verkaufen.';
+    if (S.isWar && st.cap) return 'Eine Hauptstadt kann man nicht verpfänden.';
+    if (sp.type === 'prop' && groupHasHouses(S, sp.group) && !S.isWar) return 'Erst alle Häuser der Gruppe verkaufen.';
     st.mort = true;
     const val = Math.round(sp.price * (p.token === 'duck' ? 0.6 : 0.5));
     p.money += val;
@@ -1002,7 +1021,8 @@
     for (const i of side.props) {
       const st = S.props[i];
       if (!st || st.owner !== pid) return `${SPACES[i] ? SPACES[i].name : 'Feld'} gehört nicht ${p.name}.`;
-      if (SPACES[i].type === 'prop' && groupHasHouses(S, SPACES[i].group)) return `Auf der Gruppe von ${SPACES[i].name} stehen noch Häuser.`;
+      if (S.isWar && st.cap) return `${SPACES[i].name} ist eine Hauptstadt und nicht verkäuflich.`;
+      if (SPACES[i].type === 'prop' && groupHasHouses(S, SPACES[i].group) && !S.isWar) return `Auf der Gruppe von ${SPACES[i].name} stehen noch Häuser.`;
     }
     return null;
   }
@@ -1075,70 +1095,238 @@
     return null;
   }
 
-  // ---------- WAR: Gebiete erobern ----------
-  function defense(S, idx) {
+  // ---------- WAR: Truppen, Verteidigung, Schlachten ----------
+  // Jede Farbe bildet eine Truppe aus. Luftstützpunkte schalten Flieger frei, Häfen die Marine.
+  // Kampf wie bei Axis & Allies: Treffer, wenn der Würfel höchstens den Wert zeigt.
+  const WU = WR.UNITS;
+  const ownedBy = (S, pid, type) => Object.keys(S.props).map(Number).filter(k => S.props[k].owner === pid && !S.props[k].mort && (!type || SPACES[k].type === type));
+  const armyCount = (o) => Object.values(o || {}).reduce((a, b) => a + b, 0);
+  const capitals = (S, pid) => Object.keys(S.props).map(Number).filter(k => S.props[k].cap === pid && S.props[k].owner === pid);
+  function warLevel(st) {
+    const d = st.def || {};
+    st.houses = Math.min(4, (d.flak || 0) + (d.radar || 0) + (d.bunker || 0));
+  }
+  function warSetup(S) {
+    Object.values(S.props).forEach(st => { st.gar = {}; st.def = { flak: 0, radar: 0, bunker: 0 }; st.cap = null; });
+    const free = shuffle(Object.keys(S.props).map(Number).filter(k => SPACES[k].type === 'prop' && !S.props[k].owner));
+    S.players.forEach(p => {
+      p.army = { tank: 2, para: 1 };
+      for (let c = 0; c < 2 && free.length; c++) {
+        const k = free.shift(), st = S.props[k];
+        st.owner = p.id; st.cap = p.id;
+        st.gar = { [WR.unitOfGroup(SPACES[k].group)]: 1 };
+      }
+    });
+    log(S, '🪖 Jede Person hat zwei Hauptstädte ⭐. Wer beide verliert, ist raus.');
+  }
+  // Wer darf von wo aus angreifen?
+  function reachOk(S, p, u, to) {
+    const U = WU[u], d = (k) => WR.dist(k, to);
+    if (U.k === 'land') return U.r >= 99 || ownedBy(S, p.id).some(k => d(k) <= U.r);
+    if (U.k === 'air') { const r = U.r + ((p.army && p.army.carrier) ? 3 : 0); return ownedBy(S, p.id, 'rail').some(k => d(k) <= r); }
+    return ownedBy(S, p.id, 'util').some(k => d(k) <= U.r);
+  }
+  const canRecruit = (S, p, u) => (WU[u].k === 'air' ? ownedBy(S, p.id, 'rail').length > 0 : WU[u].k === 'sea' ? ownedBy(S, p.id, 'util').length > 0 : true);
+  function recruit(S, p, idx, n) {
     const st = S.props[idx], sp = SPACES[idx];
-    return 1 + (st.gar || 0) + 2 * st.houses + (sp.type === 'prop' && st.owner && ownsGroup(S, st.owner, sp.group) ? 2 : 0);
-  }
-  function battleDice(att, def) {
-    const rolls = [];
-    while (att > 0 && def > 0) {
-      const a = Array.from({ length: Math.min(3, att) }, d6).sort((x, y) => y - x);
-      const d = Array.from({ length: Math.min(2, def) }, d6).sort((x, y) => y - x);
-      for (let i = 0; i < Math.min(a.length, d.length); i++) { if (a[i] > d[i]) def--; else att--; }
-      if (rolls.length < 8) rolls.push([a, d]);
-    }
-    return { att, def, rolls };
-  }
-  function warPay(S, p) {
-    const w = S.war;
-    if (!w || S.sub !== 'war' || w.att !== p.id) return 'Kein Krieg offen.';
-    const o = P(S, w.def);
-    S.war = null;
-    log(S, `${p.name} zahlt ${money(w.rent)} Tribut an ${o.name}.`);
-    if (p.stats) { p.stats.rentPaid += w.rent; p.stats.maxRent = Math.max(p.stats.maxRent, w.rent); }
-    if (o.stats) o.stats.rentGot += w.rent;
-    MOOD.rentPaid(S, p, o, w.rent);
-    if (charge(S, p, [{ to: o.id, amt: w.rent }])) proceed(S);
+    n = Math.max(1, Math.min(5, Math.floor(Number(n) || 1)));
+    if (!st || st.owner !== p.id || sp.type !== 'prop' || st.mort) return 'Truppen bildest du nur in eigenen Gebieten aus.';
+    const u = WR.unitOfGroup(sp.group), U = WU[u];
+    if (!canRecruit(S, p, u)) return U.k === 'air' ? 'Ohne Luftstützpunkt startet kein Flieger.' : 'Ohne Hafen läuft kein Schiff aus.';
+    const cost = Math.round(U.cost * RL.buildFactor(S)) * n;
+    if (p.money < cost) return `${n}× ${U.name} kostet ${money(cost)}.`;
+    p.money -= cost;
+    p.army[u] = (p.army[u] || 0) + n;
+    if (p.stats) p.stats.built += n;
+    log(S, `${U.icon} ${p.name} bildet in ${sp.name} ${n}× ${U.name} aus (${money(cost)}).`);
     return null;
   }
-  function warAttack(S, p, n) {
-    const w = S.war;
-    if (!w || S.sub !== 'war' || w.att !== p.id) return 'Kein Krieg offen.';
-    n = Math.floor(Number(n));
-    if (!(n >= 1) || n > (p.troops || 0)) return `Du hast nur ${p.troops || 0} Truppen.`;
-    const st = S.props[w.idx], sp = SPACES[w.idx], o = P(S, w.def);
-    const defN = defense(S, w.idx);
-    const r = battleDice(n, defN);
-    p.troops -= n;
-    p.stats.attacks = (p.stats.attacks || 0) + 1;
-    S.war = null;
-    S.battle = { seq: (S.battle ? S.battle.seq : 0) + 1, turn: S.turnNo, idx: w.idx, att: p.id, def: o.id, n, defN, win: r.def === 0, left: r.def === 0 ? r.att : r.def, rolls: r.rolls };
-    if (r.def === 0) {
-      st.owner = p.id;
-      st.houses = Math.max(0, st.houses - 1);
-      st.gar = r.att;
-      p.stats.takeovers = (p.stats.takeovers || 0) + 1;
-      log(S, `⚔️ SIEG! ${p.name} erobert ${sp.name} von ${o.name} (${n} gegen ${defN}). ${r.att} Truppen bleiben als Besatzung.`);
-      MOOD.built(S, p, sp.name);
-      proceed(S);
-      return null;
-    }
-    const base = 1 + 2 * st.houses + (ownsGroup(S, o.id, sp.group) ? 2 : 0);
-    st.gar = Math.max(0, r.def - base);
-    const half = Math.ceil(w.rent / 2);
-    log(S, `🛡️ ${o.name} hält ${sp.name}! ${p.name} verliert ${n} Truppen und zahlt ${money(half)} Reparationen.`);
-    if (charge(S, p, [{ to: o.id, amt: half }])) proceed(S);
-    return null;
-  }
-  function deploy(S, p, idx, n) {
+  function station(S, p, idx, u, n, back) {
     const st = S.props[idx];
-    n = Math.floor(Number(n));
-    if (!S.isWar || !st || st.owner !== p.id || SPACES[idx].type !== 'prop') return 'Nur auf eigenen Gebieten.';
-    if (!(n >= 1) || n > (p.troops || 0)) return 'So viele Truppen hast du nicht.';
-    p.troops -= n;
-    st.gar = (st.gar || 0) + n;
-    log(S, `🪖 ${p.name} stationiert ${n} Truppen in ${SPACES[idx].name} (Verteidigung ${defense(S, idx)}).`);
+    n = Math.max(1, Math.floor(Number(n) || 1));
+    if (!st || st.owner !== p.id || !WU[u]) return 'Nur auf eigenen Feldern.';
+    const from = back ? st.gar : p.army, to = back ? p.army : st.gar;
+    if ((from[u] || 0) < n) return 'So viele Einheiten sind da nicht.';
+    from[u] -= n; if (!from[u]) delete from[u];
+    to[u] = (to[u] || 0) + n;
+    log(S, `${WU[u].icon} ${p.name} ${back ? 'zieht' : 'stationiert'} ${n}× ${WU[u].name} ${back ? 'aus' : 'in'} ${SPACES[idx].name}${back ? ' ab' : ''}.`);
+    return null;
+  }
+  function fortify(S, p, idx, d) {
+    const st = S.props[idx], D0 = WR.DEFS[d];
+    if (!st || st.owner !== p.id || !D0) return 'Nur auf eigenen Feldern.';
+    if ((st.def[d] || 0) >= D0.max) return `${D0.name} ist schon voll ausgebaut.`;
+    const cost = Math.round(D0.cost * RL.buildFactor(S));
+    if (p.money < cost) return `${D0.name} kostet ${money(cost)}.`;
+    p.money -= cost;
+    st.def[d] = (st.def[d] || 0) + 1;
+    warLevel(st);
+    log(S, `${D0.icon} ${p.name} baut ${D0.name} in ${SPACES[idx].name}.`);
+    return null;
+  }
+  // Grobe Stärke für Bots und die Anzeige
+  function warPower(S, to, units) {
+    const st = S.props[to];
+    const att = Object.entries(units || {}).reduce((a, [u, n]) => a + WU[u].a * n, 0);
+    const def = (1 + (st.cap ? 2 : 0)) * WR.MILITIA.d + Object.entries(st.gar || {}).reduce((a, [u, n]) => a + WU[u].d * n, 0) + 2 * ((st.def && st.def.bunker) || 0);
+    return { att, def };
+  }
+  function attack(S, p, to, units) {
+    to = Number(to);
+    const st = S.props[to], sp = SPACES[to];
+    if (!S.isWar) return 'Nur in WAR.';
+    if (!['roll', 'end'].includes(S.sub)) return 'Angreifen geht vor oder nach dem Würfeln.';
+    if (p.attackTurn === S.turnNo) return 'Ein Angriff pro Zug.';
+    if (!st || !st.owner || st.owner === p.id) return 'Das ist kein feindliches Gebiet.';
+    const sent = {};
+    for (const [u, n0] of Object.entries(units || {})) {
+      const n = Math.floor(Number(n0));
+      if (!WU[u] || !(n > 0)) continue;
+      if ((p.army[u] || 0) < n) return `Du hast nicht genug ${WU[u].name}.`;
+      if (!reachOk(S, p, u, to)) return `${WU[u].name} erreicht ${sp.name} nicht.`;
+      sent[u] = n;
+    }
+    if (!armyCount(sent)) return 'Wähle mindestens eine Einheit.';
+    const o = P(S, st.owner);
+    p.attackTurn = S.turnNo;
+    Object.entries(sent).forEach(([u, n]) => { p.army[u] -= n; if (!p.army[u]) delete p.army[u]; });
+    const A = [], Dd = [];
+    Object.entries(sent).forEach(([u, n]) => { for (let k = 0; k < n; k++) A.push(u); });
+    const mil = 1 + (st.cap ? 2 : 0);
+    for (let k = 0; k < mil; k++) Dd.push('militia');
+    Object.entries(st.gar).forEach(([u, n]) => { for (let k = 0; k < n; k++) Dd.push(u); });
+    const rep = { seq: (S.battle ? S.battle.seq : 0) + 1, turn: S.turnNo, to, att: p.id, def: o.id, sent: Object.assign({}, sent), aa: 0, intercept: 0, subHits: 0, rounds: [], win: false, bombed: false, lostA: {}, lostD: {} };
+    const lose = (arr, who, n, onlyAir) => {
+      for (let k = 0; k < n; k++) {
+        const cand = arr.map((u, i) => [u, i]).filter(([u]) => !onlyAir || (u !== 'militia' && WU[u].k === 'air' && u !== 'fighter'));
+        if (!cand.length) return;
+        const cost = (u) => (u === 'militia' ? 0 : WU[u].cost);
+        cand.sort((x, y) => cost(x[0]) - cost(y[0]));
+        const [u, i] = cand[0];
+        arr.splice(i, 1);
+        if (u !== 'militia') who[u] = (who[u] || 0) + 1;
+      }
+    };
+    // 1. Luftabwehr: Flak und Fighter gegen Bomber und Helis
+    const air = () => A.filter(u => u === 'bomber' || u === 'heli').length;
+    if (air()) {
+      if (st.def.flak) {
+        let hits = 0;
+        for (let k = air(); k > 0; k--) if (d6() <= (st.def.radar ? 4 : 3)) hits++;
+        rep.aa = Math.min(hits, air());
+        lose(A, rep.lostA, rep.aa, true);
+      }
+      let fighters = (st.gar.fighter || 0);
+      if (st.def.radar) ownedBy(S, o.id).forEach(k => { if (k !== to && WR.dist(k, to) <= 2) fighters += (S.props[k].gar.fighter || 0); });
+      fighters = Math.max(0, fighters - (sent.fighter || 0));
+      let hits = 0;
+      for (let k = 0; k < fighters; k++) if (d6() <= 3) hits++;
+      rep.intercept = Math.min(hits, air());
+      lose(A, rep.lostA, rep.intercept, true);
+    }
+    // 2. U-Boot-Erstschlag, außer Radar oder Fregatte verteidigen
+    if (A.includes('sub') && !st.def.radar && !st.gar.frigate) {
+      let hits = 0;
+      A.forEach(u => { if (u === 'sub' && d6() <= 3) hits++; });
+      rep.subHits = Math.min(hits, Dd.length);
+      lose(Dd, rep.lostD, rep.subHits);
+    }
+    // 3. Schlacht: bis zu 4 Runden
+    const bunker = st.def.bunker || 0;
+    for (let r = 0; r < 4 && A.length && Dd.length; r++) {
+      let ha = 0, hd = 0;
+      A.forEach(u => { if (d6() <= WU[u].a) ha++; });
+      const groundAttack = A.some(u => WU[u].k !== 'air');
+      Dd.forEach(u => {
+        const base = u === 'militia' ? WR.MILITIA.d : WU[u].d;
+        if (d6() <= Math.min(5, base + (groundAttack ? bunker : 0))) hd++;
+      });
+      lose(Dd, rep.lostD, ha);
+      lose(A, rep.lostA, hd);
+      rep.rounds.push([ha, hd]);
+    }
+    // 4. Ergebnis
+    const occupy = A.filter(u => WU[u].k !== 'air');
+    const back = (arr) => arr.forEach(u => { p.army[u] = (p.army[u] || 0) + 1; });
+    st.gar = {};
+    Dd.forEach(u => { if (u !== 'militia') st.gar[u] = (st.gar[u] || 0) + 1; });
+    if (!Dd.length && occupy.length) {
+      rep.win = true;
+      const wasCap = st.cap;
+      st.owner = p.id; st.cap = null; st.mort = false;
+      st.gar = {};
+      occupy.forEach(u => { st.gar[u] = (st.gar[u] || 0) + 1; });
+      back(A.filter(u => WU[u].k === 'air'));
+      st.def.flak = 0; st.def.radar = 0; st.def.bunker = Math.max(0, (st.def.bunker || 0) - 1);
+      warLevel(st);
+      if (p.stats) p.stats.takeovers = (p.stats.takeovers || 0) + 1;
+      log(S, `⚔️ SIEG! ${p.name} erobert ${sp.name} von ${o.name}${wasCap ? ' – eine HAUPTSTADT!' : '.'}`);
+      MOOD.built(S, p, sp.name);
+      if (wasCap && !capitals(S, o.id).length) warEliminate(S, o, p);
+    } else if (!Dd.length) {
+      rep.bombed = true;
+      back(A);
+      st.def.flak = 0; st.def.radar = 0; st.def.bunker = Math.max(0, (st.def.bunker || 0) - 1);
+      warLevel(st);
+      log(S, `💥 ${p.name} bombt ${sp.name} sturmreif: Verteidigung zerstört, aber ohne Bodentruppen keine Eroberung.`);
+    } else {
+      back(A);
+      log(S, `🛡️ ${o.name} hält ${sp.name}! ${p.name} zieht sich zurück.`);
+    }
+    S.battle = rep;
+    return null;
+  }
+  // Beide Hauptstädte weg: alles geht an die Siegerin oder den Sieger
+  function warEliminate(S, o, by) {
+    Object.keys(S.props).forEach(k => { const st = S.props[k]; if (st.owner === o.id) st.owner = by.id; });
+    by.money += Math.max(0, o.money);
+    o.money = 0; o.bankrupt = true; o.army = {};
+    if (S.trade && (S.trade.from === o.id || S.trade.to === o.id)) S.trade = null;
+    log(S, `☠️ ${o.name} hat beide Hauptstädte verloren und ist raus! Alle Gebiete gehen an ${by.name}.`);
+    MOOD.bankrupt(S, o);
+    if (active(S).length < 2) endGame(S);
+  }
+  // Felder ohne Besitzer verlieren Truppen und Verteidigung
+  function warPrune(S) {
+    Object.values(S.props).forEach(st => { if (st.cap && st.cap !== st.owner) st.cap = null; });
+    if (S.phase === 'play') active(S).forEach(q => { if (!capitals(S, q.id).length) { q.bankrupt = true; Object.values(S.props).forEach(st => { if (st.owner === q.id) st.owner = null; }); log(S, `☠️ ${q.name} hat keine Hauptstadt mehr und ist raus.`); } });
+    if (S.phase === 'play' && active(S).length < 2) endGame(S);
+    if (S.phase === 'play' && curP(S).bankrupt) nextTurn(S);
+    Object.values(S.props).forEach(st => { if (!st.owner && (armyCount(st.gar) || st.cap || (st.def && st.def.flak + st.def.radar + st.def.bunker))) { st.gar = {}; st.cap = null; st.def = { flak: 0, radar: 0, bunker: 0 }; warLevel(st); } });
+  }
+  function botWar(S, p) {
+    const mine = ownedBy(S, p.id);
+    // Hauptstädte sichern
+    for (const k of capitals(S, p.id)) {
+      const st = S.props[k];
+      const pool = ['fighter', 'tank', 'carrier', 'frigate'].find(u => (p.army[u] || 0) > 1);
+      if (armyCount(st.gar) < 3 && pool) return { type: 'station', idx: k, u: pool, n: 1 };
+      const enemyAir = active(S).some(q => q.id !== p.id && ((q.army.bomber || 0) + (q.army.heli || 0)) > 0);
+      if (enemyAir && !st.def.flak && p.money > 450) return { type: 'fortify', idx: k, d: 'flak' };
+      if (!st.def.bunker && p.money > 700) return { type: 'fortify', idx: k, d: 'bunker' };
+    }
+    // Angriff
+    if (p.attackTurn !== S.turnNo && ['roll', 'end'].includes(S.sub)) {
+      let best = null;
+      Object.keys(S.props).map(Number).forEach(k => {
+        const st = S.props[k];
+        if (!st.owner || st.owner === p.id) return;
+        const units = {};
+        Object.entries(p.army).forEach(([u, n]) => { if (n > 0 && reachOk(S, p, u, k)) units[u] = n; });
+        if (!Object.keys(units).some(u => WU[u].k !== 'air')) return;
+        const { att, def } = warPower(S, k, units);
+        const score = att / Math.max(1, def) + (st.cap ? 0.6 : 0);
+        if (att >= def * 1.15 && (!best || score > best.score)) best = { k, units, score };
+      });
+      if (best) return { type: 'attack', to: best.k, units: best.units };
+    }
+    // Ausbilden
+    if (p.money > 350 && armyCount(p.army) < 24) {
+      const pref = ['tank', 'bomber', 'para', 'fighter', 'heli', 'sub', 'frigate', 'carrier'];
+      const opts = mine.filter(k => SPACES[k].type === 'prop').map(k => ({ k, u: WR.unitOfGroup(SPACES[k].group) }))
+        .filter(o => canRecruit(S, p, o.u) && p.money - WU[o.u].cost > 250).sort((a, b) => pref.indexOf(a.u) - pref.indexOf(b.u));
+      if (opts.length) return { type: 'recruit', idx: opts[0].k, n: 1 };
+    }
     return null;
   }
 
@@ -1253,6 +1441,7 @@
   function act(S, pid, a) {
     const err = actInner(S, pid, a);
     if (!err && S.isLogi) pruneTracks(S);
+    if (!err && S.isWar) warPrune(S);
     if (!err) checkGoal(S);
     return err;
   }
@@ -1388,9 +1577,11 @@
         if (S.trade) return 'Erst das offene Angebot klären.';
         nextTurn(S); return null;
       case 'build': return manageOk() || build(S, p, Number(a.idx));
-      case 'warPay': return needCur() || warPay(S, p);
-      case 'warAttack': return needCur() || warAttack(S, p, a.n);
-      case 'deploy': return manageOk() || deploy(S, p, Number(a.idx), a.n);
+      case 'attack': return needCur() || attack(S, p, a.to, a.units);
+      case 'recruit': return manageOk() || recruit(S, p, Number(a.idx), a.n);
+      case 'station': return manageOk() || station(S, p, Number(a.idx), a.u, a.n, false);
+      case 'withdraw': return manageOk() || station(S, p, Number(a.idx), a.u, a.n, true);
+      case 'fortify': return manageOk() || fortify(S, p, Number(a.idx), a.d);
       case 'campaign': return manageOk() || campaign(S, p, a.amt);
       case 'track': return manageOk() || (S.isLogi ? buildTrack(S, p, Number(a.a), Number(a.b)) : 'Nur in LOGISTICS.');
       case 'untrack': return manageOk() || (S.isLogi ? sellTrack(S, p, Number(a.a), Number(a.b)) : 'Nur in LOGISTICS.');
@@ -1443,10 +1634,7 @@
     for (const k of owned) {
       if (S.props[k].mort && p.money - unmortgageCost(k) > 450) return { type: 'unmortgage', idx: k };
     }
-    if (S.isWar && (p.troops || 0) >= 6) {
-      const mine = owned.filter(k => SPACES[k].type === 'prop' && !S.props[k].mort).sort((a, b) => defense(S, a) - defense(S, b) || SPACES[b].price - SPACES[a].price);
-      if (mine.length && defense(S, mine[0]) < 8) return { type: 'deploy', idx: mine[0], n: Math.min(3, p.troops - 3) };
-    }
+    if (S.isWar) return botWar(S, p);
     if (S.isPol && S.round % S.pol.every === S.pol.every - 1 && !p.camp && p.money > 700) return { type: 'campaign', amt: p.money > 1500 ? 500 : 250 };
     if (S.isLogi) {
       // Strecke bauen, die das größte Netz ergibt
@@ -1481,7 +1669,7 @@
       if (st.houses === Math.max(...groupIdx(sp.group).map(i => S.props[i].houses))) return { type: 'sell', idx: k };
     }
     const mortgageable = owned
-      .filter(k => !S.props[k].mort && !(SPACES[k].type === 'prop' && groupHasHouses(S, SPACES[k].group)))
+      .filter(k => !S.props[k].mort && !S.props[k].cap && !(SPACES[k].type === 'prop' && groupHasHouses(S, SPACES[k].group) && !S.isWar))
       .sort((a, b) => valueFor(S, p.id, a) - valueFor(S, p.id, b));
     if (mortgageable.length) return { type: 'mortgage', idx: mortgageable[0] };
     return null;
@@ -1489,7 +1677,7 @@
 
   // Bots handeln: Fehlt nur noch ein Feld zur ganzen Farbgruppe, wird es abgekauft oder getauscht
   function botTradeIdea(S, p) {
-    if (S.trade || active(S).length < 2) return null;
+    if (S.trade || active(S).length < 2 || S.isWar) return null;
     S.botTrades = S.botTrades || {};
     if (S.turnNo - (S.botTrades[p.id] ?? -99) < 4) return null;
     if (S.isLogi) {
@@ -1562,12 +1750,6 @@
     if (!p.bot) return null;
     const go = (action) => ({ pid: p.id, action });
     switch (S.sub) {
-      case 'war': {
-        const w = S.war, d = defense(S, w.idx);
-        const need = Math.ceil(d * 1.6) + 1;
-        if ((p.troops || 0) >= Math.max(3, need) && (w.rent >= 20 || rng() < 0.5)) return go({ type: 'warAttack', n: Math.min(p.troops, need + 2) });
-        return go({ type: 'warPay' });
-      }
       case 'roll': {
         const m = botManage(S, p);
         if (m) return go(m);
@@ -1610,7 +1792,7 @@
     newGame, addPlayer, addBot, removePlayer, setSettings: withBoard(setSettings), botStep: withBoard(botStep), pickToken, startGame,
     act: withBoard(act), endGame: withBoard(endGame), bankrupt: withBoard(bankrupt), calcRent: withBoard(calcRent), netWorth: withBoard(netWorth), GOAL_WORTH,
     buyPrice, houseCost, unmortgageCost, ownsGroup: withBoard(ownsGroup), groupIdx, groupHasHouses: withBoard(groupHasHouses), bankSupply: withBoard(bankSupply), CARDS,
-    useBoard, board: boardFor, LAWS, defense: withBoard(defense), votes: withBoard(votes), trackCost: (S, a, b) => trackCost(S, a, b),
+    useBoard, board: boardFor, LAWS, warPower: withBoard(warPower), reachOk: withBoard(reachOk), canRecruit: withBoard(canRecruit), capitals, votes: withBoard(votes), trackCost: (S, a, b) => trackCost(S, a, b),
     setRng: (f) => { rng = f; MOOD.setRng(f); CASINO.setRng(f); },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = ENGINE;

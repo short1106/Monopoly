@@ -631,13 +631,13 @@
 
   const VARIANTS = RL.VARIANTS;
   const varIcon = (v) => (v.icon === 'april' ? aprilIcon('v-april') : v.icon);
-  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['Fragen-Datenbank', 'Joker'], bomb: ['Heiße Kartoffel'], realistic: ['Quartale', 'Steuern', 'NEU'], logistics: ['Schienen', 'Netze', 'NEU'], war: ['Truppen', 'Eroberung', 'NEU'], politics: ['Wahlen', 'Gesetze', 'NEU'] };
+  const MODE_TAGS = { classic: ['Brett', '3 Größen'], casino: ['Brett', '8 Minispiele'], world: ['Weltkarte', 'Jetset'], royale: ['Ringe', 'Sturm'], metro: ['U-Bahn', 'Fahrpreis'], tower: ['Etagen', 'Aufzüge'], islands: ['Inseln', 'Flut'], festival: ['Rundgang', 'Headliner'], race: ['Rennen', 'Kein Kaufen', 'NEU'], throne: ['König', 'Tribut', 'NEU'], quiz: ['Fragen-Datenbank', 'Joker'], bomb: ['Heiße Kartoffel'], realistic: ['Quartale', 'Steuern', 'NEU'], logistics: ['Schienen', 'Netze', 'NEU'], war: ['8 Truppen', 'Hauptstädte', 'NEU'], politics: ['Wahlen', 'Gesetze', 'NEU'] };
   function modeList() {
     return [
       { id: 'classic', icon: '🎲', name: 'Klassisch', text: 'Das Brett mit Duisburg und Öhringen. Als MINI, Normal oder MEGA-Weltreise.' },
       { id: 'casino', icon: '🎰', name: 'DULIDAN CASINO', text: 'Jede Straße ist ein Casino. Wer bei dir landet, zockt gegen deine Bank.' },
       ...W.MODES.map((id) => { const b = W.board(id); return { id, icon: b.icon || '🌍', name: b.title, text: b.tagline }; }),
-      { id: 'war', icon: '🪖', name: 'WAR', text: 'Straßen sind Gebiete. Zahl Tribut oder greif mit deinen Truppen an und erobere sie.' },
+      { id: 'war', icon: '🪖', name: 'WAR', text: 'Jede Farbe bildet eine Truppe aus: Panzer, Fallschirmjäger, Bomber, U-Boote … Flak, Radar, Bunker statt Häuser. Zwei Hauptstädte pro Person.' },
       { id: 'politics', icon: '🏛️', name: 'POLITICS', text: 'Alle 5 Runden Bundestagswahl. Wer regiert, macht Gesetze. Drei Wahlsiege und das Spiel ist vorbei.' },
       { id: 'logistics', icon: '🚆', name: 'LOGISTICS', text: 'Nur Bahnhöfe, Flughäfen und Häfen. Leg teure Schienen: Je größer dein Netz, desto höher die Miete.' },
       { id: 'realistic', icon: '🏢', name: 'REALISTIC', text: 'Echte Immobilien: Quartale, Kredite, SCHUFA, Mieter, Hotels, Steuererklärung und Anwälte.' },
@@ -819,7 +819,8 @@
     board.classList.toggle('is-casino', casino);
     const mega = BRD.id === 'mega', L = BRD.N / 4;
     board.classList.toggle('is-mega', mega);
-    const custom = !['normal', 'real', 'logi'].includes(BRD.id);
+    const custom = !['normal', 'real', 'logi', 'war'].includes(BRD.id);
+    const warb = BRD.id === 'war';
     const logi = BRD.id === 'logi';
     board.classList.toggle('is-logi', logi);
     const real = BRD.id === 'real';
@@ -828,7 +829,7 @@
     $('#center').style.gridArea = custom ? `2 / 2 / ${L + 1} / ${L + 1}` : '';
     // Das MEGA-Brett startet gezoomt, die Kamera folgt der Figur
     if (mega && !App.megaZoomInit) { App.megaZoomInit = true; $('#board-wrap').classList.add('is-zoomed'); $('#btn-zoom').textContent = 'Übersicht'; }
-    $('.center-sub').textContent = casino ? 'Casino Night · Duisburg' : real ? 'Realistic · Immobilien' : logi ? 'Logistics · Deutschland' : 'Duisburg · Öhringen';
+    $('.center-sub').textContent = casino ? 'Casino Night · Duisburg' : real ? 'Realistic · Immobilien' : logi ? 'Logistics · Deutschland' : warb ? 'War · Ruhrgebiet' : 'Duisburg · Öhringen';
     SPACES.forEach((sp, i) => {
       const { r, c, side } = cellPos(i);
       const el = document.createElement('div');
@@ -843,7 +844,7 @@
       if (corner) {
         body = sp.type === 'go'
           ? `<div class="cname">LOS</div><div class="cicon">${CORNER_ICON.go}</div><div class="csub">${esc(sp.sub)}</div>`
-          : `<div class="cicon">${(real && REAL_ICON[sp.type]) || CORNER_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>${sp.sub ? `<div class="csub">${esc(sp.sub)}</div>` : ''}`;
+          : `<div class="cicon">${(real && REAL_ICON[sp.type]) || (warb && { jail: '🔒', gotojail: '⛓️', parking: '🕊️' }[sp.type]) || CORNER_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>${sp.sub ? `<div class="csub">${esc(sp.sub)}</div>` : ''}`;
       } else if (sp.type === 'prop') {
         body = `${casino ? `<div class="cgame">${CZ.INFO[CZ.GAMES[sp.group]].icon}</div>` : ''}<div class="cname">${esc(sp.name)}</div><div class="cprice">${real ? MK(sp.price) : M(sp.price)}</div>`;
       } else if (sp.type === 'rail' || sp.type === 'util' || sp.type === 'station') {
@@ -884,7 +885,7 @@
         if (owner) el.style.setProperty('--oc', owner.color);
         const band = el.querySelector('.band');
         if (band) {
-          band.innerHTML = S.isReal ? realBand(st) : !S.isCasino ? (st.houses === 5 ? '<span class="hotel"></span>' : '<span class="house"></span>'.repeat(st.houses))
+          band.innerHTML = S.isWar ? warBand(st) : S.isReal ? realBand(st) : !S.isCasino ? (st.houses === 5 ? '<span class="hotel"></span>' : '<span class="house"></span>'.repeat(st.houses))
             : st.houses ? `<span class="corr">${st.houses === 5 ? '💀' : '😈'.repeat(st.houses)}</span>` : '';
         }
         const fl = el.querySelector('.owner-flag');
@@ -1003,6 +1004,7 @@
     if (!App.S) return;
     if (App.S.isReal) return openRealProp(i);
     if (App.S.isLogi) return openModal(deedHTML(i, true), () => deedHTML(i, true));
+    if (App.S.isWar && App.S.props[i]) return openModal(warFieldHTML(i), () => warFieldHTML(i));
     openModal(deedHTML(i, true));
   }
 
@@ -1101,6 +1103,7 @@
         }
         if (canTrade) h += uiBtn('Handeln', 'trade', 'btn-ghost');
         h += bribeBtn(cur);
+        h += warBtns(S, pid);
         if (S.isPol) h += `<div class="btn-row pol-camp"><small>📣 Wahlkampf (1 Stimme pro Ð100):</small>${[100, 250, 500].map((a) => btn(M(a), { type: 'campaign', amt: a }, pid, 'btn-small btn-ghost', cur.money < a)).join('')}</div>`;
         break;
       }
@@ -1151,6 +1154,7 @@
       }
       case 'end': {
         h += `<div class="btn-row">${btn('Zug beenden', { type: 'endTurn' }, pid, 'btn-primary', !!S.trade)}${canTrade ? uiBtn('Handeln', 'trade', 'btn-ghost') : ''}</div>`;
+        h += warBtns(S, pid);
         h += bribeBtn(cur);
         break;
       }
@@ -1274,7 +1278,7 @@
       if (p.inJail) meta.push('<span class="warn">in Düsseldorf</span>');
       if (p.skip) meta.push('<span class="warn">setzt aus</span>');
       if (p.jailFree.length) meta.push(`<span>${p.jailFree.length}× Freikarte</span>`);
-      if (S.isWar && !p.bankrupt) meta.push(`<span>🪖 ${p.troops || 0} Truppen</span>`);
+      if (S.isWar && !p.bankrupt) { meta.push(`<span>${unitsTxt(p.army)}</span>`); meta.push(`<span>⭐ ${E.capitals(S, p.id).length} Hauptstädte</span>`); }
       if (S.isPol && S.pol) { const w = S.pol.wins[p.id] || 0; if (S.pol.kanzler === p.id) meta.push('<span class="warn">🏛️ Kanzler</span>'); if (w) meta.push(`<span>${w}/3 Wahlsiege</span>`); }
       if (App.mode !== 'local' && !p.connected && !p.bankrupt && !p.bot) meta.push('<span class="warn">offline</span>');
       if (p.id === myId && App.mode !== 'local') meta.push('<span>du</span>');
@@ -1330,11 +1334,11 @@
       if (S.isLogi && !info) info = sp.type === 'rail' ? 'Flughafen' : 'Hafen';
       if (!info) info = sp.type === 'rail' ? (S.isCasino ? 'Casino-Shuttle' : 'Bahnhof') : sp.type === 'util' ? (S.isCasino ? 'Wechselstube' : 'Werk') : 'Keine Häuser';
       let btns = '';
-      if (S.isWar && sp.type === 'prop') info += ` · 🛡️ ${E.defense(S, k)}`;
-      if (manage && S.isWar && sp.type === 'prop' && (v.troops || 0) > 0) btns += btn('+1🪖', { type: 'deploy', idx: k, n: 1 }, v.id, 'btn-ghost', false, 'Truppe stationieren') + ((v.troops || 0) >= 3 ? btn('+3🪖', { type: 'deploy', idx: k, n: 3 }, v.id, 'btn-ghost') : '');
+      if (S.isWar) info = `${st.cap ? '⭐ Hauptstadt · ' : ''}${unitsTxt(st.gar)} · 🛡️ ${E.warPower(S, k, {}).def}${st.mort ? ' · Hypothek' : ''}`;
+      if (S.isWar) btns += uiBtn('⚙️', 'logiDeed', 'btn-small', `data-i="${k}"`);
       if (manage && S.isLogi && sp.type === 'station') btns += uiBtn('🛤️ Schienen', 'logiDeed', 'btn-small', `data-i="${k}"`);
       if (manage) {
-        if (sp.type === 'prop' && !st.mort && E.ownsGroup(S, v.id, sp.group)) {
+        if (sp.type === 'prop' && !st.mort && !S.isWar && E.ownsGroup(S, v.id, sp.group)) {
           const cost = E.houseCost(v, sp.group, S);
           if (S.isCasino) {
             if (st.houses < 5) btns += btn(`+😈 ${M(cost)}`, { type: 'build', idx: k }, v.id, '', v.money < cost, `Korrupter machen: ${CZ.LEVELS[st.houses + 1]}`);
@@ -1412,6 +1416,9 @@
     }
     if (kind === 'cityInfo') return openCity(data.id);
     if (kind === 'logiDeed') return openDeed(Number(data.i));
+    if (kind === 'warAttack') { App.warSel = null; return openModal(warAttackHTML(), warAttackHTML); }
+    if (kind === 'warTarget') { App.warT = Number(data.i); App.warSel = null; $('#modal-body').innerHTML = warAttackHTML(); return; }
+    if (kind === 'warUnit') { const t = App.warSel || {}; t[data.u] = Math.max(0, (t[data.u] || 0) + Number(data.d)); App.warSel = t; $('#modal-body').innerHTML = warAttackHTML(); return; }
     if (kind === 'rxProp') return openRealProp(Number(data.i));
     if (kind === 'rxBank') return openModal(realBankHTML(), realBankHTML);
     if (kind === 'rxStmt') return openModal(stmtHTML(), stmtHTML);
@@ -1663,10 +1670,12 @@
     $('#btn-zoom').textContent = w.classList.contains('is-zoomed') ? (mega ? 'Übersicht' : 'Normal') : 'Zoom';
     followCam();
   };
-  $('#btn-rules').onclick = () => (App.S && (App.S.isWar || App.S.isPol) ? openModal(App.S.isWar ? `<h2>🪖 DULIDANOPOLY WAR</h2><div class="rules"><p>Das klassische Brett, aber jede Straße ist ein Gebiet. Wer zuletzt nicht pleite ist, gewinnt.</p>
-    <h3>Truppen</h3><ul><li>Alle starten mit 12 Truppen. Über LOS gibt es 4 neue, plus 1 pro 3 eigenen Feldern.</li><li>Truppen stationierst du in deinen Gebieten (unten bei deinen Feldern: +1🪖, +3🪖).</li></ul>
-    <h3>Fremdes Gebiet</h3><ul><li>Entweder Tribut zahlen (die normale Miete) oder angreifen.</li><li>Verteidigung = 1 Miliz + Besatzung + 2 pro Haus (Bunker) + 2, wenn die ganze Farbgruppe einer Person gehört.</li>
-    <li>Gekämpft wird wie bei Risiko: bis zu 3 Angriffswürfel gegen 2 Verteidigungswürfel, bei Gleichstand gewinnt die Verteidigung.</li><li>Sieg: Das Gebiet gehört dir, ein Haus wird zerstört, die Überlebenden bleiben als Besatzung. Niederlage: Truppen weg und halbe Miete als Reparationen.</li></ul></div>`
+  $('#btn-rules').onclick = () => (App.S && (App.S.isWar || App.S.isPol) ? openModal(App.S.isWar ? `<h2>🪖 DULIDANOPOLY WAR</h2><div class="rules"><p>Das Brett ist das Schlachtfeld. Wer beide Hauptstädte verliert, ist raus. Wer zuletzt übrig ist, gewinnt.</p>
+    <h3>Start</h3><ul><li>Jede Person bekommt zwei zufällige Hauptstädte ⭐ (3 Miliz, höhere Miete, nicht verkäuflich) und eine kleine Armee: 2 Panzer, 1 Fallschirmjäger.</li><li>Bahnhöfe sind Luftstützpunkte 🛫, Werke und ein Steuerfeld sind Häfen ⚓.</li></ul>
+    <h3>Truppen: jede Farbe eine eigene</h3><ul>${Object.values(WRD.UNITS).map((U) => `<li>${U.icon} <strong>${U.name}</strong> (${GROUPS[U.group].name}): Angriff ${U.a}, Verteidigung ${U.d}, ${M(U.cost)}. ${esc(U.text)}</li>`).join('')}</ul>
+    <p>Ausgebildet wird in einem eigenen Feld der passenden Farbe. Flieger brauchen einen Luftstützpunkt, Schiffe einen Hafen. Einheiten sind in deiner Armee oder als Besatzung auf einem Feld stationiert.</p>
+    <h3>Statt Häusern</h3><ul>${Object.values(WRD.DEFS).map((D0) => `<li>${D0.icon} <strong>${D0.name}</strong> (${M(D0.cost)}): ${esc(D0.text)}</li>`).join('')}<li>Jede Anlage erhöht auch die Miete wie ein Haus.</li></ul>
+    <h3>Angreifen</h3><ul><li>Einmal pro Zug, vor oder nach dem Würfeln, auf jedes feindliche Feld, das deine Einheiten erreichen.</li><li>Erst schießen Flak und Fighter auf Bomber und Helis, dann haben U-Boote einen Erstschlag (außer Radar oder Fregatte). Danach bis zu 4 Runden: Jede Einheit trifft, wenn der Würfel höchstens ihren Wert zeigt. Jedes Feld hat 1 Miliz (Hauptstadt 3).</li><li>Erobern können nur Boden- und See-Einheiten. Mit nur Fliegern zerbombst du die Verteidigung.</li><li>Ab Runde 30 steigen alle Mieten jede Runde (Kriegswirtschaft).</li></ul></div>`
     : `<h2>🏛️ DULIDANOPOLY POLITICS</h2><div class="rules"><p>Das klassische Brett, aber jede Straße ist ein Wahlkreis. Gewonnen hat, wer zuletzt nicht pleite ist – oder wer drei Wahlen gewinnt.</p>
     <h3>Wahlen</h3><ul><li>Alle 5 Runden ist Bundestagswahl. Stimmen: jedes Feld 1 (+1 pro Haus, ×1,5 bei ganzer Farbgruppe), 1 pro Ð400 Bargeld, Wahlkampfspenden (1 pro Ð100), +2 wenn April dich liebt.</li>
     <li>100 Sitze werden verteilt. Mehr als 50: allein regieren. Sonst Koalition mit Platz 2 (Vize).</li><li>Diäten: Kanzler Ð100 pro Runde, Vize Ð50.</li></ul>
@@ -2748,6 +2757,92 @@
   runBoot();
   applyTempo();
 
+  // ================= WAR: Truppen, Verteidigung, Angriff =================
+  const WRD = window.DULI_WAR;
+  const unitsTxt = (o) => Object.entries(o || {}).filter(([, n]) => n > 0).map(([u, n]) => `${WRD.UNITS[u].icon}${n}`).join(' ') || '–';
+  function warBand(st) {
+    const d = st.def || {};
+    const n = Object.values(st.gar || {}).reduce((a, b) => a + b, 0);
+    return `${st.cap ? '<span class="wb-cap">⭐</span>' : ''}${d.flak ? '<span>🎯</span>' : ''}${d.radar ? '<span>📡</span>' : ''}${d.bunker ? `<span>🧱${d.bunker > 1 ? d.bunker : ''}</span>` : ''}${n ? `<span class="wb-n">${n}</span>` : ''}`;
+  }
+  function warFieldHTML(i) {
+    const S = App.S, sp = SPACES[i], st = S.props[i];
+    if (!st) return deedHTML(i, true);
+    const o = P(st.owner), v = viewer();
+    const mine = o && v && o.id === v.id;
+    const manage = mine && S.phase === 'play' && curP().id === v.id && canControl(v.id) && ['roll', 'end', 'debt', 'buy'].includes(S.sub);
+    const kind = sp.type === 'rail' ? '🛫 Luftstützpunkt: schaltet Fighter, Bomber und Helis frei. Reichweite zählt ab hier.' : sp.type === 'util' ? '⚓ Hafen: schaltet Fregatten, U-Boote und Flugzeugträger frei. Reichweite zählt ab hier.' : '';
+    const u = sp.type === 'prop' && WRD.unitOfGroup(sp.group), U = u && WRD.UNITS[u];
+    const pw = E.warPower(S, i, {});
+    let h = `<div class="deed war-file"><div class="deed-head ${sp.type === 'prop' ? '' : 'light-text'}" style="--g:${sp.group ? GROUPS[sp.group].color : '#2a3a2a'}">${st.cap ? '⭐ ' : ''}${esc(sp.name)}<small>${st.cap ? 'HAUPTSTADT · ' : ''}${o ? `gehört ${esc(o.name)}` : 'frei'}</small></div>`;
+    if (kind) h += `<p class="deed-note">${kind}</p>`;
+    if (U) h += `<p class="deed-note">Diese Farbe bildet <strong>${U.icon} ${U.name}</strong> aus: Angriff ${U.a}, Verteidigung ${U.d}, ${M(U.cost)}. ${esc(U.text)}</p>`;
+    h += `<div class="re-kpis"><div><small>Besatzung</small><strong>${unitsTxt(st.gar)}</strong></div><div><small>Miliz</small><strong>🪖${1 + (st.cap ? 2 : 0)}</strong></div><div><small>Verteidigung</small><strong>🛡️ ${pw.def}</strong></div><div><small>Miete</small><strong>${o ? M(E.calcRent(S, i)) : M(sp.price)}</strong></div></div>`;
+    h += `<div class="war-defs">${Object.entries(WRD.DEFS).map(([k, D0]) => {
+      const lvl = (st.def && st.def[k]) || 0;
+      return `<div class="war-def ${lvl ? 'is-on' : ''}"><span>${D0.icon} <strong>${D0.name}</strong>${D0.max > 1 ? ` ${lvl}/${D0.max}` : lvl ? ' ✔' : ''}</span><small>${esc(D0.text)}</small>${manage && lvl < D0.max ? kbtn(`Bauen ${M(D0.cost)}`, { type: 'fortify', idx: i, d: k }, v.id, 'btn-small', v.money < D0.cost) : ''}</div>`;
+    }).join('')}</div>`;
+    if (manage) {
+      if (U) {
+        const ok = E.canRecruit(S, v, u);
+        h += `<div class="btn-row war-acts">${[1, 3].map((n) => kbtn(`${U.icon} ${n}× ${U.name} ausbilden · ${M(U.cost * n)}`, { type: 'recruit', idx: i, n }, v.id, n === 1 ? 'btn-primary btn-small' : 'btn-small', !ok || v.money < U.cost * n, ok ? '' : U.k === 'air' ? 'Erst einen Luftstützpunkt kaufen' : 'Erst einen Hafen kaufen')).join('')}</div>`;
+      }
+      const pool = Object.entries(v.army || {}).filter(([, n]) => n > 0);
+      h += `<h4 class="logi-h">Stationieren (aus deiner Armee)</h4><div class="btn-row">${pool.map(([x, n]) => kbtn(`${WRD.UNITS[x].icon} +1 (${n})`, { type: 'station', idx: i, u: x, n: 1 }, v.id, 'btn-small btn-ghost')).join('') || '<small class="empty">Deine Armee ist leer.</small>'}</div>`;
+      const gar = Object.entries(st.gar || {}).filter(([, n]) => n > 0);
+      if (gar.length) h += `<h4 class="logi-h">Abziehen (zurück in die Armee)</h4><div class="btn-row">${gar.map(([x, n]) => kbtn(`${WRD.UNITS[x].icon} −1 (${n})`, { type: 'withdraw', idx: i, u: x, n: 1 }, v.id, 'btn-small btn-ghost')).join('')}</div>`;
+    }
+    return h + '</div>';
+  }
+  // Angriffsplaner: Ziel wählen, Einheiten zusammenstellen
+  function warAttackHTML() {
+    const S = App.S, p = curP();
+    if (!S || !S.isWar || !canControl(p.id)) return '';
+    const targets = Object.keys(S.props).map(Number).filter((k) => S.props[k].owner && S.props[k].owner !== p.id && !P(S.props[k].owner).bankrupt)
+      .map((k) => ({ k, units: Object.fromEntries(Object.entries(p.army || {}).filter(([u, n]) => n > 0 && E.reachOk(S, p, u, k))) }))
+      .filter((t) => Object.keys(t.units).length);
+    if (!targets.length) return '<h2>⚔️ Angriff</h2><p class="empty">Gerade erreicht keine deiner Einheiten ein feindliches Feld. Bilde Truppen aus: Panzer greifen bis 2 Felder neben deinen Gebieten an, Fallschirmjäger springen überall ab, Flieger brauchen einen Luftstützpunkt, Schiffe einen Hafen.</p>';
+    if (!App.warT || !targets.some((t) => t.k === App.warT)) { App.warT = targets[0].k; App.warSel = null; }
+    const t = targets.find((x) => x.k === App.warT);
+    if (!App.warSel) App.warSel = Object.assign({}, t.units);
+    Object.keys(App.warSel).forEach((u) => { if (!t.units[u]) delete App.warSel[u]; else App.warSel[u] = Math.min(App.warSel[u], t.units[u]); });
+    const st = S.props[t.k], pw = E.warPower(S, t.k, App.warSel);
+    const air = (App.warSel.bomber || 0) + (App.warSel.heli || 0);
+    const land = Object.entries(App.warSel).some(([u, n]) => n > 0 && WRD.UNITS[u].k !== 'air');
+    const warn = [];
+    if (air && st.def.flak) warn.push(`🎯 Flak schießt vorher auf deine ${air} Bomber/Helis.`);
+    if (air && (st.gar.fighter || 0)) warn.push(`🛩️ ${st.gar.fighter} Fighter fangen Bomber und Helis ab.`);
+    if (App.warSel.sub && (st.def.radar || st.gar.frigate)) warn.push('📡 Radar oder Fregatte: Deine U-Boote verlieren den Erstschlag.');
+    if (!land) warn.push('Nur Flieger: Du kannst die Verteidigung zerbomben, aber nicht erobern.');
+    const ratio = pw.att / Math.max(1, pw.def);
+    return `<h2>⚔️ Angriff planen</h2>
+      <div class="war-targets">${targets.map((x) => `<button type="button" class="war-tgt ${x.k === t.k ? 'is-on' : ''}" data-ui="warTarget" data-i="${x.k}" style="--g:${SPACES[x.k].group ? GROUPS[SPACES[x.k].group].color : '#556'}">${S.props[x.k].cap ? '⭐ ' : ''}${esc(SPACES[x.k].name)}<small>${esc(P(S.props[x.k].owner).name)} · 🛡️${E.warPower(S, x.k, {}).def}</small></button>`).join('')}</div>
+      <div class="war-plan"><p><strong>${S.props[t.k].cap ? '⭐ ' : ''}${esc(SPACES[t.k].name)}</strong> · Besatzung ${unitsTxt(st.gar)} · Miliz 🪖${1 + (st.cap ? 2 : 0)} · ${Object.entries(WRD.DEFS).filter(([k]) => st.def[k]).map(([k, D0]) => D0.icon + (st.def[k] > 1 ? st.def[k] : '')).join(' ') || 'keine Verteidigungsanlagen'}</p>
+      ${Object.entries(t.units).map(([u, max]) => { const U = WRD.UNITS[u], n = App.warSel[u] || 0; return `<div class="war-unit"><span>${U.icon} ${U.name}<small>A${U.a} · ${esc(U.text)}</small></span><span class="war-cnt"><button type="button" class="btn btn-small btn-ghost" data-ui="warUnit" data-u="${u}" data-d="-1">−</button><b>${n}/${max}</b><button type="button" class="btn btn-small btn-ghost" data-ui="warUnit" data-u="${u}" data-d="1">+</button></span></div>`; }).join('')}
+      <div class="war-odds"><span>Angriff ⚔️ ${pw.att}</span><i class="odds-bar"><b style="width:${Math.round((100 * pw.att) / Math.max(1, pw.att + pw.def))}%"></b></i><span>🛡️ ${pw.def} Verteidigung</span></div>
+      <p class="action-note">${ratio >= 1.5 ? '💪 Gute Chancen.' : ratio >= 1 ? '⚖️ Knapp.' : '💀 Riskant.'} Gekämpft wird bis zu 4 Runden: Jede Einheit trifft, wenn der Würfel höchstens ihren Wert zeigt. Bunker geben der Verteidigung +1.</p>
+      ${warn.map((w) => `<p class="re-warn-line">${w}</p>`).join('')}
+      <div class="btn-row">${btn('⚔️ ANGREIFEN', { type: 'attack', to: t.k, units: App.warSel }, p.id, 'btn-danger', !Object.values(App.warSel).some((n) => n > 0))}</div></div>`;
+  }
+  function warBattleHTML(S) {
+    const b = S.battle;
+    if (!S.isWar || !b || b.turn !== S.turnNo || b.rounds === undefined) return '';
+    const A = P(b.att), Dp = P(b.def);
+    return `<div class="news war-news ${b.win ? 'is-win' : 'is-loss'}"><strong>⚔️ Schlacht um ${esc(SPACES[b.to].name)}</strong>
+      <span>${esc(A.name)} greift ${esc(Dp.name)} an mit ${unitsTxt(b.sent)}.</span>
+      ${b.aa || b.intercept ? `<span>🎯 Flak holt ${b.aa} runter${b.intercept ? `, 🛩️ Fighter fangen ${b.intercept} ab` : ''}.</span>` : ''}
+      ${b.subHits ? `<span>🐋 U-Boot-Erstschlag: ${b.subHits} Treffer.</span>` : ''}
+      <div class="war-rolls">${b.rounds.map(([ha, hd], r) => `<span>R${r + 1}: <b>${ha} Treffer</b> / <em>${hd} zurück</em></span>`).join('')}</div>
+      <span>Verluste: ${esc(A.name)} ${unitsTxt(b.lostA)} · ${esc(Dp.name)} ${unitsTxt(b.lostD)}</span>
+      <span><strong>${b.win ? '🏴 EROBERT!' : b.bombed ? '💥 Zerbombt, aber nicht erobert.' : '🛡️ Abgewehrt.'}</strong></span></div>`;
+  }
+  function warBtns(S, pid) {
+    const p = P(pid);
+    if (!S.isWar || !['roll', 'end'].includes(S.sub)) return '';
+    return `<div class="btn-row war-row">${uiBtn(p.attackTurn === S.turnNo ? '⚔️ Schon angegriffen' : '⚔️ Angriff planen', 'warAttack', 'btn-danger', p.attackTurn === S.turnNo ? 'disabled' : '')}</div>
+      <p class="action-note">Armee: ${unitsTxt(p.army)} · Truppen ausbilden und Verteidigung bauen: eigenes Feld antippen.</p>`;
+  }
+
   // ================= WAR, POLITICS, SPLIT OR STEAL =================
   function modeNewsHTML(S) {
     let h = '';
@@ -2758,13 +2853,7 @@
         <span>${L ? `${L.icon} ${L.name}: ${esc(L.text)}` : 'Kein Gesetz in Kraft.'}</span>
         ${pol.last ? `<div class="seats">${Object.entries(pol.last.seats).map(([id, n]) => (P(id) ? `<i style="flex:${n};background:${P(id).color}" title="${esc(P(id).name)}: ${n} Sitze">${n >= 12 ? n : ''}</i>` : '')).join('')}</div>` : ''}</div>`;
     }
-    const b = S.battle;
-    if (S.isWar && b && b.turn === S.turnNo) {
-      const A = P(b.att), Dp = P(b.def);
-      h += `<div class="news war-news ${b.win ? 'is-win' : 'is-loss'}"><strong>⚔️ Schlacht um ${esc(SPACES[b.idx].name)}</strong>
-        <span>${esc(A.name)} (${b.n}) gegen ${esc(Dp.name)} (${b.defN}): ${b.win ? `Erobert! ${b.left} bleiben als Besatzung.` : `Abgewehrt. ${esc(Dp.name)} hat noch ${b.left}.`}</span>
-        <div class="war-rolls">${b.rolls.map(([a, d]) => `<span><b>${a.join(' ')}</b> vs <em>${d.join(' ')}</em></span>`).join('')}</div></div>`;
-    }
+    h += warBattleHTML(S);
     const x = S.sosShow;
     if (x && x.turn === S.turnNo) {
       const A = P(x.a), B = P(x.b), ic = (k) => (k === 'split' ? '🤝' : '🗡️');
@@ -2798,17 +2887,6 @@
       h += canControl(k.id)
         ? `<div class="btn-col">${S.pol.pending.opts.map((id) => { const L = E.LAWS[id]; return btn(`${L.icon} ${L.name}<small>${esc(L.text)}</small>`, { type: 'law', id }, k.id); }).join('')}</div>`
         : `<p class="action-note">${esc(k.name)} schreibt am Gesetz …</p>`;
-      return h + '</div>';
-    }
-    if (S.sub === 'war' && S.war) {
-      const w = S.war, o = P(w.def), d = E.defense(S, w.idx);
-      let h = `<div class="sos-box war-box"><span class="rc-kind">⚔️ Feindliches Gebiet</span><strong>${esc(SPACES[w.idx].name)} gehört ${esc(o.name)}</strong>
-        <p>Verteidigung: <b>🛡️ ${d}</b> (Miliz 1 + Besatzung ${S.props[w.idx].gar || 0} + Bunker ${2 * S.props[w.idx].houses}${E.ownsGroup(S, o.id, SPACES[w.idx].group) ? ' + Farbgruppe 2' : ''}). Du hast <b>🪖 ${cur.troops || 0}</b> Truppen.</p>
-        <p class="action-note">Angriff wie bei Risiko: bis zu 3 Würfel gegen 2, Gleichstand gewinnt die Verteidigung. Verlierst du, zahlst du die halbe Miete als Reparationen.</p>`;
-      if (!canControl(cur.id)) return h + `<p class="action-note">${esc(cur.name)} plant den nächsten Zug …</p></div>`;
-      const ns = [...new Set([Math.ceil(d * 1.5), d * 2, cur.troops || 0].filter((n) => n >= 1 && n <= (cur.troops || 0)))].sort((a, b) => a - b);
-      h += `<div class="btn-col">${btn(`💸 Tribut zahlen: ${M(w.rent)}`, { type: 'warPay' }, cur.id, 'btn-primary', false)}
-        ${ns.map((n) => btn(`⚔️ Mit ${n} Truppen angreifen`, { type: 'warAttack', n }, cur.id, 'btn-danger')).join('') || '<p class="action-note">Keine Truppen zum Angreifen. Neue gibt es über LOS.</p>'}</div>`;
       return h + '</div>';
     }
     return null;
