@@ -307,3 +307,35 @@ body::before { display: none; }
 @keyframes flashDown { 0% { box-shadow: inset 0 0 0 2px rgba(255, 77, 109, .9), 0 0 24px rgba(255, 77, 109, .5); } 100% { box-shadow: none; } }
 .player.shake { animation: flashDown .9s ease-out, shake .5s ease-in-out; }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+
+/* ---------- ROYALE / METRO / TOWER ---------- */
+.city .nicon { font-size: 11px; text-anchor: middle; pointer-events: none; fill: var(--fg); font-weight: 800; }
+.city.n-portal .core { fill: #0c2a3a; }
+.city.n-loot .core { fill: #3a2c08; }
+.city.n-event .core { fill: #3a1033; }
+.city.n-lift .core { fill: #0b3320; }
+.city.n-slide .core { fill: #3a0b30; }
+.city.n-hub .ring { stroke-width: 5; }
+.city.n-hub .core { fill: #efeaf7; }
+.city.n-hub .nicon { fill: #0e0b13; }
+.city.is-dead { opacity: .18; filter: grayscale(1); }
+.city.is-warn .ring { animation: warnPulse .9s ease-in-out infinite; }
+@keyframes warnPulse { 50% { stroke: #ff3d5e; } }
+.orbit { fill: none; stroke: rgba(167, 139, 255, .35); stroke-width: 2; stroke-dasharray: 3 6; }
+.orbit.is-warn { stroke: #ff3d5e; stroke-width: 3; animation: blink 1s ease-in-out infinite; }
+.orbit.is-dead { stroke: rgba(255, 61, 94, .25); stroke-dasharray: 1 10; }
+.core-glow { fill: rgba(192, 32, 184, .18); filter: blur(18px); }
+.core-logo { filter: drop-shadow(0 0 18px rgba(192, 32, 184, .8)); }
+.star { fill: rgba(239, 234, 247, .5); }
+.route.r-portal { stroke: #3ad1ff; stroke-dasharray: 4 6; opacity: .9; stroke-width: 2.5; }
+.route.r-line { stroke-width: 9; opacity: .85; stroke-linecap: round; }
+.route.r-line.is-open { filter: drop-shadow(0 0 6px #fff); opacity: 1; }
+.route.r-ring { stroke: rgba(239, 234, 247, .25); stroke-width: 3; }
+.route.r-lift { stroke: #3ce08a; stroke-width: 3; stroke-dasharray: 6 5; opacity: .9; }
+.route.r-slide { stroke: #ff4fd8; stroke-width: 3; opacity: .8; fill: none; }
+.board-metro .city .ring { r: 12; }
+.floor { fill: rgba(23, 19, 35, .75); stroke: var(--g); stroke-opacity: .55; stroke-width: 1.5; }
+.floor-label { font: 600 10px var(--mono); letter-spacing: .12em; fill: var(--muted); }
+.tower-roof { fill: none; stroke: rgba(192, 32, 184, .45); stroke-width: 2; stroke-dasharray: 4 6; }
+.news.is-storm { background: rgba(255, 61, 94, .1); border-color: rgba(255, 61, 94, .5); }
+.news.is-storm strong { color: #ff7a93; }

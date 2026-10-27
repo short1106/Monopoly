@@ -2,7 +2,8 @@
 (function () {
   const D = window.DULI_DATA, E = window.DULI_ENGINE, Net = window.DULI_NET, FX = window.DULI_FX;
   const W = window.DULI_WORLD, WD = window.DULI_WORLD_DATA;
-  const isWorld = () => !!(App.S && App.S.mode === 'world');
+  const isWorld = () => !!(App.S && W.MODES.includes(App.S.mode));
+  const GB = () => W.board(App.S.mode);
   const ENG = () => (isWorld() ? W : E);
   const { SPACES, GROUPS, TOKENS, RAILS, UTILS } = D;
   const $ = (s) => document.querySelector(s);
@@ -352,7 +353,7 @@
   });
 
   function startByMode(S) {
-    return S.settings && S.settings.mode === 'world' ? W.start(S) : E.startGame(S);
+    return S.settings && W.MODES.includes(S.settings.mode) ? W.start(S) : E.startGame(S);
   }
 
   function renderLobby() {
@@ -376,14 +377,14 @@
     $('#lobby-tools').hidden = App.mode === 'client';
     const st = S.settings || { startMoney: 1500, pot: true, goDouble: false };
     const ro = App.mode === 'client' ? 'disabled' : '';
-    const world = st.mode === 'world';
+    const world = W.MODES.includes(st.mode);
     const curVar = st.variant || 'normal';
     const variantsHTML = `<div class="row-block"><span class="vb-title">Spielvariante<small>${esc(VARIANTS.find((v) => v.id === curVar).text)}</small></span>
       <div class="variant-grid">${VARIANTS.map((v) => `<button type="button" class="variant ${v.id === curVar ? 'is-on' : ''}" data-variant="${v.id}" ${ro}><span class="v-ic">${v.ic}</span><strong>${v.name}</strong><small>${v.text}</small></button>`).join('')}</div></div>`;
     $('#settings').innerHTML = variantsHTML + `
-      <label class="row"><span>Spielmodus<small>${world ? 'Weltkarte mit Dulidan-Würfel: um die Welt laufen, Städte kaufen, Maut kassieren' : 'Das Brett mit Duisburg und Öhringen'}</small></span>
-        <select id="set-mode" ${ro}><option value="classic" ${!world ? 'selected' : ''}>Klassisch</option><option value="world" ${world ? 'selected' : ''}>🌍 DULIDAN WORLD</option></select></label>
-      ${world ? `<label class="row"><span>Runden-Limit<small>Danach gewinnt der Reichste – vorher gewinnt, wer als Letzter nicht pleite ist</small></span>
+      <label class="row"><span>Spielmodus<small>${world ? esc(W.board(st.mode).tagline) : 'Das Brett mit Duisburg und Öhringen'}</small></span>
+        <select id="set-mode" ${ro}>${[['classic', '🎲 Klassisch'], ['world', '🌍 DULIDAN WORLD'], ['royale', '🌀 DULIDAN ROYALE'], ['metro', '🚇 DULIDAN METRO'], ['tower', '🏙️ DULIDAN TOWER']].map(([v, l]) => `<option value="${v}" ${(st.mode || 'classic') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${world && st.mode !== 'royale' ? `<label class="row"><span>Runden-Limit<small>Danach gewinnt der Reichste – vorher gewinnt, wer als Letzter nicht pleite ist</small></span>
         <select id="set-rounds" ${ro}>${[15, 20, 30, 50, 0].map((r) => `<option value="${r}" ${(st.maxRounds ?? 30) === r ? 'selected' : ''}>${r ? r + ' Runden' : 'Kein Limit'}</option>`).join('')}</select></label>` : ''}
       <label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
         <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
@@ -409,7 +410,7 @@
         ${tokHTML(k, mine ? 'var(--magenta)' : 'var(--line)')}
         <strong>${esc(t.name)}</strong>
         ${taken ? `<span class="taken-by">${esc(holder.name)}</span>` : '<span></span>'}
-        <small>${esc(world ? WD.POWERS[k] : t.power)}</small></button>`;
+        <small>${esc(world ? W.board(st.mode).POWERS[k] : t.power)}</small></button>`;
     }).join('');
   }
 
@@ -740,7 +741,8 @@
     ['🔥', 'Schmerzhaftester Moment', 'maxRent', (v) => `${M(v)} Miete auf einen Schlag`],
     ['🦹', 'Übernahme-Hai', 'takeovers', (v) => `${v} feindliche Übernahmen`],
     ['✈️', 'Vielflieger', 'flights', (v) => `${v} Flüge`],
-    ['🧭', 'Weltenbummler', 'km', (v) => `${v} Reisen`],
+    ['🧭', 'Weltenbummler', 'km', (v) => `${v} Felder gelaufen`],
+    ['🎁', 'Loot-Goblin', 'loot', (v) => `${v} Kisten geöffnet`],
   ];
   function awardsHTML() {
     const rows = AWARDS.map(([icon, title, key, fmt]) => {
@@ -834,9 +836,9 @@
         const mine = Object.keys(S.cities).filter((id) => S.cities[id].owner === p.id);
         if (!mine.length) return '<p class="empty">Keine Städte</p>';
         return mine.map((id) => {
-          const c = W.CITY[id], blocked = W.zoneHasBuildings(S, c.zone);
+          const c = GB().CITY[id], blocked = W.zoneHasBuildings(S, c.zone);
           return `<label class="check"><input type="checkbox" name="${side}" value="${id}" ${blocked ? 'disabled' : ''}>
-            <i style="--g:${WD.ZONES[c.zone].color}"></i>${esc(c.name)}${S.cities[id].mort ? ' (Hypothek)' : ''}${blocked ? ' (Gebäude)' : ''}</label>`;
+            <i style="--g:${GB().ZONES[c.zone].color}"></i>${esc(c.name)}${S.cities[id].mort ? ' (Hypothek)' : ''}${blocked ? ' (Gebäude)' : ''}</label>`;
         }).join('');
       }
       const owned = Object.keys(S.props).map(Number).filter((k) => S.props[k].owner === p.id).sort((a, b) => a - b);
@@ -987,7 +989,7 @@
   // ---------- Sounds aus dem Verlauf ----------
   const SOUND_RULES = [
     ['win', /gewinnt/], ['pot', /Spardose/], ['jail', /nach Düsseldorf/],
-    ['jail', /Übernahme/], ['build', /baut/], ['card', /zieht eine|April-News|fliegt/], ['roll', /würfelt/], ['step', /reist nach/],
+    ['jail', /Übernahme|KOLLABIERT|Sturm-Warnung/], ['pot', /Loot-Kiste/], ['card', /Aufzug|Rutsche|springt durch/], ['build', /baut/], ['card', /zieht eine|April-News|fliegt/], ['roll', /würfelt/], ['step', /reist nach/],
   ];
   function playSounds() {
     const S = App.S;
@@ -1071,10 +1073,29 @@
     return inside;
   }
 
-  function buildWorld() {
-    const el = $('#world');
-    if (el.dataset.built) return;
-    el.dataset.built = '1';
+  function nodeHTML(c, x, y, g, lab) {
+    const [lx, ly, anchor] = { n: [0, -17, 'middle'], s: [0, 26, 'middle'], e: [16, 4, 'start'], w: [-16, 4, 'end'] }[lab || 'n'];
+    const t = c.type || 'prop';
+    const color = t === 'prop' ? g.ZONES[c.zone].color : { portal: '#3ad1ff', loot: '#ffd83a', event: '#ff7ae6', lift: '#3ce08a', slide: '#ff4fd8', free: '#efeaf7' }[t] || '#efeaf7';
+    const icon = { portal: '🌀', loot: '🎁', lift: '⬆', slide: '⬇' }[t];
+    const inner = t === 'event' ? '<use href="#april" x="-9" y="-9" width="18" height="18"/>'
+      : icon ? `<text class="nicon" y="4.5">${icon}</text>`
+      : t === 'free' ? `<text class="nicon" y="4">${c.hub ? '⇄' : c.id === 'r3s' ? '🚀' : c.id === 'in' ? '🚪' : '•'}</text>` : '';
+    return `<g class="city n-${t}${c.hub ? ' n-hub' : ''}" data-city="${c.id}" transform="translate(${x},${y})" tabindex="0" role="button" aria-label="${esc(c.name)}">
+      <circle class="hit" r="15"/>
+      <circle class="reach" r="17"/>
+      <circle class="ring" r="${t === 'prop' ? 11 : 12}" style="stroke:${color}"/>
+      <circle class="core" r="${t === 'prop' ? 7 : 9}"/>
+      ${inner}
+      <text class="lvl" y="3.5"></text>
+      ${c.hub && g.id === 'world' ? '<text class="hub" x="10" y="-9">✈</text>' : ''}
+      <text class="cname" x="${lx}" y="${ly}" text-anchor="${anchor}">${esc(c.name)}</text>
+      <g class="ctoks"></g>
+    </g>`;
+  }
+
+  function worldMapHTML() {
+    const g = W.board('world');
     let dots = '';
     for (let lat = V.latMax; lat >= V.latMin; lat -= 2.5) {
       for (let lon = V.lonMin; lon <= V.lonMax; lon += 2.5) {
@@ -1083,8 +1104,8 @@
       }
     }
     let routes = '';
-    for (const [a, b, kind] of WD.ROUTES) {
-      const A = W.CITY[a], B = W.CITY[b];
+    for (const [a, b, kind] of g.ROUTES) {
+      const A = g.CITY[a], B = g.CITY[b];
       const ax = projX(A.lon), ay = projY(A.lat), bx = projX(B.lon), by = projY(B.lat);
       const cls = `route${kind === 'sea' ? ' sea' : ''}`;
       if (Math.abs(A.lon - B.lon) > 180) {
@@ -1100,27 +1121,65 @@
         routes += `<path class="${cls}" data-r="${a}-${b}" d="M${ax},${ay} Q${mx + ((by - ay) / len) * bend},${my - ((bx - ax) / len) * bend} ${bx},${by}"/>`;
       }
     }
-    const cities = WD.CITIES.map((c) => {
-      const x = projX(c.lon), y = projY(c.lat);
-      const lab = WD.LABELS[c.id] || 'n';
-      const [lx, ly, anchor] = { n: [0, -17, 'middle'], s: [0, 26, 'middle'], e: [16, 4, 'start'], w: [-16, 4, 'end'] }[lab];
-      return `<g class="city" data-city="${c.id}" transform="translate(${x},${y})" tabindex="0" role="button" aria-label="${esc(c.name)}">
-        <circle class="hit" r="15"/>
-        <circle class="reach" r="17"/>
-        <circle class="ring" r="11" style="stroke:${WD.ZONES[c.zone].color}"/>
-        <circle class="core" r="7"/>
-        <text class="lvl" y="3.5"></text>
-        ${c.hub ? '<text class="hub" x="10" y="-9">✈</text>' : ''}
-        <text class="cname" x="${lx}" y="${ly}" text-anchor="${anchor}">${esc(c.name)}</text>
-        <g class="ctoks" transform="translate(0,0)"></g>
-      </g>`;
-    }).join('');
-    el.innerHTML = `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" class="world-svg" role="img" aria-label="Weltkarte">
+    const cities = g.CITIES.map((c) => nodeHTML(g.CITY[c.id], projX(c.lon), projY(c.lat), g, WD.LABELS[c.id])).join('');
+    return `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" class="world-svg" role="img" aria-label="Weltkarte">
       <defs><radialGradient id="wglow" cx="50%" cy="45%" r="65%"><stop offset="0" stop-color="#8122b5" stop-opacity=".28"/><stop offset="1" stop-color="#0e0b13" stop-opacity="0"/></radialGradient></defs>
       <rect width="${MAP_W}" height="${MAP_H}" fill="url(#wglow)"/>
       <g class="land">${dots}</g><g class="routes">${routes}</g><g class="cities">${cities}</g>
       <text class="map-title" x="${MAP_W - 16}" y="${MAP_H - 14}" text-anchor="end">DULIDAN WORLD</text>
     </svg>`;
+  }
+
+  // ROYALE, METRO, TOWER: Bretter mit festen x/y-Koordinaten
+  function boardMapHTML(g) {
+    const Vw = g.VIEW.w, Vh = g.VIEW.h;
+    let decor = '', routes = '';
+    if (g.id === 'royale') {
+      const { cx, cy, rings } = g.VIEW;
+      decor += `<circle class="core-glow" cx="${cx}" cy="${cy}" r="95"/>`;
+      rings.forEach((r, i) => { decor += `<circle class="orbit" data-ring="${3 - i}" cx="${cx}" cy="${cy}" r="${r}"/>`; });
+      decor += logoSVG().replace('<svg viewBox="0 0 700 620"', `<svg x="${cx - 42}" y="${cy - 37}" width="84" height="74" viewBox="0 0 700 620" class="core-logo"`);
+      for (let i = 0; i < 60; i++) decor += `<circle class="star" cx="${(i * 137.5) % Vw}" cy="${(i * 89.3 + 40) % Vh}" r="${(i % 3) * 0.6 + 0.6}"/>`;
+    }
+    if (g.id === 'tower') {
+      const floors = [...new Set(g.CITIES.map((c) => c.floor))];
+      floors.forEach((f) => {
+        const ys = g.CITIES.filter((c) => c.floor === f).map((c) => c.y);
+        const y0 = Math.min(...ys) - 34, y1 = Math.max(...ys) + 34;
+        const z = Object.values(g.ZONES).find((zz) => zz.floor === f);
+        decor += `<rect class="floor" x="80" y="${y0}" width="${Vw - 120}" height="${y1 - y0}" rx="14" style="--g:${z.color}"/>`;
+        decor += `<text class="floor-label" transform="translate(64 ${(y0 + y1) / 2}) rotate(-90)" text-anchor="middle">${f} · ${esc(z.name.toUpperCase())}</text>`;
+      });
+      decor += `<path class="tower-roof" d="M80 ${Math.min(...g.CITIES.map((c) => c.y)) - 60} L${Vw / 2} 10 L${Vw - 40} ${Math.min(...g.CITIES.map((c) => c.y)) - 60}"/>`;
+    }
+    for (const [a, b, kind, zone] of g.ROUTES) {
+      const A = g.CITY[a], B = g.CITY[b];
+      if (kind === 'ring' && g.id === 'royale') continue;
+      if (kind === 'slide') {
+        const mx = Math.min(A.x, B.x) - 70;
+        routes += `<path class="route r-slide" data-r="${a}-${b}" d="M${A.x},${A.y} C${mx},${A.y} ${mx},${B.y} ${B.x},${B.y}"/>`;
+        continue;
+      }
+      const style = kind === 'line' ? ` style="stroke:${g.ZONES[zone].color}"` : '';
+      routes += `<path class="route r-${kind}" data-r="${a}-${b}"${style} d="M${A.x},${A.y} L${B.x},${B.y}"/>`;
+    }
+    const cities = g.CITIES.map((c) => nodeHTML(g.CITY[c.id], c.x, c.y, g, c.lab)).join('');
+    return `<svg viewBox="0 0 ${Vw} ${Vh}" class="world-svg board-${g.id}" role="img" aria-label="${esc(g.title)}">
+      <defs><radialGradient id="wglow-${g.id}" cx="50%" cy="50%" r="60%"><stop offset="0" stop-color="#8122b5" stop-opacity=".3"/><stop offset="1" stop-color="#0e0b13" stop-opacity="0"/></radialGradient></defs>
+      <rect width="${Vw}" height="${Vh}" fill="url(#wglow-${g.id})"/>
+      <g class="decor">${decor}</g><g class="routes">${routes}</g><g class="cities">${cities}</g>
+      <text class="map-title" x="${Vw - 16}" y="${Vh - 14}" text-anchor="end">${esc(g.title)}</text>
+    </svg>`;
+  }
+
+  function buildWorld() {
+    const el = $('#world');
+    const mode = App.S.mode;
+    if (el.dataset.built === mode) return;
+    el.dataset.built = mode;
+    el.innerHTML = mode === 'world' ? worldMapHTML() : boardMapHTML(GB());
+    if (el.dataset.listen) return;
+    el.dataset.listen = '1';
     el.addEventListener('click', (e) => {
       const g = e.target.closest('.city');
       if (g) worldClick(g.dataset.city);
@@ -1138,7 +1197,7 @@
     for (let f = 1; f <= 6; f++) {
       let inner;
       if (special) {
-        const face = WD.FACES[f - 1];
+        const face = GB().FACES[f - 1];
         inner = face.icon === 'D' ? `<span class="dlogo">${logoSVG()}</span>` : face.id === 'april' ? `<span class="dlogo">${aprilIcon('die-april')}</span>` : `<span class="ficon">${face.icon}</span>`;
       } else {
         inner = '';
@@ -1191,9 +1250,10 @@
   // ================= WELT: Würfel-Tablett, Laufen, Aktionen =================
   function buildTray() {
     const t = $('#dice-tray');
-    if (t.dataset.built) return;
-    t.dataset.built = '1';
-    t.innerHTML = `<div class="tray-dice">${cubeHTML('wd1')}${cubeHTML('wd2')}${cubeHTML('wd3')}${cubeHTML('wds', true)}</div><div class="tray-label" id="tray-label"></div>`;
+    if (t.dataset.built === App.S.mode) return;
+    t.dataset.built = App.S.mode;
+    App.lastWorldRoll = null;
+    t.innerHTML = `<div class="tray-dice">${cubeHTML('wd1')}${cubeHTML('wd2')}${cubeHTML('wd3')}${GB().FACES.length ? cubeHTML('wds', true) : ''}</div><div class="tray-label" id="tray-label"></div>`;
   }
 
   function renderTray() {
@@ -1207,10 +1267,9 @@
     if (b) setCube($('#wd2'), b, roll);
     $('#wd3').hidden = !S.die3;
     if (S.die3) setCube($('#wd3'), S.die3, roll);
-    const fi = WD.FACES.findIndex((f) => f.id === S.face);
-    $('#wds').hidden = fi < 0 && !S.rollId;
-    if (fi >= 0) setCube($('#wds'), fi + 1, roll);
-    const face = WD.FACES[fi];
+    const fi = GB().FACES.findIndex((f) => f.id === S.face);
+    if ($('#wds') && fi >= 0) setCube($('#wds'), fi + 1, roll);
+    const face = GB().FACES[fi];
     const sum = (a || 0) + (b || 0) + (S.die3 || 0);
     const label = S.rollId ? `<strong>${sum}</strong>${face ? ` · ${face.icon === 'D' ? '💜' : face.icon} ${esc(face.name)}` : ''}` : 'Würfeln!';
     const lab = $('#tray-label');
@@ -1252,11 +1311,22 @@
     App.wAnimT = setTimeout(hop, delay);
   }
 
+  const rentWord = () => (App.S.mode === 'world' ? 'Maut' : 'Miete');
+  const words = () => GB().words;
+  const NODE_INFO = {
+    portal: (c, g) => `🌀 Portal: Springt auf Ring ${g.CITY[c.link] ? g.CITY[c.link].ring : '?'}. Du entscheidest, ob du durchgehst.`,
+    loot: () => '🎁 Loot-Kiste: Schild, Boost, Dulis – oder eine Falle.',
+    event: () => '💖 April-Funk: April macht irgendwas. Gut oder schlecht.',
+    lift: (c, g) => `⬆ Aufzug: Fährt dich in den ${g.CITY[c.link].floor}. Stock. Wem die Ziel-Etage komplett gehört, kassiert Ð${g.RULES.liftFee}.`,
+    slide: (c, g) => `⬇ Rutsche: Wuuuh, runter in den ${g.CITY[c.link].floor}. Stock.`,
+    free: (c) => (c.hub ? '⇄ Umsteigebahnhof: Hier kreuzen sich Linien. Mit 🚄 Express kannst du direkt hierher springen.' : 'Hier passiert nichts. Einfach durchatmen.'),
+  };
+
   function worldTargets() {
     const S = App.S, p = curP();
     if (S.phase !== 'play' || !canControl(p.id) || S.trade) return { walk: [], fly: [] };
     if (S.sub === 'walk') return { walk: W.walkOptions(S), fly: [] };
-    if (S.sub === 'jet') return { walk: [], fly: W.HUBS.filter((h) => h !== p.loc) };
+    if (S.sub === 'jet') return { walk: [], fly: GB().HUBS.filter((h) => h !== p.loc) };
     return { walk: [], fly: [] };
   }
 
@@ -1270,12 +1340,19 @@
   }
 
   function cityDeedHTML(id) {
-    const S = App.S, c = W.CITY[id], z = WD.ZONES[c.zone], st = S.cities[id];
+    const S = App.S, g = GB(), c = g.CITY[id], st = S.cities[id];
+    const dead = S.dead && S.dead[id];
+    if (!st) {
+      const info = NODE_INFO[c.type] ? NODE_INFO[c.type](c, g) : '';
+      return `<div class="deed"><div class="deed-head light-text" style="--g:#2a2140">${esc(c.name)}</div><div class="deed-foot" style="border:0;font-size:14px;color:var(--fg)">${dead ? '🌪️ Vom April-Sturm zerstört.' : esc(info)}</div></div>`;
+    }
+    const z = g.ZONES[c.zone];
     const owner = P(st.owner);
-    const rows = WD.LEVELS.map((name, i) => `<tr class="${owner && st.level === i ? 'is-now' : ''}"><td>${i === 0 ? 'Maut unbebaut (ganze Zone: ×2)' : `Maut mit ${name}`}</td><td>${M(Math.round(c.price * WD.RENT_PCT[i] / 5) * 5)}</td></tr>`).join('');
-    return `<div class="deed"><div class="deed-head" style="--g:${z.color}">${esc(c.name)}<small>${esc(c.real)} · ${esc(z.name)} (${esc(z.region)})${c.hub ? ' · ✈ Flughafen' : ''}</small></div>
+    const rows = g.LEVELS.map((name, i) => `<tr class="${owner && st.level === i ? 'is-now' : ''}"><td>${i === 0 ? `${rentWord()} unbebaut (ganze ${words().zone}: ×2)` : `${rentWord()} mit ${name}`}</td><td>${M(Math.round(c.price * g.RENT_PCT[i] / 5) * 5)}</td></tr>`).join('');
+    const sub = [c.real, z.name, z.region, c.hub && g.id === 'world' ? '✈ Flughafen' : '', dead ? '🌪️ zerstört' : ''].filter(Boolean).join(' · ');
+    return `<div class="deed"><div class="deed-head" style="--g:${z.color}">${esc(c.name)}<small>${esc(sub)}</small></div>
       <table>${rows}<tr><td>Gebäude kostet</td><td>${M(z.build)}</td></tr><tr><td>Hypothek</td><td>${M(c.price / 2)}</td></tr><tr><td>Kaufpreis</td><td>${M(c.price)}</td></tr></table>
-      <div class="deed-foot">${owner ? `Besitzer: <strong>${esc(owner.name)}</strong> · ${WD.LEVELS[st.level]}${st.mort ? ' · mit Hypothek' : ''}` : 'Gehört niemandem'}</div></div>`;
+      <div class="deed-foot">${owner ? `Besitzer: <strong>${esc(owner.name)}</strong> · ${GB().LEVELS[st.level]}${st.mort ? ' · mit Hypothek' : ''}` : 'Gehört niemandem'}</div></div>`;
   }
   function openCity(id) { openModal(cityDeedHTML(id)); }
 
@@ -1285,12 +1362,21 @@
     const t = worldTargets();
     const cur = curP();
     const disp = (p) => (App.wdisp && App.wdisp[p.id] != null ? App.wdisp[p.id] : p.loc);
+    const gb = GB();
+    const warnRing = S.event && S.event.warn;
+    document.querySelectorAll('#world .orbit').forEach((o) => {
+      const r = Number(o.dataset.ring);
+      o.classList.toggle('is-dead', !!(S.dead && Object.keys(S.dead).some((id) => gb.CITY[id] && gb.CITY[id].ring === r)));
+      o.classList.toggle('is-warn', warnRing === r);
+    });
     document.querySelectorAll('#world .city').forEach((g) => {
-      const id = g.dataset.city, st = S.cities[id];
+      const id = g.dataset.city, st = S.cities[id] || {};
       const owner = P(st.owner);
       g.style.setProperty('--oc', owner ? owner.color : 'transparent');
       g.classList.toggle('is-owned', !!owner);
       g.classList.toggle('is-mort', !!st.mort);
+      g.classList.toggle('is-dead', !!(S.dead && S.dead[id]));
+      g.classList.toggle('is-warn', !!warnRing && gb.CITY[id].ring === warnRing);
       g.classList.toggle('can-move', t.walk.includes(id));
       g.classList.toggle('can-fly', t.fly.includes(id));
       g.classList.toggle('is-here', S.phase === 'play' && disp(cur) === id);
@@ -1314,10 +1400,13 @@
   }
 
   function destBtn(S, cur, to, action) {
-    const s2 = S.cities[to], o = P(s2.owner), cc = W.CITY[to];
+    const s2 = S.cities[to], cc = GB().CITY[to];
+    const o = s2 ? P(s2.owner) : null;
     const toll = o && o.id !== cur.id ? W.rentFor(S, to, cur) : 0;
-    const tag = !o ? `frei · ${M(cc.price)}` : o.id === cur.id ? 'deins' : `Maut ${M(toll)}`;
-    return `<button class="dest ${toll ? 'is-toll' : ''}" data-act='${esc(JSON.stringify(action))}' data-pid="${esc(cur.id)}" style="--g:${WD.ZONES[cc.zone].color}">
+    const tag = !s2 ? ({ free: cc.hub ? '⇄ Umsteigen' : 'frei', event: '💖 April-Funk', loot: '🎁 Loot', portal: '🌀 Portal', lift: '⬆ Aufzug', slide: '⬇ Rutsche' }[cc.type] || '')
+      : !o ? `frei · ${M(cc.price)}` : o.id === cur.id ? 'deins' : `${rentWord()} ${M(toll)}`;
+    const color = s2 ? GB().ZONES[cc.zone].color : '#efeaf7';
+    return `<button class="dest ${toll ? 'is-toll' : ''}" data-act='${esc(JSON.stringify(action))}' data-pid="${esc(cur.id)}" style="--g:${color}">
       <span>${esc(cc.name)}</span><small>${tag}</small></button>`;
   }
 
@@ -1325,11 +1414,11 @@
     const S = App.S, el = $('#panel-action');
     const cur = curP();
     let h = '';
-    if (S.event) h += `<div class="news"><strong>📰 April-News · Runde ${S.round}${S.maxRounds ? '/' + S.maxRounds : ''}</strong><span>${esc(S.event.t)}</span></div>`;
+    if (S.event) h += `<div class="news ${S.event.storm ? 'is-storm' : ''}"><strong>${S.event.storm ? '🌪️ April-Sturm' : '📰 April-News'} · Runde ${S.round}${S.maxRounds ? '/' + S.maxRounds : ''}</strong><span>${esc(S.event.t)}</span></div>`;
     if (S.trade) {
       const from = P(S.trade.from), to = P(S.trade.to);
       const side = (sd) => {
-        const items = sd.props.map((id) => esc(W.CITY[id].name));
+        const items = sd.props.map((id) => esc(GB().CITY[id].name));
         if (sd.money) items.push(M(sd.money));
         return items.length ? `<ul>${items.map((x) => `<li>${x}</li>`).join('')}</ul>` : '<p class="empty">nichts</p>';
       };
@@ -1341,23 +1430,29 @@
     }
     const me = canControl(cur.id);
     h += `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${me ? (App.mode === 'local' || cur.id !== myId ? `${esc(cur.name)} ist dran` : 'Du bist dran!') : `${esc(cur.name)} ist dran`}</h3>
-      <small>${M(cur.money)} · ${esc(W.CITY[cur.loc].name)}</small></div></div>`;
+      <small>${M(cur.money)} · ${esc(GB().CITY[cur.loc].name)}</small></div></div>`;
     if (Date.now() < (App.busyUntil || 0)) {
       el.innerHTML = h + `<p class="action-note rolling">${S.sub === 'walk' ? '🧭 unterwegs …' : '🎲 Die Würfel rollen …'}</p>`;
       return;
     }
     if (!me) {
-      const what = { roll: 'würfelt gleich', pick: 'wählt die Schritte', jet: 'sucht sich einen Flughafen aus', walk: 'navigiert durch die Welt', buy: 'überlegt, ob gekauft wird', end: 'beendet gleich den Zug', debt: 'muss Schulden begleichen' }[S.sub] || '';
+      const what = { roll: 'würfelt gleich', pick: 'wählt die Schritte', jet: 'sucht sich ein Ziel aus', walk: 'navigiert durchs Netz', buy: 'überlegt, ob gekauft wird', end: 'beendet gleich den Zug', debt: 'muss Schulden begleichen', portal: 'steht vor einem Portal' }[S.sub] || '';
       el.innerHTML = h + `<p class="action-note">${esc(cur.name)} ${what} …</p>`;
       return;
     }
     const pid = cur.id;
     const canTrade = !S.trade && S.players.filter((p) => !p.bankrupt).length > 1;
-    const face = WD.FACES.find((f) => f.id === S.face);
+    const face = GB().FACES.find((f) => f.id === S.face);
     switch (S.sub) {
       case 'roll': {
         h += `<div class="btn-row">${btn(S.again ? '🎲 Pasch! Nochmal würfeln' : '🎲 Würfeln', { type: 'roll' }, pid, 'btn-primary btn-roll', !!S.trade)}</div>${shakeHint()}`;
-        h += '<p class="action-note">Du würfelst mit zwei Würfeln und dem lila Dulidan-Würfel. Deine Figur läuft die Augenzahl über die Routen.</p>';
+        h += `<p class="action-note">${{
+          world: 'Du würfelst mit zwei Würfeln und dem lila Dulidan-Würfel. Deine Figur läuft die Augenzahl über die Routen.',
+          metro: 'Du würfelst und fährst die Augenzahl durchs U-Bahn-Netz. Durch fremde komplette Linien zahlst du Fahrpreis.',
+          royale: 'Du würfelst und läufst im Uhrzeigersinn um deinen Ring. Portale bringen dich nach innen oder außen.',
+          tower: 'Du würfelst und läufst um deine Etage. Aufzüge bringen dich hoch, Rutschen runter.',
+        }[S.mode]}</p>`;
+        if (cur.items && (cur.items.shield || cur.items.boost)) h += `<p class="action-note">Deine Items: ${cur.items.shield ? `🛡️ ×${cur.items.shield} ` : ''}${cur.items.boost ? `⚡ ×${cur.items.boost}` : ''}</p>`;
         if (canTrade) h += uiBtn('Handeln', 'trade', 'btn-ghost');
         break;
       }
@@ -1370,8 +1465,10 @@
         break;
       }
       case 'jet': {
-        h += `<p class="action-note">✈️ <strong>Jetset!</strong> Flieg zu einem Flughafen deiner Wahl – oder lauf ganz normal ${S.steps} Schritte.</p>`;
-        h += `<div class="dests">${W.HUBS.filter((x) => x !== cur.loc).map((to) => destBtn(S, cur, to, { type: 'fly', to })).join('')}</div>`;
+        h += S.mode === 'metro'
+          ? `<p class="action-note">🚄 <strong>Express!</strong> Spring zu einem Umsteigebahnhof deiner Wahl – oder fahr ganz normal ${S.steps} Stationen.</p>`
+          : `<p class="action-note">✈️ <strong>Jetset!</strong> Flieg zu einem Flughafen deiner Wahl – oder lauf ganz normal ${S.steps} Schritte.</p>`;
+        h += `<div class="dests">${GB().HUBS.filter((x) => x !== cur.loc).map((to) => destBtn(S, cur, to, { type: 'fly', to })).join('')}</div>`;
         h += btn(`Lieber laufen (${S.steps} Schritte)`, { type: 'walkInstead' }, pid, 'btn-ghost');
         break;
       }
@@ -1380,8 +1477,15 @@
         h += `<div class="dests">${W.walkOptions(S).map((to) => destBtn(S, cur, to, { type: 'step', to })).join('')}</div>`;
         break;
       }
+      case 'portal': {
+        const c = GB().CITY[cur.loc], to = GB().CITY[c.link];
+        const warned = S.event && S.event.warn === c.ring;
+        h += `<p class="action-note">🌀 <strong>${esc(c.name)}!</strong> Springst du rüber auf Ring ${to.ring} (${to.ring < c.ring ? 'weiter nach innen, teurer' : 'nach außen, billiger'})?${warned ? ' ⚠️ Dein Ring wird bald vom Sturm zerstört!' : ''}</p>`;
+        h += `<div class="btn-row">${btn(`🌀 Durchs Portal auf Ring ${to.ring}`, { type: 'warp' }, pid, 'btn-primary')}${btn('Hierbleiben', { type: 'stay' }, pid, 'btn-ghost')}</div>`;
+        break;
+      }
       case 'buy': {
-        const price = W.buyPrice(cur, cur.loc);
+        const price = W.buyPrice(cur, cur.loc, S);
         h += cityDeedHTML(cur.loc);
         h += `<div class="btn-row">${btn(`Kaufen für ${M(price)}`, { type: 'buy' }, pid, 'btn-primary', cur.money < price)}${btn('Nicht kaufen', { type: 'skip' }, pid, 'btn-ghost')}</div>`;
         if (cur.money < price) h += '<p class="action-note">Zu wenig Dulis? Nimm unten eine Hypothek auf.</p>';
@@ -1389,15 +1493,15 @@
       }
       case 'end': {
         const st = S.cities[cur.loc];
-        if (S.landed && st.owner && st.owner !== cur.id && !S.tookOver) {
+        if (S.landed && st && st.owner && st.owner !== cur.id && !S.tookOver) {
           const blk = W.takeoverBlock(S, cur, cur.loc);
           if (!blk) {
             const cost = W.takeoverCost(S, cur.loc);
-            h += `<div class="btn-row">${btn(`🦹 ${W.CITY[cur.loc].name} übernehmen: ${M(cost)}`, { type: 'takeover' }, pid, 'btn-danger', cur.money < cost)}</div>`;
+            h += `<div class="btn-row">${btn(`🦹 ${GB().CITY[cur.loc].name} übernehmen: ${M(cost)}`, { type: 'takeover' }, pid, 'btn-danger', cur.money < cost)}</div>`;
           }
         }
         h += `<div class="btn-row">${btn(S.again ? 'Weiter (Pasch: nochmal würfeln)' : 'Zug beenden', { type: 'endTurn' }, pid, 'btn-primary', !!S.trade)}${canTrade ? uiBtn('Handeln', 'trade', 'btn-ghost') : ''}</div>`;
-        h += '<p class="action-note">Bauen kannst du unten bei deinen Städten, sobald dir eine ganze Zone gehört.</p>';
+        h += `<p class="action-note">Bauen kannst du unten bei deinen ${words().cities}, sobald dir eine ganze ${words().zone} gehört.</p>`;
         break;
       }
       case 'debt': {
@@ -1422,14 +1526,16 @@
       const owned = Object.keys(S.cities).filter((id) => S.cities[id].owner === p.id);
       const zones = W.completeZones(S, p.id);
       const meta = [];
-      if (!p.bankrupt) meta.push(`<span>${owned.length} Städte</span>`, `<span>${zones.length} Zonen</span>`);
+      if (!p.bankrupt) meta.push(`<span>${owned.length} ${words().cities}</span>`, `<span>${zones.length} komplett</span>`);
+      if (p.items && p.items.shield) meta.push(`<span>🛡️×${p.items.shield}</span>`);
+      if (p.items && p.items.boost) meta.push(`<span>⚡×${p.items.boost}</span>`);
       if (p.bankrupt) meta.push('<span class="warn">pleite</span>');
       if (App.mode !== 'local' && !p.connected && !p.bankrupt && !p.bot) meta.push('<span class="warn">offline</span>');
       if (p.id === myId && App.mode !== 'local') meta.push('<span>du</span>');
       return `<li class="player ${i === S.cur && S.phase === 'play' ? 'is-cur' : ''} ${p.bankrupt ? 'is-out' : ''}" data-pid="${esc(p.id)}" style="--pc:${p.color}">
         ${tokHTML(p.token, p.color)}
         <div style="min-width:0"><div class="pname">${esc(p.name)} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</div>
-          <div class="swatches">${owned.map((id) => `<i class="${S.cities[id].mort ? 'is-mort' : ''}" style="--g:${WD.ZONES[W.CITY[id].zone].color}" title="${esc(W.CITY[id].name)}"></i>`).join('')}</div>
+          <div class="swatches">${owned.map((id) => `<i class="${S.cities[id].mort ? 'is-mort' : ''}" style="--g:${GB().ZONES[GB().CITY[id].zone].color}" title="${esc(GB().CITY[id].name)}"></i>`).join('')}</div>
           <div class="pmeta">${meta.join('')}</div></div>
         <div class="pmoney">${M(p.money)}</div>${goalBar(p)}</li>`;
     }).join('');
@@ -1437,50 +1543,59 @@
 
   function renderWorldProps() {
     const S = App.S, v = viewer(), wrap = $('#my-props');
-    if (!v) { $('#props-title').textContent = 'Städte'; wrap.innerHTML = '<p class="empty">Du schaust zu.</p>'; return; }
-    $('#props-title').textContent = App.mode === 'local' || v.id !== myId ? `Städte von ${v.name}` : 'Deine Städte';
-    const owned = WD.CITIES.filter((c) => S.cities[c.id].owner === v.id);
-    if (!owned.length) { wrap.innerHTML = '<p class="empty">Noch keine Städte. Würfel los und kauf was!</p>'; return; }
+    const Wd = words().cities;
+    if (!v) { $('#props-title').textContent = Wd; wrap.innerHTML = '<p class="empty">Du schaust zu.</p>'; return; }
+    $('#props-title').textContent = App.mode === 'local' || v.id !== myId ? `${Wd} von ${v.name}` : `Deine ${Wd}`;
+    const owned = GB().PROPS.map((id) => GB().CITY[id]).filter((c) => S.cities[c.id].owner === v.id);
+    if (!owned.length) { wrap.innerHTML = `<p class="empty">Noch keine ${Wd}. Würfel los und kauf was!</p>`; return; }
     const myTurn = S.phase === 'play' && curP().id === v.id && canControl(v.id);
     const manage = myTurn && ['roll', 'end', 'buy', 'debt'].includes(S.sub);
     const canBuild = myTurn && ['roll', 'end'].includes(S.sub);
     wrap.innerHTML = owned.map((c) => {
       const st = S.cities[c.id];
       const complete = W.zoneComplete(S, v.id, c.zone);
-      const info = `${WD.LEVELS[st.level]}${complete ? ' · Zone komplett' : ''} · Maut ${M(W.rentFor(S, c.id))}${st.mort ? ' · Hypothek' : ''}`;
+      const info = `${GB().LEVELS[st.level]}${complete ? ` · ${words().zone} komplett` : ''} · ${rentWord()} ${M(W.rentFor(S, c.id))}${st.mort ? ' · Hypothek' : ''}`;
       let b = '';
-      if (canBuild && complete && !W.buildBlock(S, v, c.id)) b += btn(`+${WD.LEVELS[st.level + 1]} ${M(W.buildCost(S, v, c.id))}`, { type: 'build', id: c.id }, v.id);
+      if (canBuild && complete && !W.buildBlock(S, v, c.id)) b += btn(`+${GB().LEVELS[st.level + 1]} ${M(W.buildCost(S, v, c.id))}`, { type: 'build', id: c.id }, v.id);
       if (manage) {
         if (st.level) b += btn('Abreißen', { type: 'sell', id: c.id }, v.id, 'btn-ghost', false, 'Stockwerk für den halben Preis verkaufen');
         if (!st.mort && !W.zoneHasBuildings(S, c.zone)) b += btn(`Hypothek +${M(c.price / 2)}`, { type: 'mortgage', id: c.id }, v.id, 'btn-ghost');
-        if (st.mort) b += btn(`Einlösen ${M(W.unmortgageCost(c.id))}`, { type: 'unmortgage', id: c.id }, v.id, 'btn-ghost', v.money < W.unmortgageCost(c.id));
+        if (st.mort) b += btn(`Einlösen ${M(W.unmortgageCost(c.id, S))}`, { type: 'unmortgage', id: c.id }, v.id, 'btn-ghost', v.money < W.unmortgageCost(c.id, S));
       }
-      return `<div class="prop-row" style="--g:${WD.ZONES[c.zone].color}"><span class="bar"></span>
+      return `<div class="prop-row" style="--g:${GB().ZONES[c.zone].color}"><span class="bar"></span>
         <div class="pr-name">${esc(c.name)}<small>${info}</small></div><div class="pr-btns">${b}</div></div>`;
     }).join('');
   }
 
+  const TWISTS = {
+    world: '<li>Die Weltkarte: Routen über Land und See, ✈ Flughäfen für Jetset-Flüge.</li>',
+    royale: '<li>🌀 Drei Ringe. Portale verbinden sie. Je weiter innen, desto teurer.</li><li>🌪️ Der April-Sturm zerstört in Runde 7 den äußeren und in Runde 14 den mittleren Ring. Wer dort steht, fliegt nach innen. Zerstörte Planeten zahlen die Hälfte zurück.</li><li>🔥 Danach steigen alle Mieten jede Runde um 30 %, bis nur noch einer übrig ist.</li><li>🎁 Loot-Kisten: 🛡️ Schild blockt eine Miete, ⚡ Boost bringt dich 3 Felder weiter.</li>',
+    metro: '<li>🚇 Sieben U-Bahn-Linien, fünf Umsteigebahnhöfe.</li><li>🎫 Gehört jemandem eine ganze Linie, zahlst du Fahrpreis für jede seiner Stationen, durch die du nur durchfährst.</li><li>🚄 Express-Seite des Dulidan-Würfels: Spring zu einem beliebigen Umsteigebahnhof.</li>',
+    tower: '<li>🏙️ Fünf Etagen, jede ein eigener Rundgang. Ganz oben das Penthouse.</li><li>⬆ Aufzüge bringen dich einen Stock hoch, ⬇ Rutschen einen runter.</li><li>Gehört jemandem eine ganze Etage, kassiert er Aufzug-Gebühr von allen, die dort ankommen.</li><li>🎁 Auf dem Helipad liegen Loot-Kisten.</li>',
+  };
   function worldRulesHTML() {
-    return `<h2>DULIDAN WORLD</h2><div class="rules">
-      <p>Monopoly auf der Weltkarte. Wer als Letzter nicht pleite ist, gewinnt.</p>
+    const g = GB(), w = words();
+    return `<h2>${esc(g.title)}</h2><div class="rules">
+      <p>${esc(g.tagline)} Wer als Letzter nicht pleite ist, gewinnt.</p>
+      <h3>Das Besondere</h3><ul>${TWISTS[g.id] || ''}</ul>
       <h3>Dein Zug</h3><ul>
-        <li>Zu Beginn bekommst du ${M(WD.RULES.salary)} Gehalt.</li>
-        <li>Du würfelst mit zwei Würfeln und läufst die Augenzahl Stadt für Stadt über die Routen. An Kreuzungen entscheidet der Zufall.</li>
-        <li>Landest du in einer freien Stadt, kannst du sie kaufen. In fremden Städten zahlst du Maut.</li>
+        <li>Zu Beginn bekommst du ${M(g.RULES.salary)} Gehalt.</li>
+        <li>Du würfelst und läufst die Augenzahl Feld für Feld.</li>
+        <li>Landest du auf einer freien ${w.city}, kannst du sie kaufen. Bei fremden zahlst du ${rentWord()}.</li>
         <li>Pasch: nochmal würfeln.</li></ul>
-      <h3>💜 Der Dulidan-Würfel</h3><ul>${WD.FACES.map((f) => `<li>${f.icon === 'D' ? '💜' : f.icon} <strong>${esc(f.name)}:</strong> ${esc(f.text)}</li>`).join('')}</ul>
-      <h3>Zonen & Bauen</h3><ul>
-        <li>10 Zonen mit je 3 Städten. Eine ganze Zone verdoppelt die Maut der unbebauten Städte.</li>
-        <li>Mit ganzer Zone baust du gleichmäßig: Studio → Büro → Tower → Wahrzeichen. Jede Stufe macht die Maut viel teurer.</li>
+      ${g.FACES.length ? `<h3>💜 Der Dulidan-Würfel</h3><ul>${g.FACES.map((f) => `<li>${f.icon === 'D' ? '💜' : f.icon} <strong>${esc(f.name)}:</strong> ${esc(f.text)}</li>`).join('')}</ul>` : ''}
+      <h3>${w.zone} & Bauen</h3><ul>
+        <li>Eine ganze ${w.zone} verdoppelt die ${rentWord()} der unbebauten ${w.cities}.</li>
+        <li>Mit ganzer ${w.zone} baust du gleichmäßig: ${g.LEVELS.slice(1).join(' → ')}. Jede Stufe macht es viel teurer.</li>
         <li>Bauen geht vor dem Würfeln oder am Ende deines Zuges, egal wo du stehst.</li></ul>
       <h3>🦹 Feindliche Übernahme</h3><ul>
         <li>Landest du in einer fremden Stadt, kannst du sie dem Besitzer für 1,5× (Preis + Gebäude) wegkaufen.</li>
         <li>Geschützt sind ganze Zonen und Wahrzeichen.</li></ul>
       <h3>Geld knapp?</h3><ul>
         <li>Gebäude abreißen (halber Preis zurück) oder Hypotheken aufnehmen. Kannst du nicht zahlen, bist du pleite und raus.</li></ul>
-      <h3>📰 April-News</h3><ul><li>Jede Runde eine Weltnachricht: Maut-Party, Stau, drei Würfel, Rezession und mehr.</li></ul>
+      ${g.EVENTS.length ? '<h3>📰 April-News</h3><ul><li>Jede Runde eine Nachricht: Mietparty, Stau, drei Würfel, Rezession und mehr.</li></ul>' : ''}
       ${variantRulesHTML()}
-      <h3>Figuren</h3><ul>${Object.entries(WD.POWERS).map(([k, t]) => `<li><strong>${esc(TOKENS[k].name)}:</strong> ${esc(t)}</li>`).join('')}</ul></div>`;
+      <h3>Figuren</h3><ul>${Object.entries(GB().POWERS).map(([k, t]) => `<li><strong>${esc(TOKENS[k].name)}:</strong> ${esc(t)}</li>`).join('')}</ul></div>`;
   }
 
 

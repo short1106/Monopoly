@@ -163,5 +163,14 @@
   };
 
   root.DULI_WORLD_DATA = { ZONES, CITIES, ROUTES, LEVELS, RENT_PCT, RULES, FACES, CHAOS, POWERS, EVENTS, LAND, VIEW, LABELS };
+  // Als Brett für die gemeinsame Brett-Engine registrieren
+  root.DULI_BOARDS = root.DULI_BOARDS || {};
+  root.DULI_BOARDS.world = {
+    id: 'world', title: 'DULIDAN WORLD', icon: '🌍',
+    tagline: 'Weltkarte mit Dulidan-Würfel: um die Welt laufen, Städte kaufen, Maut kassieren.',
+    walk: 'random', ZONES, CITIES, ROUTES, LEVELS, RENT_PCT, RULES, FACES, CHAOS, EVENTS, POWERS,
+    FUNK: [], starts: ['dui', 'nyc', 'tyo', 'lag', 'sao', 'syd'],
+    words: { zone: 'Zone', city: 'Stadt', cities: 'Städte' },
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DULI_WORLD_DATA;
 })(typeof window !== 'undefined' ? window : globalThis);
