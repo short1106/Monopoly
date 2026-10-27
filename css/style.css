@@ -573,6 +573,68 @@ button, input, select { font: inherit; color: inherit; }
 .awards strong { font-size: 14px; }
 .awards small { color: var(--muted); font-size: 12px; }
 
+/* ---------- DULIDAN WORLD ---------- */
+.world {
+  width: 100%; max-width: 1400px; margin: 0 auto;
+  border-radius: var(--radius); border: 1px solid var(--line);
+  background: radial-gradient(120% 90% at 50% 40%, #1a1030, var(--bg) 70%);
+  overflow: hidden;
+  box-shadow: 0 30px 80px -30px rgba(129, 34, 181, .65);
+}
+.world-svg { display: block; width: 100%; height: auto; }
+.board-wrap.is-zoomed .world { overflow: auto; }
+.board-wrap.is-zoomed .world-svg { width: 2400px; max-width: none; }
+.land circle { fill: #3a2a58; }
+.route { fill: none; stroke: #6b55a0; stroke-width: 2.2; opacity: .55; stroke-linecap: round; }
+.route.sea { stroke-dasharray: 2 7; opacity: .7; }
+.route.is-open { stroke: var(--magenta); opacity: 1; stroke-width: 3.5; filter: drop-shadow(0 0 4px var(--magenta)); }
+.city { cursor: pointer; outline: none; }
+.city .hit { fill: transparent; }
+.city .reach { fill: none; stroke: transparent; stroke-width: 3; }
+.city.can-move .reach { stroke: var(--magenta); animation: reachPulse 1.1s ease-in-out infinite; }
+.city.can-fly .reach { stroke: #3ad1ff; animation: reachPulse 1.1s ease-in-out infinite; }
+.city .ring { fill: #120e19; stroke-width: 4; }
+.city .core { fill: #2a2140; }
+.city.is-owned .core { fill: var(--oc); }
+.city.is-mort { opacity: .5; }
+.city.is-here .ring { filter: drop-shadow(0 0 7px var(--magenta)); }
+.city:focus-visible .ring { stroke: #fff !important; }
+.city .lvl { font: 900 10px var(--font); fill: #0e0b13; text-anchor: middle; pointer-events: none; }
+.city .hub, .city .reach { pointer-events: none; }
+.city .hub { font-size: 11px; fill: var(--fg); }
+.city .cname {
+  font: 700 11.5px var(--font); fill: var(--fg); pointer-events: none;
+  paint-order: stroke; stroke: #0e0b13; stroke-width: 3.5px; stroke-linejoin: round;
+}
+.city.is-owned .cname { fill: var(--oc); }
+.wtok { pointer-events: none; }
+.wtok circle { fill: #1a1424; stroke-width: 3; }
+.wtok text { font-size: 12.5px; text-anchor: middle; font-weight: 900; fill: var(--magenta); }
+.map-title { font: 900 26px var(--font); font-stretch: 125%; fill: rgba(218, 41, 207, .22); letter-spacing: .12em; }
+@keyframes reachPulse { 50% { stroke-opacity: .2; } }
+.dests { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.dests-title { grid-column: 1 / -1; margin: 0; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.dest {
+  appearance: none; text-align: left; cursor: pointer;
+  display: grid; gap: 1px; padding: 8px 10px;
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--line); border-left: 4px solid var(--g); border-radius: 10px;
+  font-weight: 700; font-size: 13px; line-height: 1.2;
+}
+.dest small { color: var(--muted); font-weight: 600; font-size: 11px; }
+.dest.is-toll small { color: var(--danger); }
+.dest:hover { border-color: var(--magenta); border-left-color: var(--g); }
+@media (max-width: 900px) { .board-wrap.is-zoomed .world-svg { width: 1500px; } }
+.news { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: rgba(218, 41, 207, .12); border: 1px solid rgba(218, 41, 207, .45); font-size: 13px; }
+.news strong { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--magenta); }
+.ap-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.ap { display: inline-flex; gap: 6px; }
+.ap i { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--magenta); }
+.ap i.on { background: var(--grad); box-shadow: 0 0 10px var(--magenta); }
+.here { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--bg); border-left: 5px solid var(--g); }
+.here > div { flex: 1; min-width: 0; }
+.here small { display: block; color: var(--muted); font-size: 12px; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

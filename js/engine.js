@@ -144,6 +144,8 @@
     if ([1000, 1500, 2000, 3000].includes(sm)) S.settings.startMoney = sm;
     if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
+    if (o.mode === 'classic' || o.mode === 'world') S.settings.mode = o.mode;
+    if ([0, 15, 20, 30, 50].includes(Number(o.maxRounds))) S.settings.maxRounds = Number(o.maxRounds);
     return null;
   }
 
