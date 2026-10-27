@@ -11,6 +11,10 @@
   const SAT_ATTR = 'Satellit: Esri, Maxar, Earthstar Geographics';
   const OSM = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+  // Karte ohne Beschriftung für „Wo liegt …?“
+  const BLANK = 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png';
+  const BLANK_ATTR = '&copy; OpenStreetMap, &copy; CARTO';
+  const SHOW = { image: 'Bild', name: 'Wo liegt …?', flag: 'Flaggen' };
   const store = {
     get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* privat */ } },
@@ -21,7 +25,7 @@
   const flag = (cc) => (cc ? `<img class="geo-flag" src="https://flagcdn.com/w80/${esc(cc)}.png" alt="" loading="lazy" onerror="this.remove()">` : '');
   const cname = (cc) => D.COUNTRIES[cc] || (cc || '').toUpperCase();
   const mlyToken = () => CFG.MAPILLARY_TOKEN || store.get('duli-geo-mly', '');
-  const MOVE = { move: 'Bewegen', nomove: 'Kein Bewegen', nmpz: 'NMPZ' };
+  const MOVE = { move: 'Bewegen', nomove: 'Kein Bewegen', nmpz: 'NMPZ', zoomout: 'Zoom-Out' };
   const GAMES = { classic: 'Klassisch', duel: 'Duell', br: 'Länder-Battle-Royale' };
 
   let maps = [], viewer = null, key = null, pick = null, tick = null, lastRes = null, lastOver = null, resolving = null, lastEmote = null, statsDone = null;
@@ -90,6 +94,7 @@
     });
     if (V.game === 'classic') { const k = `${V.set}|${V.guess}|${V.rounds}`; st.best[k] = Math.max(st.best[k] || 0, V.scores[me]); }
     if (V.game === 'br' && V.lives === 1) st.streak = Math.max(st.streak, V.correct[me]);
+    if (Number(V.seed) === daySeed() && V.game === 'classic') { st.daily = st.daily || {}; st.daily[today()] = Math.max(st.daily[today()] || 0, V.scores[me]); }
     store.set('duli-geo-stats', st);
   }
   function statsHTML() {
@@ -104,7 +109,7 @@
   try { const c = new URLSearchParams(location.search).get('ch'); if (c) CH = b64.dec(c); } catch (e) { CH = null; }
   function challengeLink(V, me) {
     const p = V.players.find((x) => x.id === me);
-    const s = { game: 'classic', guess: V.guess, set: V.set, rounds: V.rounds, time: V.time, countdown: V.countdown, move: V.move, imagery: V.imagery, seed: V.seed };
+    const s = { show: V.show, game: 'classic', guess: V.guess, set: V.set, rounds: V.rounds, time: V.time, countdown: V.countdown, move: V.move, imagery: V.imagery, seed: V.seed, bw: !!(V.mods && V.mods.bw), blur: !!(V.mods && V.mods.blur), spot: !!(V.mods && V.mods.spot) };
     return `${location.origin}${location.pathname}?ch=${b64.enc({ s, n: p ? p.name : '?', sc: V.scores[me] })}`;
   }
 
@@ -153,22 +158,26 @@
   function renderGuess(root, V, me, api) {
     const playing = V.players.some((p) => p.id === me) && !V.out[me];
     const k = `g${V.gid}|${V.round}`;
+    const quiz = V.show !== 'image';
     if (key !== k || !root.querySelector('.geo-guess')) {
       key = k; pick = null; clearViews();
       const size = store.get('duli-geo-size', 1), pinned = store.get('duli-geo-pin', false);
+      const q = V.show === 'flag'
+        ? `<div class="geo-q geo-q-flag"><img src="https://flagcdn.com/w320/${esc(V.loc.q)}.png" alt="Flagge"><span>Welches Land ist das?</span></div>`
+        : V.show === 'name' ? `<div class="geo-q"><span class="geo-k">Wo liegt</span><b>${esc(V.loc.q)}</b></div>` : '';
       root.innerHTML = `<div class="geo geo-guess">
-        <div class="geo-stage"><div id="geo-view" class="geo-view"></div>
+        <div class="geo-stage ${quiz ? 'geo-quizstage' : ''}">${quiz ? q : '<div id="geo-view" class="geo-view"></div><div class="geo-speed" id="geo-speed" hidden></div>'}
           <div id="geo-hud"></div>
           <div class="geo-timer" id="geo-timer" hidden></div>
           <div class="geo-tools">
-            <div class="geo-compass" id="geo-compass" title="Norden"><i></i><span>N</span></div>
-            ${V.move !== 'nmpz' ? '<button class="geo-tool" id="geo-home" type="button" title="Zurück zum Start (R)">⟲</button>' : ''}
+            ${quiz ? '' : '<div class="geo-compass" id="geo-compass" title="Norden"><i></i><span>N</span></div>'}
+            ${!quiz && !['nmpz', 'zoomout'].includes(V.move) ? '<button class="geo-tool" id="geo-home" type="button" title="Zurück zum Start (R)">⟲</button>' : ''}
             <button class="geo-tool" id="geo-emo" type="button" title="Emotes">GG</button>
           </div>
           <div class="geo-emo-list" id="geo-emo-list" hidden>${G.EMOTES.map((t, i) => `<button type="button" data-emo="${i}">${esc(t)}</button>`).join('')}</div>
           <div class="geo-note" id="geo-note" hidden></div>
           <div id="geo-who" class="geo-who-wrap"></div>
-          ${playing ? `<div class="geo-mini s${size} ${pinned ? 'pinned' : ''}" id="geo-mini">
+          ${playing ? `<div class="geo-mini s${size} ${pinned ? 'pinned' : ''} ${quiz ? 'quiz' : ''}" id="geo-mini">
             <div class="geo-mini-ctl"><button type="button" data-size="1" title="Größer">⤢</button><button type="button" data-size="-1" title="Kleiner">⤡</button><button type="button" id="geo-pin" class="${pinned ? 'on' : ''}" title="Karte festhalten">⊙</button></div>
             <div id="geo-pick" class="geo-pickmap"></div>
             ${V.guess === 'country' ? `<input id="geo-country" list="geo-cl" placeholder="Land eintippen oder auf die Karte klicken" autocomplete="off"><datalist id="geo-cl">${Object.values(D.COUNTRIES).sort((a, b) => a.localeCompare(b, 'de')).map((n) => `<option value="${esc(n)}">`).join('')}</datalist>` : ''}
@@ -176,7 +185,7 @@
           <button class="btn btn-primary geo-mini-open" id="geo-open" type="button">Karte</button>` : `<div class="geo-spectate">${V.out[me] ? 'Du bist raus. Schau zu, wer gewinnt.' : 'Du schaust zu.'}</div>`}
         </div></div>`;
       window.scrollTo(0, 0);
-      buildViewer(V);
+      if (!quiz) buildViewer(V);
       if (playing) buildPicker(V, me, api);
       const emoBtn = $('#geo-emo'), emoList = $('#geo-emo-list');
       emoBtn.onclick = () => { emoList.hidden = !emoList.hidden; };
@@ -206,6 +215,8 @@
 
   function buildViewer(V) {
     const el = $('#geo-view');
+    applyMods(V, el);
+    if (V.move === 'zoomout') return buildZoomOut(V, el);
     const useStreet = V.loc.img && V.mly && window.mapillary;
     const compass = $('#geo-compass i');
     if (useStreet) {
@@ -234,10 +245,42 @@
     later(sat, () => sat.invalidateSize(), 60);
   }
 
+  // Schwarzweiß, Unscharf (wird mit der Zeit schärfer), Taschenlampe (nur um die Maus herum sichtbar)
+  function applyMods(V, el) {
+    const m = V.mods || {};
+    el.classList.toggle('mod-bw', !!m.bw);
+    if (m.blur) { el.classList.add('mod-blur'); el.style.setProperty('--blur-ms', `${Math.max(0, 20000 - (Date.now() - V.startAt))}ms`); }
+    if (m.spot) {
+      el.classList.add('mod-spot');
+      const stage = el.parentElement;
+      stage.addEventListener('pointermove', (e) => { const r = el.getBoundingClientRect(); el.style.setProperty('--mx', `${e.clientX - r.left}px`); el.style.setProperty('--my', `${e.clientY - r.top}px`); });
+    }
+  }
+  // Zoom-Out: Satellit zoomt von ganz nah langsam raus, schneller raten = mehr Punkte
+  function buildZoomOut(V, el) {
+    const sat = Lf.map(el, { zoomControl: false, attributionControl: true, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false, zoomSnap: 0.25, fadeAnimation: true });
+    Lf.tileLayer(SAT, { maxZoom: 19, maxNativeZoom: 18, attribution: SAT_ATTR }).addTo(sat);
+    maps.push(sat);
+    const zoomAt = () => 18.5 - 9.5 * Math.min(1, (Date.now() - V.startAt) / G.ZOOM_MS);
+    sat.setView([V.loc.lat, V.loc.lng], zoomAt(), { animate: false });
+    const sp = $('#geo-speed');
+    sp.hidden = false;
+    const step = () => {
+      if (!maps.includes(sat)) { clearInterval(zt); return; }
+      sat.setView([V.loc.lat, V.loc.lng], zoomAt(), { animate: true, duration: 0.9 });
+      const f = Math.max(0.3, 1 - 0.7 * Math.min(1, (Date.now() - V.startAt) / G.ZOOM_MS));
+      sp.textContent = `Tempo ×${f.toFixed(2).replace('.', ',')}`;
+    };
+    const zt = setInterval(step, 1000);
+    step();
+    later(sat, () => sat.invalidateSize(), 60);
+  }
+
   function buildPicker(V, me, api) {
     const set = D.SETS[V.set];
     const pm = Lf.map($('#geo-pick'), { worldCopyJump: true, attributionControl: true, minZoom: 1, zoomControl: false }).setView(set.center, set.zoom);
-    Lf.tileLayer(OSM, { maxZoom: 18, attribution: OSM_ATTR }).addTo(pm);
+    if (V.show === 'name') Lf.tileLayer(BLANK, { maxZoom: 18, subdomains: 'abcd', attribution: BLANK_ATTR }).addTo(pm);
+    else Lf.tileLayer(OSM, { maxZoom: 18, attribution: OSM_ATTR }).addTo(pm);
     Lf.control.zoom({ position: 'bottomleft' }).addTo(pm);
     maps.push(pm);
     const meP = V.players.find((p) => p.id === me);
@@ -332,7 +375,7 @@
     const mine = V.guesses[me];
     const myLine = mine ? (V.guess === 'country'
       ? `<div class="geo-big ${mine.ok ? 'ok' : 'bad'}">${mine.none ? 'Kein Tipp' : mine.ok ? 'Richtiges Land!' : `Falsch: ${esc(mine.cname)}`}</div>`
-      : `<div class="geo-big">${mine.none ? 'Kein Tipp' : `Dein Tipp war <b>${dist(mine.km)}</b> entfernt`}</div><div class="geo-bar"><i style="--v:${(mine.pts / G.MAX) * 100}%"></i></div><div class="geo-ptsline"><b>${pts(mine.pts)}</b> / 5.000 Punkte</div>`) : '';
+      : `<div class="geo-big">${mine.none ? 'Kein Tipp' : `Dein Tipp war <b>${dist(mine.km)}</b> entfernt`}</div><div class="geo-bar"><i style="--v:${(mine.pts / G.MAX) * 100}%"></i></div><div class="geo-ptsline"><b>${pts(mine.pts)}</b> / 5.000 Punkte${mine.speed ? ` <small>(Tempo ×${mine.speed.toFixed(2).replace('.', ',')})</small>` : ''}</div>`) : '';
     const rows = V.players.filter((p) => V.guesses[p.id]).sort((a, b) => V.guesses[b.id].pts - V.guesses[a.id].pts || (V.guesses[a.id].km || 1e9) - (V.guesses[b.id].km || 1e9)).map((p) => {
       const g = V.guesses[p.id];
       const what = g.none ? 'kein Tipp' : V.guess === 'country' ? `${esc(g.cname)} · ${g.ok ? 'richtig' : 'falsch'}` : dist(g.km);
@@ -343,7 +386,7 @@
     const playing = V.players.some((p) => p.id === me);
     const isLast = V.round >= V.rounds || (V.game !== 'classic' && (V.players.length > 1 ? V.alive.length <= 1 : V.alive.length === 0));
     const links = `<a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${L.lat},${L.lng}" target="_blank" rel="noopener">In Google Street View</a><a href="https://www.google.com/maps/@${L.lat},${L.lng},16z" target="_blank" rel="noopener">Google Maps</a>${L.img ? `<a href="https://www.mapillary.com/app/?pKey=${esc(L.img)}" target="_blank" rel="noopener">Mapillary</a>` : ''}`;
-    if (put($('#geo-panel'), `<div class="geo-answer">${flag(L.cc)}<div><span class="geo-k">Das war</span><h2>${esc(L.name)}</h2><p>${esc(cname(L.cc))}${L.near && L.name !== L.near ? ` · in der Nähe von ${esc(L.near)}` : ''}</p></div></div>
+    if (put($('#geo-panel'), `<div class="geo-answer">${flag(L.cc)}<div><span class="geo-k">Das war</span><h2>${esc(L.name)}</h2><p>${esc(cname(L.cc))}${L.near && L.name !== L.near ? (V.show === 'flag' ? ` · ${esc(L.near)}` : ` · in der Nähe von ${esc(L.near)}`) : ''}</p></div></div>
       ${myLine}${R.allWrong ? '<p class="geo-allwrong">Alle falsch – niemand verliert ein Leben.</p>' : ''}
       <ul class="geo-list">${rows}</ul>
       <div class="btn-row geo-res-btns">${playing ? `<button class="btn ${V.ready[me] ? '' : 'btn-primary'}" id="geo-ready">${V.ready[me] ? 'Doch noch warten' : isLast ? 'Zum Ergebnis' : 'Nächste Runde'}</button>` : ''}${api.isHost ? '<button class="btn btn-ghost" id="geo-next">Weiter (Host)</button>' : ''}</div>
@@ -367,8 +410,8 @@
     const val = (p) => (V.game === 'duel' ? `${pts(Math.max(0, V.hp[p.id]))} HP${V.out[p.id] ? ` · raus in Runde ${V.out[p.id]}` : ''}` : V.game === 'br' ? `${V.correct[p.id]} Länder richtig${V.out[p.id] ? ` · raus in Runde ${V.out[p.id]}` : ''}` : `${pts(V.scores[p.id])} / ${pts(V.rounds * G.MAX)}`);
     const ch = CH && Number(CH.s && CH.s.seed) === Number(V.seed) && V.game === 'classic' ? `<div class="geo-chres">Challenge von <b>${esc(CH.n)}</b>: ${pts(CH.sc)} Punkte · du: <b>${pts(V.scores[me] || 0)}</b> – ${V.scores[me] > CH.sc ? 'geschlagen!' : V.scores[me] === CH.sc ? 'gleichstand' : 'verloren'}</div>` : '';
     root.innerHTML = `<div class="geo geo-over">
-      <div class="p-card geo-final"><p class="sec-label"><span class="n">${esc(GAMES[V.game])}</span>${esc(V.setName)} · ${esc(MOVE[V.move])}</p>
-        <h2>${V.winners.length > 1 ? 'Unentschieden!' : w && w.id === me ? 'Du gewinnst!' : `${esc(w ? w.name : '?')} gewinnt!`}</h2>${ch}
+      <div class="p-card geo-final"><p class="sec-label"><span class="n">${esc(GAMES[V.game])}</span>${esc(V.show === 'image' ? `${V.setName} · ${MOVE[V.move]}` : `${SHOW[V.show]} · ${V.setName}`)}</p>
+        <h2>${V.players.length === 1 ? (V.game === 'br' ? `Streak: ${V.correct[me]}` : V.game === 'classic' ? `${pts(V.scores[me])} Punkte` : 'Fertig!') : V.winners.length > 1 ? 'Unentschieden!' : w && w.id === me ? 'Du gewinnst!' : `${esc(w ? w.name : '?')} gewinnt!`}</h2>${ch}
         <ol class="kno-rank">${order.map((p) => `<li style="--pc:${p.color}"><strong>${esc(p.name)}</strong><b>${val(p)}</b></li>`).join('')}</ol>
         ${Object.keys(V.wins).length && V.players.length > 1 ? `<p class="p-sub">Siege: ${V.players.map((p) => `${esc(p.name)} ${V.wins[p.id] || 0}`).join(' · ')}</p>` : ''}
         <div class="btn-row">${api.isHost ? '<button class="btn btn-primary" id="geo-again">Nochmal (neue Orte)</button><button class="btn btn-ghost" id="geo-lobby">Zur Lobby</button>' : ''}${V.game === 'classic' && V.players.some((p) => p.id === me) ? '<button class="btn btn-ghost" id="geo-ch">Challenge-Link kopieren</button>' : ''}</div>
@@ -406,13 +449,15 @@
     const setOpts = Object.entries(D.SETS).filter(([, s]) => (game === 'br' || (game === 'classic' && st.guess === 'country') ? s.countries : true)).map(([id, s]) => [id, `${s.name} (${s.list.length})`]);
     const setDesc = (D.SETS[st.set] || D.SETS.world).desc;
     return `
+      <div class="geo-shows">${Object.entries({ image: ['Bild', 'Straße oder Satellit – wo bin ich?'], name: ['Wo liegt …?', 'Ein Ort steht da, du pinnst ihn auf einer Karte ohne Namen'], flag: ['Flaggen', 'Welches Land gehört zur Flagge?'] }).map(([id, [n, d]]) => `<button type="button" class="geo-mode ${(st.show || 'image') === id ? 'on' : ''}" data-geo-show="${id}" ${host ? '' : 'disabled'}><b>${n}</b><small>${d}</small></button>`).join('')}</div>
       <div class="geo-modes">${Object.entries({ classic: ['Klassisch', 'Feste Runden, so nah wie möglich oder nur das Land'], duel: ['Duell', '6.000 Leben, schlechterer Tipp kostet die Differenz'], br: ['Länder-Battle-Royale', 'Falsches Land kostet ein Leben. 1 Leben = Streak'] }).map(([id, [n, d]]) => `<button type="button" class="geo-mode ${game === id ? 'on' : ''}" data-geo-game="${id}" ${host ? '' : 'disabled'}><b>${n}</b><small>${d}</small></button>`).join('')}</div>
-      ${game === 'classic' ? `<label class="row"><span>Raten</span>${sel('guess', st, host, [['dist', 'So nah wie möglich'], ['country', 'Nur das Land']])}</label>` : ''}
-      <label class="row"><span>Karte<small>${esc(setDesc)}</small></span>${sel('set', st, host, setOpts)}</label>
+      ${game === 'classic' && st.show !== 'flag' ? `<label class="row"><span>Raten</span>${sel('guess', st, host, [['dist', 'So nah wie möglich'], ['country', 'Nur das Land']])}</label>` : ''}
+      ${st.show === 'flag' ? '' : `<label class="row"><span>Karte<small>${esc(setDesc)}</small></span>${sel('set', st, host, setOpts)}</label>`}
       ${game === 'classic' ? `<label class="row"><span>Runden</span>${sel('rounds', st, host, [[3, '3'], [5, '5'], [10, '10'], [15, '15'], [20, '20']], true)}</label>` : ''}
       ${game === 'br' ? `<label class="row"><span>Leben<small>1 = Länder-Streak: so viele richtig wie möglich am Stück</small></span>${sel('lives', st, host, [[1, '1 (Streak)'], [3, '3'], [5, '5']], true)}</label>` : ''}
-      <label class="row"><span>Bewegung<small>Bewegen = frei herumfahren · Kein Bewegen = nur umsehen und zoomen · NMPZ = festes Bild</small></span>${sel('move', st, host, [['move', 'Bewegen'], ['nomove', 'Kein Bewegen'], ['nmpz', 'NMPZ']])}</label>
+      ${(st.show || 'image') === 'image' ? `<label class="row"><span>Bewegung<small>Bewegen = frei · Kein Bewegen = nur umsehen · NMPZ = festes Bild · Zoom-Out = Satellit zoomt raus, schneller = mehr Punkte</small></span>${sel('move', st, host, [['move', 'Bewegen'], ['nomove', 'Kein Bewegen'], ['nmpz', 'NMPZ'], ['zoomout', 'Zoom-Out']])}</label>
       <label class="row"><span>Bilder<small>Straßenbilder wie Street View (Mapillary) oder Satellit</small></span>${sel('imagery', st, host, [['street', 'Straßenbilder'], ['sat', 'Satellit']])}</label>
+      <div class="geo-mods"><span>Erschwerer</span>${[['bw', 'Schwarzweiß'], ['blur', 'Unscharf (wird schärfer)'], ['spot', 'Taschenlampe']].map(([k2, n]) => `<label><input type="checkbox" data-set="${k2}" ${st[k2] ? 'checked' : ''} ${host ? '' : 'disabled'}> ${n}</label>`).join('')}</div>` : ''}
       <label class="row"><span>Zeit pro Runde</span>${sel('time', st, host, [[0, 'unbegrenzt'], [30, '30 s'], [60, '1 min'], [120, '2 min'], [300, '5 min']], true)}</label>
       <label class="row"><span>Countdown nach erstem Tipp<small>Sobald jemand rät, bleiben den anderen noch …</small></span>${sel('countdown', st, host, [[0, game === 'duel' ? 'Standard (15 s)' : 'aus'], [10, '10 s'], [15, '15 s'], [30, '30 s']], true)}</label>`;
   }
@@ -422,11 +467,17 @@
     const mly = host && !CFG.MAPILLARY_TOKEN ? `<details class="geo-tokbox" ${tok ? '' : 'open'}><summary>${tok ? 'Straßenbilder aktiv (Mapillary-Token gespeichert)' : 'Für echte Straßenbilder: Mapillary-Token eintragen (kostenlos)'}</summary>
       <p class="p-sub">mapillary.com → Konto (kostenlos) → Developers → „Register application“ → den <b>Client Token</b> (fängt mit MLY| an) hier einfügen. Ohne Token wird mit Satellitenbildern gespielt.</p>
       <div class="geo-tokrow"><input id="geo-tok" placeholder="MLY|…" value="${esc(tok)}" autocomplete="off"><button type="button" class="btn btn-small" data-geo-tok>Speichern</button></div></details>` : '';
-    return `${chal}${mly}${statsHTML()}`;
+    const daily = host ? `<div class="geo-daily"><div><b>Tages-Challenge ${new Date().toLocaleDateString('de-DE')}</b><small>Heute für alle dieselben 5 Orte auf der Welt-Karte.${dailyBest() ? ` Dein Bestwert heute: ${pts(dailyBest())}` : ''}</small></div><button type="button" class="btn btn-small btn-primary" data-geo-daily>Einstellen</button></div>` : '';
+    return `${chal}${daily}${mly}${statsHTML()}`;
   }
 
+  // Tages-Challenge: Seed aus dem Datum
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+  const daySeed = () => { let h = 2166136261; for (const c of `dulidan-geo-${today()}`) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 1) || 1; };
+  const dailyBest = () => (store.get('duli-geo-stats', {}).daily || {})[today()] || 0;
+
   // Challenge-Link: Einstellungen und Seed übernehmen
-  const defaults = { game: 'classic', guess: 'dist', set: 'world', rounds: 5, time: 0, countdown: 0, move: 'move', imagery: 'street', lives: 3, seed: 0 };
+  const defaults = { show: 'image', game: 'classic', guess: 'dist', set: 'world', rounds: 5, time: 0, countdown: 0, move: 'move', imagery: 'street', lives: 3, seed: 0, bw: false, blur: false, spot: false };
   if (CH && CH.s) Object.assign(defaults, CH.s);
 
   const app = window.DULI_PARTY.start({
@@ -447,6 +498,13 @@
   document.addEventListener('click', (e) => {
     const g = e.target.closest('[data-geo-game]');
     if (g && !g.disabled) { app.act({ type: 'setting', key: 'game', value: g.dataset.geoGame }); return; }
+    const sh = e.target.closest('[data-geo-show]');
+    if (sh && !sh.disabled) { app.act({ type: 'setting', key: 'show', value: sh.dataset.geoShow }); return; }
+    if (e.target.closest('[data-geo-daily]')) {
+      Object.entries({ show: 'image', game: 'classic', guess: 'dist', set: 'world', rounds: 5, move: 'move', time: 0, countdown: 0, bw: false, blur: false, spot: false, seed: daySeed() }).forEach(([key, value]) => app.act({ type: 'setting', key, value }));
+      app.toast('Tages-Challenge eingestellt: Welt, 5 Runden, gleiche Orte für alle.');
+      return;
+    }
     if (e.target.closest('[data-geo-tok]')) {
       const v = ($('#geo-tok') || {}).value || '';
       store.set('duli-geo-mly', v.trim());

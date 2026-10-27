@@ -110,6 +110,70 @@
     ['Heilbronn', 49.1427, 9.2109], ['Neckarsulm, Audi-Werk', 49.1950, 9.2170], ['Weinsberg, Burg Weibertreu', 49.1530, 9.2850], ['Gaildorf', 49.0000, 9.7700],
   ].map((x) => x.concat('de'));
 
+
+  // Hauptstädte (auch für den Flaggen-Modus)
+  const CAPITALS = [
+    ['Berlin', 52.5200, 13.4050, 'de'], ['Paris', 48.8566, 2.3522, 'fr'], ['London', 51.5074, -0.1278, 'gb'], ['Dublin', 53.3498, -6.2603, 'ie'], ['Amsterdam', 52.3676, 4.9041, 'nl'],
+    ['Brüssel', 50.8503, 4.3517, 'be'], ['Luxemburg', 49.6116, 6.1319, 'lu'], ['Madrid', 40.4168, -3.7038, 'es'], ['Lissabon', 38.7223, -9.1393, 'pt'], ['Rom', 41.9028, 12.4964, 'it'],
+    ['Wien', 48.2082, 16.3738, 'at'], ['Bern', 46.9480, 7.4474, 'ch'], ['Prag', 50.0755, 14.4378, 'cz'], ['Warschau', 52.2297, 21.0122, 'pl'], ['Budapest', 47.4979, 19.0402, 'hu'],
+    ['Bratislava', 48.1486, 17.1077, 'sk'], ['Ljubljana', 46.0569, 14.5058, 'si'], ['Zagreb', 45.8150, 15.9819, 'hr'], ['Belgrad', 44.7866, 20.4489, 'rs'], ['Sarajevo', 43.8563, 18.4131, 'ba'],
+    ['Podgorica', 42.4304, 19.2594, 'me'], ['Tirana', 41.3275, 19.8187, 'al'], ['Skopje', 41.9981, 21.4254, 'mk'], ['Sofia', 42.6977, 23.3219, 'bg'], ['Bukarest', 44.4268, 26.1025, 'ro'],
+    ['Chișinău', 47.0105, 28.8638, 'md'], ['Kiew', 50.4501, 30.5234, 'ua'], ['Minsk', 53.9006, 27.5590, 'by'], ['Vilnius', 54.6872, 25.2797, 'lt'], ['Riga', 56.9496, 24.1052, 'lv'],
+    ['Tallinn', 59.4370, 24.7536, 'ee'], ['Helsinki', 60.1699, 24.9384, 'fi'], ['Stockholm', 59.3293, 18.0686, 'se'], ['Oslo', 59.9139, 10.7522, 'no'], ['Kopenhagen', 55.6761, 12.5683, 'dk'],
+    ['Reykjavík', 64.1466, -21.9426, 'is'], ['Athen', 37.9838, 23.7275, 'gr'], ['Ankara', 39.9334, 32.8597, 'tr'], ['Nikosia', 35.1856, 33.3823, 'cy'], ['Valletta', 35.8989, 14.5146, 'mt'],
+    ['Moskau', 55.7558, 37.6173, 'ru'], ['Tiflis', 41.7151, 44.8271, 'ge'], ['Jerewan', 40.1792, 44.4991, 'am'], ['Baku', 40.4093, 49.8671, 'az'], ['Andorra la Vella', 42.5063, 1.5218, 'ad'],
+    ['Vaduz', 47.1410, 9.5209, 'li'], ['San Marino', 43.9424, 12.4578, 'sm'], ['Monaco', 43.7384, 7.4246, 'mc'], ['Pristina', 42.6629, 21.1655, 'xk'],
+    ['Washington', 38.9072, -77.0369, 'us'], ['Ottawa', 45.4215, -75.6972, 'ca'], ['Mexiko-Stadt', 19.4326, -99.1332, 'mx'], ['Havanna', 23.1136, -82.3666, 'cu'], ['Guatemala-Stadt', 14.6349, -90.5069, 'gt'],
+    ['San José', 9.9281, -84.0907, 'cr'], ['Panama-Stadt', 8.9824, -79.5199, 'pa'], ['Bogotá', 4.7110, -74.0721, 'co'], ['Caracas', 10.4806, -66.9036, 've'], ['Quito', -0.1807, -78.4678, 'ec'],
+    ['Lima', -12.0464, -77.0428, 'pe'], ['La Paz', -16.4897, -68.1193, 'bo'], ['Santiago', -33.4489, -70.6693, 'cl'], ['Buenos Aires', -34.6037, -58.3816, 'ar'], ['Montevideo', -34.9011, -56.1645, 'uy'],
+    ['Asunción', -25.2637, -57.5759, 'py'], ['Brasília', -15.8267, -47.9218, 'br'], ['Kingston', 17.9712, -76.7936, 'jm'], ['Santo Domingo', 18.4861, -69.9312, 'do'], ['Port-au-Prince', 18.5944, -72.3074, 'ht'],
+    ['Kairo', 30.0444, 31.2357, 'eg'], ['Rabat', 34.0209, -6.8416, 'ma'], ['Tunis', 36.8065, 10.1815, 'tn'], ['Algier', 36.7538, 3.0588, 'dz'], ['Tripolis', 32.8872, 13.1913, 'ly'],
+    ['Abuja', 9.0765, 7.3986, 'ng'], ['Accra', 5.6037, -0.1870, 'gh'], ['Dakar', 14.7167, -17.4677, 'sn'], ['Nairobi', -1.2921, 36.8219, 'ke'], ['Addis Abeba', 9.0300, 38.7400, 'et'],
+    ['Pretoria', -25.7479, 28.2293, 'za'], ['Dodoma', -6.1630, 35.7516, 'tz'], ['Kigali', -1.9441, 30.0619, 'rw'], ['Windhuk', -22.5609, 17.0658, 'na'], ['Antananarivo', -18.8792, 47.5079, 'mg'],
+    ['Luanda', -8.8390, 13.2894, 'ao'], ['Kinshasa', -4.4419, 15.2663, 'cd'], ['Kampala', 0.3476, 32.5825, 'ug'], ['Khartum', 15.5007, 32.5599, 'sd'], ['Harare', -17.8252, 31.0335, 'zw'],
+    ['Lusaka', -15.3875, 28.3228, 'zm'], ['Maputo', -25.9692, 32.5732, 'mz'], ['Gaborone', -24.6282, 25.9231, 'bw'], ['Bamako', 12.6392, -8.0029, 'ml'], ['Yaoundé', 3.8480, 11.5021, 'cm'],
+    ['Abu Dhabi', 24.4539, 54.3773, 'ae'], ['Doha', 25.2854, 51.5310, 'qa'], ['Riad', 24.7136, 46.6753, 'sa'], ['Jerusalem', 31.7683, 35.2137, 'il'], ['Amman', 31.9539, 35.9106, 'jo'],
+    ['Beirut', 33.8938, 35.5018, 'lb'], ['Damaskus', 33.5138, 36.2765, 'sy'], ['Bagdad', 33.3152, 44.3661, 'iq'], ['Teheran', 35.6892, 51.3890, 'ir'], ['Kuwait-Stadt', 29.3759, 47.9774, 'kw'],
+    ['Maskat', 23.5880, 58.3829, 'om'], ['Kabul', 34.5553, 69.2075, 'af'], ['Islamabad', 33.6844, 73.0479, 'pk'], ['Neu-Delhi', 28.6139, 77.2090, 'in'], ['Kathmandu', 27.7172, 85.3240, 'np'],
+    ['Dhaka', 23.8103, 90.4125, 'bd'], ['Colombo', 6.9271, 79.8612, 'lk'], ['Bangkok', 13.7563, 100.5018, 'th'], ['Hanoi', 21.0285, 105.8542, 'vn'], ['Phnom Penh', 11.5564, 104.9282, 'kh'],
+    ['Vientiane', 17.9757, 102.6331, 'la'], ['Kuala Lumpur', 3.1390, 101.6869, 'my'], ['Singapur', 1.3521, 103.8198, 'sg'], ['Jakarta', -6.2088, 106.8456, 'id'], ['Manila', 14.5995, 120.9842, 'ph'],
+    ['Peking', 39.9042, 116.4074, 'cn'], ['Taipeh', 25.0330, 121.5654, 'tw'], ['Seoul', 37.5665, 126.9780, 'kr'], ['Pjöngjang', 39.0392, 125.7625, 'kp'], ['Tokio', 35.6762, 139.6503, 'jp'],
+    ['Ulaanbaatar', 47.8864, 106.9057, 'mn'], ['Astana', 51.1694, 71.4491, 'kz'], ['Taschkent', 41.2995, 69.2401, 'uz'], ['Bischkek', 42.8746, 74.5698, 'kg'], ['Duschanbe', 38.5598, 68.7870, 'tj'],
+    ['Aschgabat', 37.9601, 58.3261, 'tm'], ['Naypyidaw', 19.7633, 96.0785, 'mm'], ['Thimphu', 27.4728, 89.6390, 'bt'], ['Malé', 4.1755, 73.5093, 'mv'],
+    ['Canberra', -35.2809, 149.1300, 'au'], ['Wellington', -41.2865, 174.7762, 'nz'], ['Suva', -18.1416, 178.4419, 'fj'], ['Port Moresby', -9.4438, 147.1803, 'pg'],
+  ];
+  const STADIUMS = [
+    ['Camp Nou, Barcelona', 41.3809, 2.1228, 'es'], ['Santiago Bernabéu, Madrid', 40.4531, -3.6883, 'es'], ['Allianz Arena, München', 48.2188, 11.6247, 'de'], ['Signal Iduna Park, Dortmund', 51.4926, 7.4519, 'de'],
+    ['Veltins-Arena, Gelsenkirchen', 51.5546, 7.0676, 'de'], ['MSV-Arena, Duisburg', 51.4092, 6.7795, 'de'], ['Olympiastadion Berlin', 52.5147, 13.2395, 'de'], ['RheinEnergieStadion, Köln', 50.9334, 6.8752, 'de'],
+    ['Merkur Spiel-Arena, Düsseldorf', 51.2617, 6.7331, 'de'], ['Volksparkstadion, Hamburg', 53.5872, 9.8986, 'de'], ['MHPArena, Stuttgart', 48.7922, 9.2320, 'de'], ['Old Trafford, Manchester', 53.4631, -2.2913, 'gb'],
+    ['Anfield, Liverpool', 53.4308, -2.9608, 'gb'], ['Wembley, London', 51.5560, -0.2796, 'gb'], ['Emirates Stadium, London', 51.5549, -0.1084, 'gb'], ['Celtic Park, Glasgow', 55.8497, -4.2055, 'gb'],
+    ['San Siro, Mailand', 45.4781, 9.1240, 'it'], ['Stadio Olimpico, Rom', 41.9339, 12.4547, 'it'], ['Parc des Princes, Paris', 48.8414, 2.2530, 'fr'], ['Stade de France', 48.9245, 2.3602, 'fr'],
+    ['Johan Cruijff ArenA, Amsterdam', 52.3144, 4.9418, 'nl'], ['Estádio da Luz, Lissabon', 38.7527, -9.1847, 'pt'], ['Atatürk-Olympiastadion, Istanbul', 41.0742, 28.7656, 'tr'], ['Luschniki, Moskau', 55.7158, 37.5537, 'ru'],
+    ['Maracanã, Rio de Janeiro', -22.9122, -43.2302, 'br'], ['La Bombonera, Buenos Aires', -34.6356, -58.3647, 'ar'], ['Estadio Azteca, Mexiko-Stadt', 19.3029, -99.1505, 'mx'], ['MetLife Stadium, New York', 40.8135, -74.0745, 'us'],
+    ['AT&T Stadium, Dallas', 32.7473, -97.0945, 'us'], ['Rose Bowl, Pasadena', 34.1613, -118.1676, 'us'], ['Lusail-Stadion, Katar', 25.4207, 51.4904, 'qa'], ['FNB Stadium, Johannesburg', -26.2347, 27.9822, 'za'],
+    ['Melbourne Cricket Ground', -37.8200, 144.9834, 'au'], ['Vogelnest, Peking', 39.9929, 116.3965, 'cn'], ['Nationalstadion, Tokio', 35.6779, 139.7147, 'jp'],
+  ];
+  const AIRPORTS = [
+    ['Flughafen Frankfurt', 50.0379, 8.5622, 'de'], ['Flughafen München', 48.3538, 11.7861, 'de'], ['Flughafen Düsseldorf', 51.2895, 6.7668, 'de'], ['Flughafen BER', 52.3667, 13.5033, 'de'],
+    ['Flughafen Dortmund', 51.5183, 7.6122, 'de'], ['London Heathrow', 51.4700, -0.4543, 'gb'], ['Paris Charles de Gaulle', 49.0097, 2.5479, 'fr'], ['Amsterdam Schiphol', 52.3105, 4.7683, 'nl'],
+    ['Madrid Barajas', 40.4983, -3.5676, 'es'], ['Istanbul', 41.2753, 28.7519, 'tr'], ['Dubai International', 25.2532, 55.3657, 'ae'], ['Doha Hamad', 25.2731, 51.6081, 'qa'],
+    ['New York JFK', 40.6413, -73.7781, 'us'], ['Los Angeles LAX', 33.9416, -118.4085, 'us'], ['Atlanta', 33.6407, -84.4277, 'us'], ['Tokio Haneda', 35.5494, 139.7798, 'jp'],
+    ['Singapur Changi', 1.3644, 103.9915, 'sg'], ['Peking Daxing', 39.5098, 116.4105, 'cn'], ['Sydney', -33.9399, 151.1753, 'au'], ['Gibraltar', 36.1512, -5.3470, 'gi'],
+    ['Courchevel (Altiport)', 45.3967, 6.6347, 'fr'], ['Lukla (Everest)', 27.6878, 86.7314, 'np'], ['Maho Beach, Sint Maarten', 18.0410, -63.1089, 'sx'], ['Barra (Strandpiste)', 57.0228, -7.4431, 'gb'],
+    ['Weeze', 51.6024, 6.1422, 'de'],
+  ];
+  const NATURE = [
+    ['Grand Canyon', 36.0566, -112.1251, 'us'], ['Uluru', -25.3444, 131.0369, 'au'], ['Niagarafälle', 43.0799, -79.0747, 'ca'], ['Victoriafälle', -17.9243, 25.8572, 'zw'],
+    ['Iguazú-Wasserfälle', -25.6953, -54.4367, 'ar'], ['Matterhorn', 45.9763, 7.6586, 'ch'], ['Mount Everest', 27.9881, 86.9250, 'np'], ['Kilimandscharo', -3.0674, 37.3556, 'tz'],
+    ['Halong-Bucht', 20.9101, 107.1839, 'vn'], ['Geirangerfjord', 62.1008, 7.2059, 'no'], ['Erg Chebbi (Sahara)', 31.1450, -3.9690, 'ma'], ['Death Valley', 36.5054, -117.0794, 'us'],
+    ['Grand Prismatic Spring', 44.5251, -110.8382, 'us'], ['Salar de Uyuni', -20.1338, -67.4891, 'bo'], ['Atacama-Wüste', -23.8634, -69.1328, 'cl'], ['Fuji', 35.3606, 138.7274, 'jp'],
+    ['Vesuv', 40.8214, 14.4260, 'it'], ['Ätna', 37.7510, 14.9934, 'it'], ['Eyjafjallajökull', 63.6314, -19.6083, 'is'], ['Bleder See', 46.3636, 14.0938, 'si'],
+    ['Plitvicer Seen', 44.8654, 15.5820, 'hr'], ['Kappadokien', 38.6431, 34.8289, 'tr'], ['Pamukkale', 37.9137, 29.1187, 'tr'], ['Zhangjiajie', 29.3150, 110.4343, 'cn'],
+    ['Tafelberg', -33.9628, 18.4098, 'za'], ['Sossusvlei', -24.7333, 15.2833, 'na'], ['Torres del Paine', -50.9423, -73.4068, 'cl'], ['Perito-Moreno-Gletscher', -50.4967, -73.1377, 'ar'],
+    ['Moraine Lake', 51.3217, -116.1860, 'ca'], ['Monument Valley', 36.9980, -110.0985, 'us'], ['Zugspitze', 47.4211, 10.9853, 'de'], ['Bastei, Sächsische Schweiz', 50.9620, 14.0730, 'de'],
+    ['Loreley', 50.1393, 7.7290, 'de'],
+  ];
+
   const pickCC = (list) => WORLD.filter((x) => list.includes(x[3]));
   const AMERICAS = 'us ca mx cu pa co pe ec cl ar br uy bo ve jm cr'.split(' ');
   const ASIA = 'ae qa sa il jo lb ir az ge am af uz kz in np lk bd pk th vn kh my sg id ph cn tw kr jp mn kp mv tr'.split(' ');
@@ -125,10 +189,14 @@
     africa: { name: 'Afrika', desc: 'Von Kairo bis Kapstadt', list: pickCC(AFRICA), jitter: 30, scale: 1000, zoom: 3, center: [3, 20], countries: true },
     de: { name: 'Deutschland', desc: 'Von Sylt bis zur Zugspitze', list: DE, jitter: 12, scale: 120, zoom: 6, center: [51.1, 10.4] },
     ruhr: { name: 'Duisburg & Ruhrpott', desc: 'Zechen, Häfen, Stadien, Hinterhöfe', list: RUHR, jitter: 1.5, scale: 6, zoom: 10, center: [51.47, 6.95] },
+    capitals: { name: 'Hauptstädte', desc: 'Jede Hauptstadt der Welt', list: CAPITALS, jitter: 4, scale: 1500, zoom: 2, center: [20, 10], countries: true },
+    stadiums: { name: 'Fußballstadien', desc: 'Von oben erkennt man sie sofort – oder?', list: STADIUMS, jitter: 0, scale: 1500, zoom: 2, center: [35, 5], countries: true },
+    airports: { name: 'Flughäfen', desc: 'Startbahnen, Terminals und ein paar sehr gefährliche Pisten', list: AIRPORTS, jitter: 0, scale: 1500, zoom: 2, center: [35, 5], countries: true },
+    nature: { name: 'Naturwunder', desc: 'Wüsten, Gletscher, Vulkane, Wasserfälle', list: NATURE, jitter: 0, scale: 1500, zoom: 2, center: [20, 10], countries: true },
     hohe: { name: 'Hohenlohe', desc: 'Öhringen, Künzelsau und jedes Dorf dazwischen', list: HOHENLOHE, jitter: 2.5, scale: 8, zoom: 10, center: [49.24, 9.6] },
   };
   // Mini-Länder: nie verschieben, sonst landet man im Nachbarland
-  const TINY = ['va', 'mc', 'lu', 'sg', 'mt', 'mv', 'qa', 'lb', 'il', 'jm', 'cr', 'pa', 'rw', 'sv'];
+  const TINY = ['gi', 'sx', 'ad', 'li', 'sm', 'va', 'mc', 'lu', 'sg', 'mt', 'mv', 'qa', 'lb', 'il', 'jm', 'cr', 'pa', 'rw', 'sv'];
 
   const COUNTRIES = {
     de: 'Deutschland', fr: 'Frankreich', gb: 'Vereinigtes Königreich', ie: 'Irland', nl: 'Niederlande', be: 'Belgien', lu: 'Luxemburg', es: 'Spanien',
@@ -150,10 +218,10 @@
     uz: 'Usbekistan', kz: 'Kasachstan', tm: 'Turkmenistan', kg: 'Kirgisistan', tj: 'Tadschikistan', in: 'Indien', np: 'Nepal', lk: 'Sri Lanka',
     bd: 'Bangladesch', pk: 'Pakistan', bt: 'Bhutan', mm: 'Myanmar', th: 'Thailand', vn: 'Vietnam', kh: 'Kambodscha', la: 'Laos', my: 'Malaysia',
     sg: 'Singapur', id: 'Indonesien', ph: 'Philippinen', cn: 'China', tw: 'Taiwan', kr: 'Südkorea', kp: 'Nordkorea', jp: 'Japan', mn: 'Mongolei',
-    mv: 'Malediven', au: 'Australien', nz: 'Neuseeland', fj: 'Fidschi', pg: 'Papua-Neuguinea',
+    mv: 'Malediven', gi: 'Gibraltar', sx: 'Sint Maarten', hk: 'Hongkong', au: 'Australien', nz: 'Neuseeland', fj: 'Fidschi', pg: 'Papua-Neuguinea',
   };
 
-  const GEO = { SETS, COUNTRIES, TINY };
+  const GEO = { SETS, COUNTRIES, TINY, CAPITALS };
   if (typeof module !== 'undefined' && module.exports) module.exports = GEO;
   else root.DULI_GEO_DATA = GEO;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -6,7 +6,7 @@
 // Jede Runde: Host sucht ein Straßenbild (Mapillary) oder nimmt das Satellitenbild und bestimmt das echte Land → Raten → Auflösung.
 (function (root) {
   const DATA = root.DULI_GEO_DATA || (typeof require !== 'undefined' ? require('./geo-data.js') : null);
-  const MAX = 5000, HP = 6000, MAX_ROUNDS = 60;
+  const MAX = 5000, HP = 6000, MAX_ROUNDS = 60, ZOOM_MS = 40000;
   const EMOTES = ['GG', 'Zu leicht', 'Wie??', 'Glück gehabt', 'Six seven', 'Ich hasse dieses Land', 'Bro ist ein Satellit', 'NPC-Tipp'];
 
   function km(a, b) {
@@ -26,19 +26,23 @@
   const mult = (round) => Math.min(5, round <= 3 ? 1 : 1 + 0.5 * (round - 3));
 
   function start(players, settings, prev) {
-    const st = Object.assign({ game: 'classic', guess: 'dist', set: 'world', rounds: 5, time: 0, countdown: 0, move: 'move', imagery: 'street', lives: 3, seed: 0 }, settings || {});
+    const st = Object.assign({ game: 'classic', guess: 'dist', set: 'world', rounds: 5, time: 0, countdown: 0, move: 'move', imagery: 'street', lives: 3, seed: 0, show: 'image', bw: false, blur: false, spot: false }, settings || {});
+    // Was gezeigt wird: Bild (Straße/Satellit), Name (Wo liegt …?) oder Flagge
+    const show = ['image', 'name', 'flag'].includes(st.show) ? st.show : 'image';
     const humans = players.filter((p) => !p.bot).map((p) => ({ id: p.id, name: p.name, color: p.color }));
     let game = ['classic', 'duel', 'br'].includes(st.game) ? st.game : 'classic';
-    if (game === 'duel' && humans.length < 2) game = 'classic';
-    const guess = game === 'br' ? 'country' : game === 'duel' ? 'dist' : st.guess === 'country' ? 'country' : 'dist';
+    if (game === 'duel' && (humans.length < 2 || show === 'flag')) game = 'classic';
+    const guess = game === 'br' || show === 'flag' ? 'country' : game === 'duel' ? 'dist' : st.guess === 'country' ? 'country' : 'dist';
     let set = DATA.SETS[st.set] ? st.set : 'world';
     if (guess === 'country' && !DATA.SETS[set].countries) set = 'world';
+    if (show === 'flag') set = 'capitals';
     const seed = (!prev && Number(st.seed)) || Math.floor(Math.random() * 2 ** 31);
     const S = {
       host: players[0].id, players: humans, game, guess, set, seed, rng: seed,
       rounds: game === 'classic' ? Math.max(1, Math.min(20, Number(st.rounds) || 5)) : MAX_ROUNDS,
       time: Number(st.time) || 0, countdown: game === 'duel' ? (Number(st.countdown) || 15) : Number(st.countdown) || 0,
-      move: ['move', 'nomove', 'nmpz'].includes(st.move) ? st.move : 'move', imagery: st.imagery === 'sat' ? 'sat' : 'street',
+      show, mods: { bw: !!st.bw, blur: !!st.blur, spot: !!st.spot }, startAt: 0,
+      move: ['move', 'nomove', 'nmpz', 'zoomout'].includes(st.move) ? st.move : 'move', imagery: st.imagery === 'sat' ? 'sat' : 'street',
       lives: Math.max(1, Math.min(5, Number(st.lives) || 3)),
       pool: [], poolPos: 0, round: 0, phase: 'load', cand: null, loc: null, deadline: 0,
       guesses: {}, ready: {}, scores: {}, hp: {}, lifes: {}, correct: {}, out: {}, history: [], emote: null, mly: '',
@@ -57,7 +61,7 @@
       S.pool = order; S.poolPos = 0;
     }
     const [name, lat, lng, cc] = set.list[S.pool[S.poolPos++]];
-    let jitter = DATA.TINY.includes(cc) ? 0 : set.jitter;
+    let jitter = DATA.TINY.includes(cc) || S.show !== 'image' ? 0 : set.jitter;
     if (S.guess === 'country') jitter = Math.min(jitter, 8);
     if (S.imagery === 'sat') jitter = Math.min(jitter, 3);
     const ang = rnd(S) * Math.PI * 2, r = jitter * Math.sqrt(rnd(S));
@@ -66,6 +70,16 @@
     S.cand = { name, lat: lat + dLat, lng: lng + dLng, seedLat: lat, seedLng: lng, cc, jittered: r > 0.3 };
     S.phase = 'load'; S.loc = null; S.guesses = {}; S.ready = {}; S.deadline = 0;
     S.mult = S.game === 'duel' ? mult(S.round) : 1;
+    // Name und Flagge brauchen kein Bild: sofort raten
+    if (S.show !== 'image') {
+      S.loc = { lat: S.cand.lat, lng: S.cand.lng, img: '', creator: '', cc, name: S.show === 'flag' ? (DATA.COUNTRIES[cc] || name) : name, near: S.show === 'flag' ? `Hauptstadt: ${name}` : name };
+      beginGuess(S);
+    }
+  }
+  function beginGuess(S) {
+    S.phase = 'guess';
+    S.startAt = Date.now();
+    S.deadline = S.time ? Date.now() + S.time * 1000 : 0;
   }
   const clean = (s, n) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().slice(0, n);
 
@@ -132,8 +146,7 @@
           cc, name: clean(a.place, 80) || (c.jittered ? `bei ${c.name}` : c.name), near: c.name,
         };
         if (a.token) S.mly = clean(a.token, 200);
-        S.phase = 'guess';
-        S.deadline = S.time ? Date.now() + S.time * 1000 : 0;
+        beginGuess(S);
         return null;
       }
       case 'guess': {
@@ -154,6 +167,8 @@
           const scale = DATA.SETS[S.set].scale;
           g.pts = g.km <= Math.max(0.025, scale * 0.0015) ? MAX : Math.round(MAX * Math.exp(-g.km / scale));
         }
+        // Zoom-Out: wer schneller rät, bekommt mehr (bis 30 % runter)
+        if (S.move === 'zoomout' && S.show === 'image') { g.speed = Math.max(0.3, 1 - 0.7 * Math.min(1, (g.at - S.startAt) / ZOOM_MS)); g.pts = Math.round(g.pts * g.speed); }
         S.guesses[pid] = g;
         const live = alive(S);
         if (live.every((p) => S.guesses[p.id])) { toResult(S); return null; }
@@ -198,7 +213,8 @@
     V.alive = alive(S).map((p) => p.id);
     if (S.phase === 'load') V.loc = null;
     if (S.phase === 'guess') {
-      V.loc = { lat: S.loc.lat, lng: S.loc.lng, img: S.loc.img };
+      // Bei „Wo liegt …?“ und Flaggen nur die Frage, keine Koordinaten
+      V.loc = S.show === 'image' ? { lat: S.loc.lat, lng: S.loc.lng, img: S.loc.img } : S.show === 'name' ? { q: S.loc.name } : { q: S.loc.cc };
       V.done = {};
       S.players.forEach((p) => { V.done[p.id] = !!S.guesses[p.id]; if (p.id !== pid) delete V.guesses[p.id]; });
     }
@@ -210,7 +226,7 @@
     return { pid: S.host, action: { type: 'timeup' }, delay: Math.max(60, S.deadline - Date.now()) };
   }
 
-  const GEO = { MAX, HP, EMOTES, km, mult, start, act, view, bot, ranking };
+  const GEO = { MAX, HP, EMOTES, ZOOM_MS, km, mult, start, act, view, bot, ranking };
   if (typeof module !== 'undefined' && module.exports) module.exports = GEO;
   else root.DULI_GEO = GEO;
 })(typeof window !== 'undefined' ? window : globalThis);
