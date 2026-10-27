@@ -36,7 +36,7 @@ Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo,
 **💖 Aprils Laune** (in der Lobby abschaltbar): April mag jede Person anders, lässt sich bestechen, macht ihrem Liebling Geschenke und rächt sich bei Hass (Haus abreißen, Straße in Hypothek). Dazu Tageslaune und Live-Kommentar über dem Brett.
 
 ## Technik
-- Symbole: [Lucide](https://lucide.dev) (ISC-Lizenz, `vendor/LUCIDE-LICENSE`). `js/icons.js` ersetzt beim Anzeigen jedes Emoji durch ein Linien-Symbol.
+- Symbole: [game-icons.net](https://game-icons.net) von Lorc, Delapouite und weiteren Autor:innen, Lizenz [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). `js/icons.js` ersetzt beim Anzeigen jedes Emoji durch eines dieser Symbole.
 - Reine statische Webseite (HTML/CSS/JS), keine Build-Schritte.
 - Online-Verbindung direkt zwischen den Geräten über [PeerJS](https://peerjs.com) (WebRTC, `vendor/peerjs.min.js`). Für den Verbindungsaufbau wird der kostenlose PeerJS-Cloud-Server genutzt.
 - `js/data.js` + `js/engine.js`: klassisches Brett und Regeln · `js/world-data.js` + `js/boards-data.js`: die Bretter World, Royale, Metro, Tower · `js/world.js`: gemeinsame Brett-Engine · `js/mood.js`: Aprils Laune · `js/casino.js`: Casino-Spiele · `js/rules.js`: Hausregeln und Varianten · `js/campaign.js`: Kampagne · `js/arcade.js`: Spielhalle · `js/realistic.js`: REALISTIC-Engine · `js/logistics.js`: LOGISTICS-Netz · `js/war.js`: WAR-Einheiten · `js/net.js`: Online-Verbindung · `js/ui.js` + `js/fx.js`: Oberfläche, Sounds, Würfel · `css/april.css`: Design wie dulidan-studios.com.
