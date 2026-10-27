@@ -5,6 +5,7 @@
   const isNode = typeof module !== 'undefined' && module.exports;
   if (isNode) { require('./world-data.js'); require('./boards-data.js'); }
   const BOARDS = root.DULI_BOARDS;
+  const MOOD = isNode ? require('./mood.js') : root.DULI_MOOD;
   const MODES = ['world', 'royale', 'metro', 'tower'];
 
   // ---------- Bretter vorbereiten ----------
@@ -176,6 +177,7 @@
     S.dice = [1, 1]; S.die3 = null; S.face = null; S.rollId = 0;
     S.path = []; S.moveId = 0; S.mover = null;
     S.debt = null; S.trade = null; S.log = []; S.winner = null; S.ranking = null;
+    MOOD.init(S);
     log(S, `${g.title} startet! ${g.tagline}`);
     const intro = { blitz: '⚡ Blitz: Alles ist verteilt. Nach 20 Runden gewinnt der Reichste!', million: '💸 Millionär: Wer zuerst Ð5000 Vermögen hat, gewinnt!', chaos: '💖 April-Chaos: Jeden Zug eine neue Nachricht.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5.' }[variant];
     if (intro) log(S, intro);
@@ -185,11 +187,33 @@
 
   function beginTurn(S) {
     const p = curP(S);
-    const sal = salaryOf(S, p);
+    let sal = salaryOf(S, p);
+    if (sal) sal += MOOD.salaryBonus(S);
     p.money += sal;
     S.sub = 'roll';
     S.doubles = 0; S.again = false; S.shield = false; S.landed = false; S.tookOver = false;
     log(S, `${p.name} ist dran${sal ? ` und bekommt ${M(sal)} Gehalt` : ''}.`);
+    MOOD.turnStart(S, p, moodApi(S));
+  }
+
+  // Was April bei Hass kaputt machen darf
+  function moodApi(S) {
+    const g = G(S);
+    const mine = (p) => Object.keys(S.cities).filter(id => S.cities[id].owner === p.id);
+    return {
+      tearDown(p) {
+        const id = mine(p).filter(i => S.cities[i].level > 0).sort((a, b) => S.cities[b].level - S.cities[a].level)[0];
+        if (!id) return null;
+        S.cities[id].level--;
+        return g.CITY[id].name;
+      },
+      mortgage(p) {
+        const id = mine(p).filter(i => !S.cities[i].mort && !zoneHasBuildings(S, g.CITY[i].zone)).sort((a, b) => g.CITY[b].price - g.CITY[a].price)[0];
+        if (!id) return null;
+        S.cities[id].mort = true;
+        return g.CITY[id].name;
+      },
+    };
   }
 
   function drawEvent(S) {
@@ -286,6 +310,7 @@
       drawEvent(S);
       stormTick(S);
       crisisTick(S);
+      MOOD.newRound(S, active(S), (q) => netWorth(S, q));
     } else if (S.settings && S.settings.variant === 'chaos') drawEvent(S);
     beginTurn(S);
   }
@@ -311,6 +336,7 @@
     S.debt = { pid: p.id, items };
     S.sub = 'debt';
     log(S, `${p.name} fehlen ${M(total - p.money)}. Gebäude abreißen, Hypotheken aufnehmen oder handeln!`);
+    MOOD.debt(S, p, total - p.money);
     return false;
   }
 
@@ -326,7 +352,7 @@
     let steps = a + b + c;
     const faceTxt = face ? ` · Dulidan-Würfel: ${face.icon === 'D' ? '💜' : face.icon} ${face.name}` : '';
     log(S, `🎲 ${p.name} würfelt ${[a, b, c].filter(Boolean).join(' + ')} = ${steps}${dbl ? ' (Pasch)' : ''}${faceTxt}`);
-    if (dbl) { S.doubles++; p.stats.doubles++; }
+    if (dbl) { S.doubles++; p.stats.doubles++; if (S.doubles === 2) MOOD.doubles(S, p); }
     S.again = !!dbl && S.doubles < 3;
     if (p.items && p.items.boost > 0) {
       p.items.boost--;
@@ -445,6 +471,7 @@
           log(S, `${p.name} zahlt ${M(toll)} Miete an ${owner.name}.`);
           p.stats.rentPaid += toll; p.stats.maxRent = Math.max(p.stats.maxRent, toll);
           owner.stats.rentGot += toll;
+          MOOD.rentPaid(S, p, owner, toll);
           if (!charge(S, p, [{ to: owner.id, amt: toll }])) return;
         }
         break;
@@ -461,6 +488,8 @@
           const goodIdx = list.map((x, k) => (x.good ? k : -1)).filter(k => k >= 0);
           i = pick(goodIdx);
         }
+        if (MOOD.wantsReroll(S, p, list[i])) { S.decks[deck].push(i); i = S.decks[deck].shift(); }
+        if (deck === 'april') MOOD.aprilField(S, p);
         S.decks[deck].push(i);
         S.card = { deck, i };
         S.sub = 'card';
@@ -627,8 +656,8 @@
           if (rich) { const v = Math.min(rich.money, x.fromRichest); rich.money -= v; p.money += v; log(S, `${rich.name} zahlt ${M(v)} an ${p.name}.`); }
         }
         if (x.item) p.items[x.item] = (p.items[x.item] || 0) + 1;
-        if (x.money < 0) charge(S, p, [{ to: null, amt: -x.money }]);
-        else if (x.payEach) charge(S, p, others.map(o => ({ to: o.id, amt: x.payEach })));
+        if (x.money < 0) charge(S, p, [{ to: null, amt: Math.round(-x.money * MOOD.badMult(S)) }]);
+        else if (x.payEach) charge(S, p, others.map(o => ({ to: o.id, amt: Math.round(x.payEach * MOOD.badMult(S)) })));
         else if (x.repairs) {
           const lv = Object.values(S.cities).filter(st => st.owner === p.id).reduce((a, st) => a + st.level, 0);
           if (lv) { log(S, `${p.name} zahlt ${M(lv * x.repairs)} für ${lv} Ausbaustufen.`); charge(S, p, [{ to: null, amt: lv * x.repairs }]); }
@@ -685,7 +714,13 @@
         S.cities[id].level++;
         p.stats.built++;
         log(S, `🏗️ ${p.name} baut ${g.LEVEL_ART[S.cities[id].level]} auf ${g.CITY[id].name}.`);
+        if (S.cities[id].level === 4) MOOD.built(S, p, g.CITY[id].name);
         return null;
+      }
+      case 'bribe': {
+        if (!['roll', 'end'].includes(S.sub)) return 'Bestechen geht vor dem Würfeln oder am Ende deines Zuges.';
+        const r = MOOD.bribe(S, p, a.amt);
+        return r.err || null;
       }
       case 'sell': {
         if (!manage) return 'Geht gerade nicht.';
@@ -750,7 +785,7 @@
     }
     if (heir) heir.money += p.money;
     log(S, `💀 ${p.name} ist pleite! ${heir ? `Alles geht an ${heir.name}.` : 'Alles geht zurück an die Bank.'}`);
-    log(S, 'April: „F. Pleite. Ich hab nichts gesehen.“');
+    if (MOOD.on(S)) MOOD.bankrupt(S, p); else log(S, 'April: „F. Pleite. Ich hab nichts gesehen.“');
     p.money = 0; p.bankrupt = true;
     S.debt = null; S.pendingSteps = null; S.pendingLand = false;
     if (S.trade && (S.trade.from === p.id || S.trade.to === p.id)) S.trade = null;
@@ -841,6 +876,8 @@
         const b = owned.filter(id => !buildBlock(S, p, id) && p.money - buildCost(S, p, id) >= reserve)
           .sort((x, y) => S.cities[x].level - S.cities[y].level || g.CITY[y].price - g.CITY[x].price)[0];
         if (b) return go({ type: 'build', id: b });
+        const br = S.sub === 'roll' && MOOD.botBribe(S, p);
+        if (br) return go({ type: 'bribe', amt: br });
         if (S.sub === 'end' && S.landed && !S.tookOver && S.cities[p.loc] && !takeoverBlock(S, p, p.loc)) {
           const z = g.CITY[p.loc].zone;
           const mine = g.ZONE_CITIES[z].filter(i => S.cities[i].owner === p.id).length;
@@ -881,7 +918,7 @@
   const WORLD = {
     start, act, botStep, endGame, rentFor, fareFor, salaryOf, buyPrice, buildCost, buildBlock, takeoverCost, takeoverBlock,
     unmortgageCost, netWorth, zoneComplete, completeZones, zoneHasBuildings, walkOptions, board, MODES,
-    setRng: (f) => { rng = f; },
+    setRng: (f) => { rng = f; MOOD.setRng(f); },
   };
   if (isNode) module.exports = WORLD;
   else root.DULI_WORLD = WORLD;

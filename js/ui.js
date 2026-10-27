@@ -2,6 +2,7 @@
 (function () {
   const D = window.DULI_DATA, E = window.DULI_ENGINE, Net = window.DULI_NET, FX = window.DULI_FX;
   const W = window.DULI_WORLD, WD = window.DULI_WORLD_DATA;
+  const MOOD = window.DULI_MOOD, CZ = window.DULI_CASINO;
   const isWorld = () => !!(App.S && W.MODES.includes(App.S.mode));
   const GB = () => W.board(App.S.mode);
   const ENG = () => (isWorld() ? W : E);
@@ -339,6 +340,7 @@
     if (t.id === 'set-go') o.goDouble = t.checked;
     if (t.id === 'set-mode') o.mode = t.value;
     if (t.id === 'set-rounds') o.maxRounds = Number(t.value);
+    if (t.id === 'set-mood') o.mood = t.checked;
     E.setSettings(App.S, o);
     commit();
   });
@@ -397,8 +399,10 @@
     const variantsHTML = `<div class="row-block"><span class="vb-title">Spielvariante<small>${esc(vText(VARIANTS.find((v) => v.id === curVar)))}</small></span>
       <div class="variant-grid">${VARIANTS.map((v) => `<button type="button" class="variant ${v.id === curVar ? 'is-on' : ''}" data-variant="${v.id}" ${ro}><span class="v-ic">${v.ic}</span><strong>${v.name}</strong><small>${vText(v)}</small></button>`).join('')}</div></div>`;
     $('#settings').innerHTML = variantsHTML + `
-      <label class="row"><span>Spielmodus<small>${world ? esc(W.board(st.mode).tagline) : 'Das Brett mit Duisburg und Öhringen'}</small></span>
-        <select id="set-mode" ${ro}>${[['classic', '🎲 Klassisch'], ['world', '🌍 DULIDAN WORLD'], ['royale', '🌀 DULIDAN ROYALE'], ['metro', '🚇 DULIDAN METRO'], ['tower', '🏙️ DULIDAN TOWER']].map(([v, l]) => `<option value="${v}" ${(st.mode || 'classic') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="row"><span>Spielmodus<small>${world ? esc(W.board(st.mode).tagline) : st.mode === 'casino' ? 'Jede Straße ist ein Casino. Wer bei dir landet, muss gegen deine Bank zocken. Ausbauen macht dein Casino korrupter.' : 'Das Brett mit Duisburg und Öhringen'}</small></span>
+        <select id="set-mode" ${ro}>${[['classic', '🎲 Klassisch'], ['casino', '🎰 DULIDAN CASINO'], ['world', '🌍 DULIDAN WORLD'], ['royale', '🌀 DULIDAN ROYALE'], ['metro', '🚇 DULIDAN METRO'], ['tower', '🏙️ DULIDAN TOWER']].map(([v, l]) => `<option value="${v}" ${(st.mode || 'classic') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="row"><span>💖 Aprils Laune<small>April mag jede Person anders, lässt sich bestechen, macht Geschenke – und rächt sich, wenn sie dich hasst</small></span>
+        <input type="checkbox" class="switch" id="set-mood" ${st.mood !== false ? 'checked' : ''} ${ro}></label>
       ${world ? `<p class="row"><span>Spielende<small>Kein Runden-Limit: Es gewinnt, wer zuletzt noch nicht pleite ist.${st.mode === 'royale' ? ' Der April-Sturm sorgt dafür.' : ` Ab Runde ${W.board(st.mode).RULES.crisis.from} steigen alle Mieten jede Runde (Krise).`}</small></span></p>` : ''}
       <label class="row"><span>Startgeld<small>Mit wie viel Dulis alle starten</small></span>
         <select id="set-money" ${ro}>${[1000, 1500, 2000, 3000].map((m) => `<option value="${m}" ${st.startMoney === m ? 'selected' : ''}>${M(m)}</option>`).join('')}</select></label>
@@ -453,6 +457,7 @@
     const act = e.target.closest('[data-act]');
     if (act) {
       const a = JSON.parse(act.dataset.act);
+      if (act.closest('#modal')) closeModal();
       if (a.type === 'bidCustom') {
         const v = Number($('#in-bid').value);
         return doAct({ type: 'bid', amt: v }, act.dataset.pid);
@@ -478,7 +483,13 @@
   function buildBoard() {
     if (!$('#die1')) $('#dice').innerHTML = cubeHTML('die1') + cubeHTML('die2');
     const board = $('#board');
-    if (board.querySelector('.cell')) return;
+    const casino = !!(App.S && App.S.isCasino);
+    const kind = casino ? 'casino' : 'classic';
+    if (board.dataset.kind === kind && board.querySelector('.cell')) return;
+    board.querySelectorAll('.cell').forEach((c) => c.remove());
+    board.dataset.kind = kind;
+    board.classList.toggle('is-casino', casino);
+    $('.center-sub').textContent = casino ? 'Casino Night · Duisburg' : 'Duisburg · Öhringen';
     SPACES.forEach((sp, i) => {
       const { r, c, side } = cellPos(i);
       const el = document.createElement('div');
@@ -495,7 +506,7 @@
           ? `<div class="cname">LOS</div><div class="cicon">${CORNER_ICON.go}</div><div class="csub">${esc(sp.sub)}</div>`
           : `<div class="cicon">${CORNER_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>${sp.sub ? `<div class="csub">${esc(sp.sub)}</div>` : ''}`;
       } else if (sp.type === 'prop') {
-        body = `<div class="cname">${esc(sp.name)}</div><div class="cprice">${M(sp.price)}</div>`;
+        body = `${casino ? `<div class="cgame">${CZ.INFO[CZ.GAMES[sp.group]].icon}</div>` : ''}<div class="cname">${esc(sp.name)}</div><div class="cprice">${M(sp.price)}</div>`;
       } else if (sp.type === 'rail' || sp.type === 'util') {
         body = `<div class="cicon">${sp.icon}</div><div class="cname">${esc(sp.name)}</div><div class="cprice">${M(sp.price)}</div>`;
       } else if (sp.type === 'tax') {
@@ -504,9 +515,11 @@
         body = `<div class="cicon">${sp.type === 'april' ? aprilIcon() : TYPE_ICON[sp.type]}</div><div class="cname">${esc(sp.name)}</div>`;
       }
       el.innerHTML = (sp.type === 'prop' ? `<div class="band" style="--g:${GROUPS[sp.group].color}"></div>` : '')
-        + `<div class="cell-body">${body}</div><div class="cell-tokens"></div>`;
+        + `<div class="cell-body">${body}</div>${['prop', 'rail', 'util'].includes(sp.type) ? '<div class="owner-flag"></div>' : ''}<div class="cell-tokens"></div>`;
       board.appendChild(el);
     });
+    if (board.dataset.kbd) return;
+    board.dataset.kbd = '1';
     board.addEventListener('keydown', (e) => {
       const cell = e.target.closest('.cell');
       if (cell && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openDeed(Number(cell.dataset.i)); }
@@ -531,7 +544,15 @@
         el.classList.toggle('is-mort', !!st.mort);
         if (owner) el.style.setProperty('--oc', owner.color);
         const band = el.querySelector('.band');
-        if (band) band.innerHTML = st.houses === 5 ? '<span class="hotel"></span>' : '<span class="house"></span>'.repeat(st.houses);
+        if (band) {
+          band.innerHTML = !S.isCasino ? (st.houses === 5 ? '<span class="hotel"></span>' : '<span class="house"></span>'.repeat(st.houses))
+            : st.houses ? `<span class="corr">${st.houses === 5 ? '💀' : '😈'.repeat(st.houses)}</span>` : '';
+        }
+        const fl = el.querySelector('.owner-flag');
+        const fk = owner ? owner.id : '';
+        if (fl && fl.dataset.k !== fk) { fl.dataset.k = fk; fl.innerHTML = owner ? tokHTML(owner.token, owner.color) : ''; }
+        const v = viewer();
+        el.classList.toggle('is-mine', !!owner && !!v && owner.id === v.id);
       }
       const here = S.players.filter((p) => !p.bankrupt && (App.disp[p.id] ?? p.pos) === i);
       const tokKey = here.map((p) => p.id).join(',');
@@ -580,6 +601,15 @@
     const S = App.S, sp = SPACES[i], st = S && S.props[i];
     const owner = st && P(st.owner);
     const ownerLine = st ? `<div class="deed-foot">${owner ? `Besitzer: <strong>${esc(owner.name)}</strong>${st.mort ? ' · mit Hypothek' : ''}` : 'Gehört der Bank'}</div>` : '';
+    if (sp.type === 'prop' && S && S.isCasino) {
+      const g = GROUPS[sp.group], game = CZ.GAMES[sp.group], info = CZ.INFO[game];
+      const lvl = st && owner ? st.houses : -1;
+      const rows = CZ.LEVELS.map((name, k) => `<tr class="${highlight && k === lvl ? 'is-now' : ''}"><td>${k === 0 ? '😇' : k === 5 ? '💀' : '😈'.repeat(k)} ${name}</td><td>${M(Math.max(20, sp.rent[k] * 2))} · ${game === 'blackjack' ? `Bank schummelt ${Math.round(CZ.rig(k) * 100)} %` : `${Math.round(CZ.chance(game, k) * 100)} % Chance`}</td></tr>`).join('');
+      return `<div class="deed"><div class="deed-head" style="--g:${g.color}">${info.icon} ${esc(sp.name)}<small>${info.name} · ${esc(g.name)}</small></div>
+        <p class="deed-note">${esc(info.text)} Der Einsatz ist die doppelte Miete (mindestens Ð20). Ganze Farbgruppe ohne Korruption: noch mal doppelt.</p>
+        <table><tr><th>Stufe</th><th>Einsatz · Chance für Gäste</th></tr>${rows}
+        <tr><td>Korruption kostet</td><td>${M(g.house)}</td></tr><tr><td>Hypothek</td><td>${M(sp.price / 2)}</td></tr><tr><td>Kaufpreis</td><td>${M(sp.price)}</td></tr></table>${ownerLine}</div>`;
+    }
     if (sp.type === 'prop') {
       const g = GROUPS[sp.group];
       const rows = [
@@ -640,11 +670,12 @@
     let h = '';
     if (isBusy()) {
       el.innerHTML = `<div class="action-head">${tokHTML(cur.token, cur.color)}<div><h3>${esc(cur.name)} ist dran</h3><small>${M(cur.money)}</small></div></div>
-        <p class="action-note rolling">${Date.now() < (App.walkAfter || 0) ? '🎲 Die Würfel rollen …' : '🚶 unterwegs …'}</p>`;
+        <p class="action-note rolling">${Date.now() < (App.walkAfter || 0) ? '🎲 Die Würfel rollen …' : App.czAnim && Date.now() < App.czAnim.until ? '🎰 Es wird gezockt …' : '🚶 unterwegs …'}</p>`;
       return;
     }
     if (S.event) h += `<div class="news"><strong>📰 April-News · Runde ${S.round}</strong><span>${esc(S.event.t)}</span></div>`;
-    else if (S.maxRounds) h += `<div class="news"><strong>⚡ Blitz · Runde ${S.round}/${S.maxRounds}</strong><span>Danach gewinnt der Reichste.</span></div>`;
+    h += moodNewsHTML();
+    if (S.maxRounds && !S.event) h += `<div class="news"><strong>⚡ Blitz · Runde ${S.round}/${S.maxRounds}</strong><span>Danach gewinnt der Reichste.</span></div>`;
 
     // Offenes Handelsangebot
     if (S.trade) {
@@ -683,7 +714,8 @@
       <small>${M(cur.money)} · ${esc(SPACES[cur.pos].name)}${cur.id !== myId && App.mode === 'host' && !cur.connected ? ' · offline – du spielst für sie/ihn' : ''}</small></div></div>`;
 
     if (!me) {
-      const what = { roll: 'würfelt gleich', berlingo: 'überlegt sich das Berlingo-Manöver', buy: `überlegt, ob ${esc(SPACES[cur.pos].name)} gekauft wird`, card: 'liest eine Karte', debt: 'muss Schulden begleichen', end: 'beendet gleich den Zug' }[S.sub] || '';
+      const what = { roll: 'würfelt gleich', berlingo: 'überlegt sich das Berlingo-Manöver', buy: `überlegt, ob ${esc(SPACES[cur.pos].name)} gekauft wird`, card: 'liest eine Karte', debt: 'muss Schulden begleichen', end: 'beendet gleich den Zug', casino: 'zockt im Casino' }[S.sub] || '';
+      if (S.sub === 'casino' && S.casino) h += casinoInfoHTML(S.casino) + (S.casino.bj ? bjHandsHTML(S.casino.bj, false) : '');
       h += `<p class="action-note">${esc(cur.name)} ${what} …</p>`;
       el.innerHTML = h;
       return;
@@ -706,6 +738,18 @@
           }
         }
         if (canTrade) h += uiBtn('Handeln', 'trade', 'btn-ghost');
+        h += bribeBtn(cur);
+        break;
+      }
+      case 'casino': {
+        const c = S.casino, info = CZ.INFO[c.game];
+        h += casinoInfoHTML(c);
+        if (c.bj) {
+          h += bjHandsHTML(c.bj, false);
+          h += `<div class="btn-row">${btn('🃏 Karte', { type: 'bjHit' }, pid, 'btn-primary')}${btn('✋ Halten', { type: 'bjStand' }, pid)}</div>`;
+        } else {
+          h += `<div class="btn-row cz-choices">${info.choices.map(([k, l]) => btn(l, { type: 'casinoPlay', choice: k }, pid, 'btn-primary')).join('')}</div>`;
+        }
         break;
       }
       case 'berlingo': {
@@ -744,6 +788,7 @@
       }
       case 'end': {
         h += `<div class="btn-row">${btn('Zug beenden', { type: 'endTurn' }, pid, 'btn-primary', !!S.trade)}${canTrade ? uiBtn('Handeln', 'trade', 'btn-ghost') : ''}</div>`;
+        h += bribeBtn(cur);
         break;
       }
     }
@@ -790,6 +835,7 @@
         ${tokHTML(p.token, p.color)}
         <div style="min-width:0"><div class="pname">${esc(p.name)} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</div>
           <div class="swatches">${owned.map((k) => `<i class="${S.props[k].mort ? 'is-mort' : ''}" style="--g:${SPACES[k].group ? GROUPS[SPACES[k].group].color : '#cfc3e6'}" title="${esc(SPACES[k].name)}"></i>`).join('')}</div>
+          ${likeHTML(p)}
           <div class="pmeta">${meta.join('')}</div></div>
         <div class="pmoney">${M(p.money)}</div>${goalBar(p)}</li>`;
     }).join('');
@@ -823,14 +869,20 @@
       const sp = SPACES[k], st = S.props[k];
       const color = sp.group ? GROUPS[sp.group].color : '#cfc3e6';
       let info = st.mort ? 'Hypothek' : '';
-      if (sp.type === 'prop' && st.houses) info = st.houses === 5 ? 'Hotel' : `${st.houses} ${st.houses === 1 ? 'Haus' : 'Häuser'}`;
-      if (!info) info = sp.type === 'rail' ? 'Bahnhof' : sp.type === 'util' ? 'Werk' : 'Keine Häuser';
+      if (sp.type === 'prop' && S.isCasino) info = `${CZ.INFO[CZ.GAMES[sp.group]].icon} ${CZ.LEVELS[st.houses]}${st.mort ? ' · geschlossen (Hypothek)' : ''}`;
+      else if (sp.type === 'prop' && st.houses) info = st.houses === 5 ? 'Hotel' : `${st.houses} ${st.houses === 1 ? 'Haus' : 'Häuser'}`;
+      if (!info) info = sp.type === 'rail' ? (S.isCasino ? 'Casino-Shuttle' : 'Bahnhof') : sp.type === 'util' ? (S.isCasino ? 'Wechselstube' : 'Werk') : 'Keine Häuser';
       let btns = '';
       if (manage) {
         if (sp.type === 'prop' && !st.mort && E.ownsGroup(S, v.id, sp.group)) {
           const cost = E.houseCost(v, sp.group, S);
-          if (st.houses < 5) btns += btn(st.houses === 4 ? `+Hotel ${M(cost)}` : `+Haus ${M(cost)}`, { type: 'build', idx: k }, v.id, '', v.money < cost);
-          if (st.houses > 0) btns += btn('−', { type: 'sell', idx: k }, v.id, 'btn-ghost', false, 'Gebäude verkaufen (halber Preis)');
+          if (S.isCasino) {
+            if (st.houses < 5) btns += btn(`+😈 ${M(cost)}`, { type: 'build', idx: k }, v.id, '', v.money < cost, `Korrupter machen: ${CZ.LEVELS[st.houses + 1]}`);
+            if (st.houses > 0) btns += btn('−', { type: 'sell', idx: k }, v.id, 'btn-ghost', false, 'Korruption zurückfahren (halber Preis zurück)');
+          } else {
+            if (st.houses < 5) btns += btn(st.houses === 4 ? `+Hotel ${M(cost)}` : `+Haus ${M(cost)}`, { type: 'build', idx: k }, v.id, '', v.money < cost);
+            if (st.houses > 0) btns += btn('−', { type: 'sell', idx: k }, v.id, 'btn-ghost', false, 'Gebäude verkaufen (halber Preis)');
+          }
         }
         if (!st.mort && !(sp.type === 'prop' && E.groupHasHouses(S, sp.group))) btns += btn(`Hypothek +${M(sp.price / 2)}`, { type: 'mortgage', idx: k }, v.id, 'btn-ghost');
         if (st.mort) btns += btn(`Einlösen ${M(E.unmortgageCost(k))}`, { type: 'unmortgage', idx: k }, v.id, 'btn-ghost', v.money < E.unmortgageCost(k));
@@ -846,7 +898,7 @@
     // Während Würfel rollen und Figur läuft, nichts verraten
     if (isBusy() && App.logHoldSeq != null) lines = S.log.slice(0, Math.max(0, S.log.length - (S.logSeq - App.logHoldSeq)));
     else App.logHoldSeq = S.logSeq;
-    $('#log').innerHTML = lines.slice(-40).reverse().map((m) => `<li class="${m.startsWith('April:') ? 'is-april' : ''}">${esc(m)}</li>`).join('');
+    $('#log').innerHTML = lines.slice(-40).reverse().map((m) => `<li class="${m.startsWith('April:') ? 'is-april' : m.startsWith('🎙️') ? 'is-april is-cast' : ''}">${esc(m)}</li>`).join('');
   }
 
   // ---------- Handel ----------
@@ -899,6 +951,7 @@
       return App.S && App.S.phase !== 'lobby' ? render() : null;
     }
     if (kind === 'cityInfo') return openCity(data.id);
+    if (kind === 'bribe') return bribeModal();
     if (kind === 'tradeTo') { App.trade = { to: data.id }; return tradeModal(); }
     if (kind === 'tradeSend') {
       const vals = (name) => [...document.querySelectorAll(`input[name="${name}"]:checked`)].map((x) => (isWorld() ? x.value : Number(x.value)));
@@ -922,6 +975,7 @@
         Object.assign(N.players[N.players.length - 1], { token: p.token, connected: p.connected, bot: !!p.bot });
       });
       App.disp = {};
+      App.czSeq = null; App.castKey = null;
       App.S = N;
       startByMode(N);
       closeModal();
@@ -1056,7 +1110,7 @@
 
   // ---------- Sounds aus dem Verlauf ----------
   const SOUND_RULES = [
-    ['win', /gewinnt/], ['pot', /Spardose/], ['jail', /nach Düsseldorf/],
+    ['win', /gewinnt(?!.*\bbei\b)/], ['pot', /Spardose/], ['jail', /nach Düsseldorf/],
     ['jail', /Übernahme|KOLLABIERT|Sturm-Warnung/], ['pot', /Loot-Kiste/], ['card', /Aufzug|Rutsche|springt durch/], ['build', /baut/], ['card', /zieht eine|April-News|fliegt/], ['roll', /würfelt/], ['step', /reist nach/],
   ];
   function playSounds() {
@@ -1068,7 +1122,7 @@
     if (n <= 0) return;
     const freshLines = S.log.slice(-n);
     const fresh = freshLines.join('\n');
-    const aprilLine = freshLines.filter((l) => l.startsWith('April:') || /April-News|April-Chaos|^(⚡|💸|💖|💀) /.test(l)).pop();
+    const aprilLine = freshLines.filter((l) => l.startsWith('April:') || /April-News|April-Chaos|^(⚡|💸|💖|💀) (Blitz|Millionär|April-Chaos|Hardcore)/.test(l)).pop();
     if (aprilLine) showApril(aprilLine.replace(/^April:\s*/, '').replace(/^📰 April-News, Runde \d+: /, '📰 '));
     const hit = SOUND_RULES.find(([, re]) => re.test(fresh));
     if (hit) FX.play(hit[0]);
@@ -1084,6 +1138,11 @@
   $('#btn-sound').onclick = () => { $('#btn-sound').textContent = FX.toggle() ? '🔇' : '🔊'; };
 
   // ---------- Topbar ----------
+  $('#btn-mine').onclick = () => {
+    const on = $('#board-wrap').classList.toggle('show-mine');
+    $('#btn-mine').textContent = on ? '🏠 Alle Felder' : '🏠 Meine Felder';
+    $('#btn-mine').classList.toggle('is-on', on);
+  };
   $('#btn-zoom').onclick = () => {
     const w = $('#board-wrap');
     w.classList.toggle('is-zoomed');
@@ -1109,6 +1168,8 @@
       <li>🤖 Bots kann der Host in der Lobby hinzufügen. Sie spielen automatisch.</li>
       <li>Hausregeln (Startgeld, Spardose, Doppelt auf LOS) stellt der Host in der Lobby ein.</li>
       <li>Am Ende gibt es Awards wie Miethai, Pasch-König und Düsseldorf-Stammgast.</li></ul>
+    ${App.S && App.S.isCasino ? casinoRulesHTML() : ''}
+    ${moodRulesHTML()}
     ${variantRulesHTML()}
     <h3>Figuren</h3><ul>${Object.values(TOKENS).map((t) => `<li><strong>${esc(t.name)}:</strong> ${esc(t.power)}</li>`).join('')}</ul></div>`));
   function variantRulesHTML() {
@@ -1152,6 +1213,7 @@
     return `<g class="city n-${t}${c.hub ? ' n-hub' : ''}" data-city="${c.id}" transform="translate(${x},${y})" tabindex="0" role="button" aria-label="${esc(c.name)}">
       <circle class="hit" r="15"/>
       <circle class="reach" r="17"/>
+      <circle class="own" r="16"/>
       <circle class="ring" r="${t === 'prop' ? 11 : 12}" style="stroke:${color}"/>
       <circle class="core" r="${t === 'prop' ? 7 : 9}"/>
       ${inner}
@@ -1444,6 +1506,7 @@
       const owner = P(st.owner);
       g.style.setProperty('--oc', owner ? owner.color : 'transparent');
       g.classList.toggle('is-owned', !!owner);
+      g.classList.toggle('is-mine', !!owner && !!viewer() && owner.id === viewer().id);
       g.classList.toggle('is-mort', !!st.mort);
       g.classList.toggle('is-dead', !!(S.dead && S.dead[id]));
       g.classList.toggle('is-warn', !!warnRing && gb.CITY[id].ring === warnRing);
@@ -1507,6 +1570,7 @@
         ? `<div class="news is-storm"><strong>📈 ${S.mode === 'world' ? 'Weltwirtschaftskrise' : 'Dulidan-Krise'}</strong><span>Alle ${rw} +${Math.round(S.inflation * 100)} % – und es wird jede Runde schlimmer.</span></div>`
         : `<div class="news"><strong>📈 Krise in Runde ${crisis.from}</strong><span>Ab dann steigen alle ${rw} jede Runde. Spiel läuft, bis alle bis auf einen pleite sind.</span></div>`;
     }
+    h += moodNewsHTML();
     if (S.trade) {
       const from = P(S.trade.from), to = P(S.trade.to);
       const side = (sd) => {
@@ -1546,6 +1610,7 @@
         }[S.mode]}</p>`;
         if (cur.items && (cur.items.shield || cur.items.boost)) h += `<p class="action-note">Deine Items: ${cur.items.shield ? `🛡️ ×${cur.items.shield} ` : ''}${cur.items.boost ? `⚡ ×${cur.items.boost}` : ''}</p>`;
         if (canTrade) h += uiBtn('Handeln', 'trade', 'btn-ghost');
+        h += bribeBtn(cur);
         break;
       }
       case 'pick': {
@@ -1600,6 +1665,7 @@
         }
         h += `<div class="btn-row">${btn(S.again ? 'Weiter (Pasch: nochmal würfeln)' : 'Zug beenden', { type: 'endTurn' }, pid, 'btn-primary', !!S.trade)}${canTrade ? uiBtn('Handeln', 'trade', 'btn-ghost') : ''}</div>`;
         h += `<p class="action-note">Bauen kannst du unten bei deinen ${words().cities}, sobald dir eine ganze ${words().zone} gehört.</p>`;
+        h += bribeBtn(cur);
         break;
       }
       case 'debt': {
@@ -1634,6 +1700,7 @@
         ${tokHTML(p.token, p.color)}
         <div style="min-width:0"><div class="pname">${esc(p.name)} ${p.bot ? '<span class="bot-tag">BOT</span>' : ''}</div>
           <div class="swatches">${owned.map((id) => `<i class="${S.cities[id].mort ? 'is-mort' : ''}" style="--g:${GB().ZONES[GB().CITY[id].zone].color}" title="${esc(GB().CITY[id].name)}"></i>`).join('')}</div>
+          ${likeHTML(p)}
           <div class="pmeta">${meta.join('')}</div></div>
         <div class="pmoney">${M(p.money)}</div>${goalBar(p)}</li>`;
     }).join('');
@@ -1692,10 +1759,183 @@
       <h3>Geld knapp?</h3><ul>
         <li>Gebäude abreißen (halber Preis zurück) oder Hypotheken aufnehmen. Kannst du nicht zahlen, bist du pleite und raus.</li></ul>
       ${g.EVENTS.length ? '<h3>📰 April-News</h3><ul><li>Jede Runde eine Nachricht: Mietparty, Stau, drei Würfel, Rezession und mehr.</li></ul>' : ''}
+      ${moodRulesHTML()}
       ${variantRulesHTML()}
       <h3>Figuren</h3><ul>${Object.entries(GB().POWERS).map(([k, t]) => `<li><strong>${esc(TOKENS[k].name)}:</strong> ${esc(t)}</li>`).join('')}</ul></div>`;
   }
 
+
+
+
+  // ================= APRILS LAUNE =================
+  function likeHTML(p) {
+    if (!MOOD.on(App.S) || p.bankrupt || p.like == null) return '';
+    const l = MOOD.levelOf(p.like);
+    return `<div class="like lv-${l.id}" title="April ${l.name} (${p.like}/100)"><span>${l.icon}</span><div class="like-bar"><i style="width:${p.like}%"></i></div><small>${l.name}</small></div>`;
+  }
+  function moodNewsHTML() {
+    const S = App.S;
+    if (!MOOD.on(S)) return '';
+    const d = MOOD.DAYS[S.mood.day];
+    return `<div class="news mood-news mood-${S.mood.day}"><strong>${aprilIcon('mn-april')} Aprils Laune: ${d.icon} ${d.name}</strong><span>${d.text}</span></div>`;
+  }
+  function bribeBtn(cur) {
+    const S = App.S;
+    if (!MOOD.on(S)) return '';
+    const done = cur.bribeTurn === S.turnNo;
+    return uiBtn(done ? '💸 April ist bestochen' : '💸 April bestechen', 'bribe', 'btn-ghost btn-small btn-bribe', done ? 'disabled' : '');
+  }
+  function bribeModal() {
+    const S = App.S, p = curP();
+    if (!canControl(p.id) || !MOOD.on(S)) return;
+    const l = MOOD.levelOf(p.like);
+    openModal(`<h2>${aprilIcon('bribe-april')} April bestechen</h2>
+      <p class="action-note">April ${l.icon} <strong>${l.name}</strong> (${p.like}/100). Je mehr Dulis, desto lieber hat sie dich – meistens. Das Geld landet in ${S.mode && W.MODES.includes(S.mode) ? 'Aprils Taschen' : 'Aprils Spardose'}.</p>
+      <ul class="bribe-info"><li>💖 Liebling: öfter gute Karten, ab und zu ein Geschenk, mehr Glück im Casino.</li><li>💔 Hass: fiese Karten, und April reißt Häuser ab oder packt deine Straßen in Hypothek.</li></ul>
+      <div class="btn-row">${Object.keys(MOOD.BRIBES).map((a) => btn(`💸 ${M(a)}`, { type: 'bribe', amt: Number(a) }, p.id, Number(a) === 100 ? 'btn-primary' : '', p.money < Number(a))).join('')}</div>`);
+  }
+  function castBanner() {
+    const S = App.S, c = S.mood && S.mood.cast;
+    if (!c) return;
+    const key = `${c.seq}|${c.text}`;
+    if (App.castKey == null) { App.castKey = key; return; }
+    if (key === App.castKey) return;
+    App.castKey = key;
+    const delay = Math.max(0, (App.busyUntil || 0) - Date.now()) + 150;
+    clearTimeout(App.castT);
+    App.castT = setTimeout(() => {
+      const el = $('#cast');
+      $('#cast-text').textContent = c.text;
+      el.hidden = false;
+      el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+      FX.play('pop');
+      clearTimeout(App.castHideT);
+      App.castHideT = setTimeout(() => { el.hidden = true; }, 4600);
+    }, delay);
+  }
+  function moodRulesHTML() {
+    return `<h3>💖 Aprils Laune</h3><ul>
+      <li>April mag jede Person anders (Herz neben dem Namen): 💔 Hass · 🩶 mag dich nicht · 💗 okay · 💖 Liebling.</li>
+      <li>Bestechen geht einmal pro Zug (Ð50, Ð100 oder Ð200). Manchmal findet April das zu billig.</li>
+      <li>Wer zu reich wird oder abzockt, nervt sie. Wer arm ist oder ihre Felder besucht, tut ihr leid.</li>
+      <li>Liebling: öfter gute Karten, ab und zu ein Geschenk, im Casino mehr Glück.</li>
+      <li>Hass: öfter fiese Karten – und April rächt sich: Sie reißt ein Haus ab oder packt eine Straße in Hypothek (das Geld behält sie).</li>
+      <li>Tageslaune jede Runde: 😊 Ð25 extra Gehalt · 😡 Steuern doppelt, fiese Karten ×1,5.</li></ul>`;
+  }
+  function casinoRulesHTML() {
+    return `<h3>🎰 DULIDAN CASINO</h3><ul>
+      <li>Jede Straße ist ein Casino. Landest du bei jemand anderem, spielst du dort gegen die Bank. Der Einsatz ist die doppelte Miete.</li>
+      <li>Verloren: Du zahlst den Einsatz. Gewonnen: Der Besitzer zahlt ihn dir aus.</li>
+      <li>Statt Häusern machst du dein Casino korrupter: ${CZ.LEVELS.join(' → ')}. Jede Stufe erhöht den Einsatz und senkt die Gewinnchance der Gäste.</li>
+      <li>Spiele: ${Object.entries(CZ.GAMES).map(([g, k]) => `${CZ.INFO[k].icon} ${CZ.INFO[k].name} (${GROUPS[g].name})`).join(', ')}.</li>
+      <li>Bahnhöfe sind Casino-Shuttles, Werke sind Wechselstuben – dort zahlst du ganz normal.</li></ul>`;
+  }
+
+  // ================= CASINO =================
+  const cardName = (v) => ({ 11: 'B', 12: 'D', 13: 'K', 14: 'A' }[v] || String(v));
+  function casinoInfoHTML(c) {
+    const info = CZ.INFO[c.game], owner = P(c.owner);
+    return `<div class="cz-info"><div class="cz-title"><span class="cz-ic">${info.icon}</span><div><strong>${info.name}</strong><small>${esc(SPACES[c.idx].name)} von ${esc(owner.name)} · ${CZ.LEVELS[c.level]}</small></div></div>
+      <p>${esc(info.text)}</p>
+      <div class="cz-stats"><span>Einsatz <strong>${M(c.stake)}</strong></span><span>${c.game === 'blackjack' ? `Bank schummelt <strong>${Math.round(c.rig * 100)} %</strong>` : `Deine Chance <strong>${Math.round(c.chance * 100)} %</strong>`}</span></div>
+      ${c.game === 'hilo' ? `<p class="cz-open">Offene Karte: <span class="pcard mini">${cardName(c.card)}</span></p>` : ''}</div>`;
+  }
+  const isRed = (card) => /[♥♦]$/.test(card);
+  function bjHandsHTML(bj, reveal) {
+    const show = reveal || bj.over;
+    const cards = (list, hide) => list.map((c, i) => (hide && i === 1 ? '<span class="pcard back">?</span>' : `<span class="pcard ${isRed(c) ? 'red' : ''}">${c}</span>`)).join('');
+    return `<div class="bj"><div class="bj-row"><small>Bank${show ? ` · ${CZ.value(bj.dealer)}` : ''}</small><div>${cards(bj.dealer, !show)}</div></div>
+      <div class="bj-row"><small>Du · ${CZ.value(bj.player)}</small><div>${cards(bj.player, false)}</div></div></div>`;
+  }
+  const HORSE_IC = { 1: '🐎', 2: '🦄', 3: '🐴', 4: '🫏' };
+  const SLOT_IC = ['🍒', '🍋', '🔔', '⭐', '7️⃣', '💎'];
+  function czAnimHTML(sh, dur) {
+    const x = sh.show || {};
+    const choice = (CZ.INFO[sh.game].choices.find(([k]) => k === sh.choice) || [, ''])[1];
+    let stage = '';
+    switch (sh.game) {
+      case 'coin':
+        stage = `<div class="cz-coin"><span class="coin-spin">🪙</span></div><div class="cz-reveal">${x.side === 'kopf' ? '👑 KOPF' : '🔢 ZAHL'}</div><div class="cz-sub">Getippt: ${choice}</div>`;
+        break;
+      case 'dice':
+        stage = `<div class="cz-dice"><div><small>${esc(P(sh.pid).name)}</small><div class="die-flat">${dieHTML(x.a)}</div></div><div class="cz-vs">VS</div><div><small>Bank</small><div class="die-flat">${dieHTML(x.b)}</div></div></div>`;
+        break;
+      case 'hilo':
+        stage = `<div class="cz-cards"><span class="pcard big">${cardName(x.card)}</span><span class="cz-arrow">${sh.choice === 'hi' ? '⬆' : '⬇'}</span><span class="pcard big flip">${cardName(x.next)}</span></div><div class="cz-sub">Getippt: ${choice}</div>`;
+        break;
+      case 'wheel': {
+        const seg = 360 / CZ.WHEEL.length;
+        const rot = x.spin * 360 + (360 - (x.seg * seg + seg / 2));
+        const grad = CZ.WHEEL.map((w, i) => `${w === 'win' ? '#2fe08a' : '#ff3348'} ${i * seg}deg ${(i + 1) * seg}deg`).join(',');
+        stage = `<div class="cz-wheel"><div class="wheel" style="--rot:${rot}deg;background:conic-gradient(${grad})"></div><div class="wheel-pin">▼</div></div>`;
+        break;
+      }
+      case 'roulette':
+        stage = `<div class="cz-roul"><div class="roul-wheel"><i></i></div><div class="cz-reveal roul-n c-${x.color}">${x.n}</div></div><div class="cz-sub">Gesetzt: ${choice}</div>`;
+        break;
+      case 'horses':
+        stage = `<div class="cz-race">${['1', '2', '3', '4'].map((h) => {
+          const rank = x.order.indexOf(h);
+          return `<div class="lane ${h === sh.choice ? 'is-pick' : ''}"><span class="horse" style="--t:${Math.round(dur * (0.78 + rank * 0.07))}ms">${HORSE_IC[h]}</span></div>`;
+        }).join('')}</div><div class="cz-sub">Gesetzt: ${choice}</div>`;
+        break;
+      case 'slots':
+        stage = `<div class="cz-slots">${x.reels.map((r, i) => {
+          const strip = [];
+          for (let k = 0; k < 10 + i * 4; k++) strip.push(SLOT_IC[Math.floor(Math.random() * SLOT_IC.length)]);
+          strip.push(r);
+          return `<div class="reel"><div class="strip" style="--t:${Math.round(dur * (0.6 + i * 0.18))}ms;--n:${strip.length - 1}">${strip.map((e) => `<span>${e}</span>`).join('')}</div></div>`;
+        }).join('')}</div>`;
+        break;
+      case 'blackjack':
+        stage = sh.bj ? bjHandsHTML(sh.bj, true) : '';
+        break;
+    }
+    const res = sh.push ? '🤝 Unentschieden – Einsatz zurück'
+      : sh.win ? `${sh.jackpot ? '💎 JACKPOT!' : '🎉 GEWONNEN!'} +${M(sh.paid || 0)}`
+        : `💸 VERLOREN −${M(sh.stake)}`;
+    return `<div class="cz-stage g-${sh.game}" style="--d:${dur}ms">
+      <div class="cz-head">${CZ.INFO[sh.game].icon} ${CZ.INFO[sh.game].name} · ${esc(SPACES[sh.idx].name)}</div>
+      ${stage}
+      <div class="cz-result ${sh.push ? 'is-push' : sh.win ? 'is-win' : 'is-lose'}"><strong>${esc(P(sh.pid).name)}</strong> ${res}</div></div>`;
+  }
+  function czTableHTML(c) {
+    const info = CZ.INFO[c.game];
+    return `<div class="cz-stage is-table"><div class="cz-head">${info.icon} ${info.name} · ${esc(SPACES[c.idx].name)}</div>
+      <div class="cz-big">${info.icon}</div>
+      ${c.bj ? bjHandsHTML(c.bj, false) : c.game === 'hilo' ? `<div class="cz-cards"><span class="pcard big">${cardName(c.card)}</span><span class="cz-arrow">?</span><span class="pcard big back">?</span></div>` : ''}
+      <div class="cz-sub"><strong>${esc(P(c.pid).name)}</strong> spielt um ${M(c.stake)} gegen ${esc(P(c.owner).name)}s Bank</div></div>`;
+  }
+  function renderCasino() {
+    const S = App.S, el = $('#casino-view');
+    if (!S.isCasino) { el.hidden = true; return; }
+    const sh = S.casinoShow;
+    const key = sh ? `${sh.seq}|${sh.idx}|${sh.pid}|${sh.stake}` : '';
+    if (App.czSeq == null) App.czSeq = key;
+    if (sh && key !== App.czSeq) {
+      App.czSeq = key;
+      const dur = fastMode ? 1100 : 2800;
+      App.czAnim = { until: Date.now() + dur + 2600 };
+      holdActions(dur + 250);
+      el.innerHTML = czAnimHTML(sh, dur);
+      el.hidden = false;
+      $('#center-card').hidden = true;
+      if (!fastMode) [0, 500, 1000, 1500].forEach((t) => setTimeout(() => FX.play(sh.game === 'slots' || sh.game === 'wheel' ? 'step' : 'roll'), t));
+      setTimeout(() => FX.play(sh.win ? 'win' : sh.push ? 'pop' : 'jail'), dur);
+      clearTimeout(App.czHideT);
+      App.czHideT = setTimeout(() => { if (App.S) renderCasino(); }, dur + 2650);
+      return;
+    }
+    if (App.czAnim && Date.now() < App.czAnim.until) return;
+    if (S.casino && S.sub === 'casino' && S.phase === 'play' && !isBusy()) {
+      const k = `t|${S.casino.idx}|${S.casino.bj ? S.casino.bj.player.length : 0}`;
+      if (el.dataset.k !== k || el.hidden) { el.dataset.k = k; el.innerHTML = czTableHTML(S.casino); }
+      el.hidden = false;
+      return;
+    }
+    el.dataset.k = '';
+    el.hidden = true;
+  }
 
 
   // ================= GELD LIVE: +Ð / −Ð fliegt hoch =================
@@ -1865,14 +2105,17 @@
       renderWorldPlayers();
       renderWorldProps();
     } else {
+      buildBoard();
       planClassicMove();
       if (!App.animT) animateTokens(); else renderBoard();
+      renderCasino();
       renderAction();
       renderPlayers();
       renderProps();
     }
     renderLog();
     playSounds();
+    castBanner();
     moneyPops();
     if (S.phase === 'over' && App.lastPhase !== 'over') {
       FX.confetti();

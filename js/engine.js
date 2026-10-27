@@ -1,6 +1,9 @@
 // Dulidanopoly – Spielregeln. Läuft nur beim Host; Clients bekommen den Zustand geschickt.
 (function (root) {
-  const D = (typeof module !== 'undefined' && module.exports) ? require('./data.js') : root.DULI_DATA;
+  const isNode = typeof module !== 'undefined' && module.exports;
+  const D = isNode ? require('./data.js') : root.DULI_DATA;
+  const MOOD = isNode ? require('./mood.js') : root.DULI_MOOD;
+  const CASINO = isNode ? require('./casino.js') : root.DULI_CASINO;
   const { SPACES, GROUPS, RAILS, UTILS, TOKENS, APRIL_CARDS, STUDIO_CARDS, START_MONEY, GO_MONEY, PLAYER_COLORS, APRIL_SAYS, APRIL_FIELD } = D;
   const CARDS = { april: APRIL_CARDS, studio: STUDIO_CARDS };
   const DECK_NAME = { april: 'April-Karte', studio: 'Studio-Karte' };
@@ -170,7 +173,8 @@
     if ([1000, 1500, 2000, 3000].includes(sm)) S.settings.startMoney = sm;
     if (typeof o.pot === 'boolean') S.settings.pot = o.pot;
     if (typeof o.goDouble === 'boolean') S.settings.goDouble = o.goDouble;
-    if (['classic', 'world', 'royale', 'metro', 'tower'].includes(o.mode)) S.settings.mode = o.mode;
+    if (['classic', 'casino', 'world', 'royale', 'metro', 'tower'].includes(o.mode)) S.settings.mode = o.mode;
+    if (typeof o.mood === 'boolean') S.settings.mood = o.mood;
     if (VARIANTS.includes(o.variant)) S.settings.variant = o.variant;
     if ([0, 15, 20, 30, 50].includes(Number(o.maxRounds))) S.settings.maxRounds = Number(o.maxRounds);
     return null;
@@ -198,6 +202,9 @@
     SPACES.forEach((s, i) => { if (BUYABLE.includes(s.type)) S.props[i] = { owner: null, houses: 0, mort: false }; });
     S.decks = { april: shuffle(APRIL_CARDS.map((_, i) => i)), studio: shuffle(STUDIO_CARDS.map((_, i) => i)) };
     S.phase = 'play'; S.cur = 0; S.sub = 'roll'; S.turnNo = 1; S.pot = 0; S.round = 1; S.event = null;
+    S.isCasino = S.settings.mode === 'casino';
+    S.casino = null; S.casinoShow = null; S.casinoSeq = 0;
+    MOOD.init(S);
     const variant = S.settings.variant || 'normal';
     S.maxRounds = variant === 'blitz' ? 20 : 0;
     S.goal = variant === 'million' ? GOAL_WORTH : 0;
@@ -207,7 +214,7 @@
       idx.forEach((k, i) => { S.props[k].owner = S.players[i % S.players.length].id; });
     }
     S.log = [];
-    log(S, `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
+    log(S, S.isCasino ? `🎰 DULIDAN CASINO öffnet! ${S.players[0].name} beginnt.` : `Dulidanopoly startet! ${S.players[0].name} beginnt.`);
     const intro = { blitz: '⚡ Blitz: Alle Felder sind verteilt. Nach 20 Runden gewinnt der Reichste!', million: `💸 Millionär: Wer zuerst ${money(GOAL_WORTH)} Vermögen hat, gewinnt!`, chaos: '💖 April-Chaos: Jede Runde passiert irgendwas. Ihr wurdet gewarnt.', hardcore: '💀 Hardcore: Ð800 Startgeld, alle Mieten ×1,5. Viel Glück.' }[variant];
     if (intro) log(S, intro);
     return null;
@@ -215,7 +222,7 @@
 
   // ---------- Zugablauf ----------
   function passGo(S, p) {
-    const amt = GO_MONEY + (p.token === 'zebra' ? 50 : 0);
+    const amt = GO_MONEY + (p.token === 'zebra' ? 50 : 0) + MOOD.salaryBonus(S);
     p.money += amt;
     log(S, `${p.name} zieht über LOS und kassiert ${money(amt)}.`);
     quip(S, 'go', 0.2);
@@ -268,6 +275,7 @@
     S.debt = { pid: p.id, items, afterMove: null };
     S.sub = 'debt';
     log(S, `${p.name} fehlen ${money(total - p.money)}. Hypotheken aufnehmen, Häuser verkaufen oder handeln!`);
+    MOOD.debt(S, p, total - p.money);
     return false;
   }
 
@@ -283,19 +291,25 @@
       if (st.mort) { log(S, `${sp.name} ist mit einer Hypothek belastet. Keine Miete.`); return proceed(S); }
       const owner = P(S, st.owner);
       const rent = calcRent(S, p.pos, p);
+      if (S.isCasino && sp.type === 'prop') return enterCasino(S, p, p.pos, owner, Math.max(20, rent * 2));
       log(S, `${p.name} zahlt ${money(rent)} Miete an ${owner.name}.`);
       if (p.stats) { p.stats.rentPaid += rent; p.stats.maxRent = Math.max(p.stats.maxRent, rent); }
       if (owner.stats) owner.stats.rentGot += rent;
       if (rent >= 200) quip(S, 'bigRent', 0.8);
+      MOOD.rentPaid(S, p, owner, rent);
       if (charge(S, p, [{ to: owner.id, amt: rent }])) proceed(S);
       return;
     }
     switch (sp.type) {
-      case 'tax':
-        log(S, `${sp.name}! ${p.name} zahlt ${money(sp.amount)}.`);
-        if (charge(S, p, [{ to: null, amt: sp.amount }])) proceed(S);
+      case 'tax': {
+        const amt = sp.amount * MOOD.taxMult(S);
+        log(S, `${sp.name}! ${p.name} zahlt ${money(amt)}${amt > sp.amount ? ' (April ist sauer: doppelt!)' : ''}.`);
+        if (charge(S, p, [{ to: null, amt }])) proceed(S);
         return;
+      }
       case 'april':
+        MOOD.aprilField(S, p);
+        return drawCard(S, sp.type);
       case 'studio':
         return drawCard(S, sp.type);
       case 'gotojail':
@@ -359,6 +373,7 @@
     if (dbl) {
       S.doublesCount++;
       if (p.stats) p.stats.doubles++;
+      if (S.doublesCount === 2) MOOD.doubles(S, p);
       if (p.token === 'doener') { p.money += 20; log(S, `Döner-Pasch: ${p.name} bekommt ${money(20)}. Mit allem, scharf! 🥙`); }
       if (S.doublesCount >= 3) {
         log(S, `Drei Pasch hintereinander!`);
@@ -402,8 +417,32 @@
       if (S.maxRounds && S.round > S.maxRounds) { log(S, `Runde ${S.maxRounds} ist vorbei!`); return endGame(S); }
       if (S.settings && S.settings.variant === 'chaos') chaosEvent(S);
       else S.event = null;
+      MOOD.newRound(S, active(S), (q) => netWorth(S, q));
     }
     log(S, `${curP(S).name} ist dran.`);
+    MOOD.turnStart(S, curP(S), moodApi(S));
+  }
+
+  // Was April bei Hass kaputt machen darf
+  function moodApi(S) {
+    return {
+      tearDown(p) {
+        const k = Object.keys(S.props).filter(i => S.props[i].owner === p.id && S.props[i].houses > 0)
+          .sort((a, b) => S.props[b].houses - S.props[a].houses)[0];
+        if (k == null) return null;
+        S.props[k].houses--;
+        return SPACES[k].name;
+      },
+      mortgage(p) {
+        const k = Object.keys(S.props).filter(i => S.props[i].owner === p.id && !S.props[i].mort && !(SPACES[i].type === 'prop' && groupHasHouses(S, SPACES[i].group)))
+          .sort((a, b) => SPACES[b].price - SPACES[a].price)[0];
+        if (k == null) return null;
+        S.props[k].mort = true;
+        toBank(S, SPACES[k].price / 2);
+        return SPACES[k].name;
+      },
+      toBank: (amt) => toBank(S, amt),
+    };
   }
 
   function chaosEvent(S) {
@@ -445,7 +484,8 @@
 
   // ---------- Karten ----------
   function drawCard(S, deck) {
-    const id = S.decks[deck].shift();
+    let id = S.decks[deck].shift();
+    if (MOOD.wantsReroll(S, curP(S), CARDS[deck][id])) { S.decks[deck].push(id); id = S.decks[deck].shift(); }
     S.card = { deck, id };
     S.sub = 'card';
     if (curP(S).stats) curP(S).stats.cards++;
@@ -476,10 +516,10 @@
       case 'move': moveTo(S, p, c.to); return land(S, p);
       case 'money':
         if (c.amt >= 0) { p.money += c.amt; return proceed(S); }
-        if (charge(S, p, [{ to: null, amt: -c.amt }])) proceed(S);
+        if (charge(S, p, [{ to: null, amt: Math.round(-c.amt * MOOD.badMult(S)) }])) proceed(S);
         return;
       case 'payEach':
-        if (charge(S, p, others.map(o => ({ to: o.id, amt: c.amt })))) proceed(S);
+        if (charge(S, p, others.map(o => ({ to: o.id, amt: Math.round(c.amt * MOOD.badMult(S)) })))) proceed(S);
         return;
       case 'collectEach':
         for (const o of others) {
@@ -527,6 +567,51 @@
         return;
     }
     proceed(S);
+  }
+
+  // ---------- Casino ----------
+  function enterCasino(S, p, idx, owner, stake) {
+    const sp = SPACES[idx], game = CASINO.GAMES[sp.group], level = S.props[idx].houses;
+    S.casino = Object.assign({ idx, pid: p.id, owner: owner.id, game, stake, level, chance: CASINO.chance(game, level, MOOD.luck(S, p)), rig: CASINO.rig(level, MOOD.luck(S, p)) }, CASINO.setup(game));
+    S.sub = 'casino';
+    log(S, `🎰 ${p.name} betritt ${sp.name} von ${owner.name}: ${CASINO.INFO[game].name} um ${money(stake)}.`);
+  }
+
+  function casinoResolve(S, r, choice) {
+    const c = S.casino, p = P(S, c.pid), owner = P(S, c.owner), sp = SPACES[c.idx];
+    S.casinoSeq = (S.casinoSeq || 0) + 1;
+    S.casinoShow = { seq: S.casinoSeq, game: c.game, idx: c.idx, pid: p.id, owner: owner.id, stake: c.stake, choice, win: !!r.win, push: !!r.push, jackpot: !!r.jackpot, show: r.show || null, bj: c.bj || null, card: c.card };
+    S.casino = null;
+    if (r.push) { log(S, `🤝 Unentschieden bei ${sp.name}. ${p.name} behält den Einsatz.`); return proceed(S); }
+    if (r.win) {
+      const amt = Math.round(c.stake * (r.mult || 1));
+      const pay = Math.min(owner.money, amt);
+      owner.money -= pay; p.money += pay;
+      S.casinoShow.paid = pay;
+      log(S, `🎉 ${p.name} gewinnt ${r.jackpot ? 'den JACKPOT ' : ''}bei ${sp.name} und kassiert ${money(pay)} von ${owner.name}${pay < amt ? ' (mehr hatte das Casino nicht)' : ''}!`);
+      MOOD.casino(S, p, owner, pay, true);
+      return proceed(S);
+    }
+    log(S, `💸 ${p.name} verliert bei ${sp.name} und zahlt ${money(c.stake)} an ${owner.name}.`);
+    if (p.stats) { p.stats.rentPaid += c.stake; p.stats.maxRent = Math.max(p.stats.maxRent, c.stake); }
+    if (owner.stats) owner.stats.rentGot += c.stake;
+    MOOD.casino(S, p, owner, c.stake, false);
+    if (charge(S, p, [{ to: owner.id, amt: c.stake }])) proceed(S);
+  }
+
+  function casinoPlay(S, choice) {
+    const c = S.casino;
+    const info = CASINO.INFO[c.game];
+    choice = String(choice);
+    if (!info.choices.some(([k]) => k === choice)) return 'Ungültige Wahl.';
+    if (c.game === 'blackjack') {
+      if (c.bj) return 'Die Karten liegen schon.';
+      c.bj = CASINO.bjDeal();
+      if (CASINO.value(c.bj.player) === 21) casinoResolve(S, CASINO.bjDealer(c.bj, c.rig), choice);
+      return null;
+    }
+    casinoResolve(S, CASINO.play(c.game, choice, c.chance, c), choice);
+    return null;
   }
 
   // ---------- Kaufen & Versteigern ----------
@@ -614,7 +699,9 @@
     p.money -= cost;
     st.houses++;
     if (p.stats) p.stats.built++;
-    log(S, `${p.name} baut ${st.houses === 5 ? 'ein Hotel' : 'ein Haus'} auf ${sp.name}.`);
+    if (S.isCasino) log(S, `😈 ${p.name} macht ${sp.name} korrupter: ${CASINO.LEVELS[st.houses]}.`);
+    else log(S, `${p.name} baut ${st.houses === 5 ? 'ein Hotel' : 'ein Haus'} auf ${sp.name}.`);
+    if (st.houses === 5) MOOD.built(S, p, sp.name);
     return null;
   }
 
@@ -695,7 +782,8 @@
       for (const deck of p.jailFree) S.decks[deck].push(CARDS[deck].findIndex(c => c.t === 'jailfree'));
       log(S, `${p.name} ist pleite! Alles geht zurück an die Bank.`);
     }
-    quip(S, 'bankrupt', 1);
+    if (MOOD.on(S)) MOOD.bankrupt(S, p); else quip(S, 'bankrupt', 1);
+    if (S.casino && S.casino.pid === pid) S.casino = null;
     p.jailFree = [];
     p.money = 0; p.bankrupt = true; p.inJail = false;
     if (d) S.debt = null;
@@ -845,6 +933,30 @@
       case 'cardRedraw':
         if (needCur() || S.sub !== 'card' || p.token !== 'april' || p.used.april) return 'Geht gerade nicht.';
         cardRedraw(S); return null;
+      case 'casinoPlay':
+        if (needCur() || S.sub !== 'casino' || !S.casino) return 'Geht gerade nicht.';
+        return casinoPlay(S, a.choice);
+      case 'bjHit': {
+        const c = S.casino;
+        if (needCur() || S.sub !== 'casino' || !c || !c.bj || c.bj.over) return 'Geht gerade nicht.';
+        const v = CASINO.bjHit(c.bj);
+        if (v > 21) { c.bj.over = true; casinoResolve(S, { win: false }, 'go'); }
+        else if (v === 21) casinoResolve(S, CASINO.bjDealer(c.bj, c.rig), 'go');
+        return null;
+      }
+      case 'bjStand': {
+        const c = S.casino;
+        if (needCur() || S.sub !== 'casino' || !c || !c.bj || c.bj.over) return 'Geht gerade nicht.';
+        casinoResolve(S, CASINO.bjDealer(c.bj, c.rig), 'go');
+        return null;
+      }
+      case 'bribe': {
+        if (needCur() || !['roll', 'end'].includes(S.sub)) return 'Bestechen geht vor dem Würfeln oder am Ende deines Zuges.';
+        const r = MOOD.bribe(S, p, a.amt);
+        if (r.err) return r.err;
+        toBank(S, Number(a.amt));
+        return null;
+      }
       case 'endTurn':
         if (needCur() || S.sub !== 'end') return 'Du kannst deinen Zug noch nicht beenden.';
         if (S.trade) return 'Erst das offene Angebot klären.';
@@ -949,6 +1061,8 @@
       case 'roll': {
         const m = botManage(S, p);
         if (m) return go(m);
+        const br = MOOD.botBribe(S, p);
+        if (br) return go({ type: 'bribe', amt: br });
         if (p.inJail && p.jailFree.length) return go({ type: 'useJailCard' });
         if (p.inJail && p.money > 500 && S.turnNo < 60) return go({ type: 'payJail' });
         return go({ type: 'roll' });
@@ -960,6 +1074,14 @@
         return go({ type: want ? 'buy' : 'auction' });
       }
       case 'card': return go({ type: 'cardOk' });
+      case 'casino': {
+        const c = S.casino;
+        if (c.bj) return go({ type: CASINO.value(c.bj.player) < 17 ? 'bjHit' : 'bjStand' });
+        const ch = CASINO.INFO[c.game].choices;
+        let k = ch[Math.floor(rng() * ch.length)][0];
+        if (c.game === 'hilo') k = c.card <= 8 ? 'hi' : 'lo';
+        return go({ type: 'casinoPlay', choice: k });
+      }
       case 'debt': {
         const total = S.debt.items.reduce((a, b) => a + b.amt, 0);
         if (p.money >= total) return go({ type: 'payDebt' });
@@ -973,7 +1095,7 @@
   const ENGINE = {
     newGame, addPlayer, addBot, removePlayer, setSettings, botStep, pickToken, startGame, act, endGame, bankrupt, calcRent, netWorth, GOAL_WORTH,
     buyPrice, houseCost, unmortgageCost, ownsGroup, groupIdx, groupHasHouses, bankSupply, CARDS,
-    setRng: (f) => { rng = f; },
+    setRng: (f) => { rng = f; MOOD.setRng(f); CASINO.setRng(f); },
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = ENGINE;
   else root.DULI_ENGINE = ENGINE;
