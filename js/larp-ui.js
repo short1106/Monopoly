@@ -389,7 +389,9 @@
     const yearsDone = (idx(V.date) - V.startIdx) / 12;
     const pct = V.settings.years ? Math.min(100, Math.round((yearsDone / V.settings.years) * 100)) : 0;
     const nextAp = mine ? mine.appts.filter((a) => a.status === 'open' && !a.soft).sort((a, b) => idx(a) - idx(b) || a.d - b.d)[0] : null;
-    put($('#lx-head'), `<div class="lb-date"><div><span>${esc(L.dateText(V))}</span><small>Diese Runde: ${V.stepM === 1 ? '1 Monat' : `${V.stepM} Monate`}${nextAp ? ` · nächster Termin: ${esc(L.dayText(nextAp))} (${esc(nextAp.title)})` : ''}</small></div>
+    const Wd = window.DULI_LARP_WORLD, fer = mine && Wd ? Wd.holidayIn(mine, V.date.m) : null, vac = mine && Wd && mine.job2 ? Wd.vacation(JSON.parse(JSON.stringify(mine)), V.date.y) : null;
+    const freeTag = fer ? `<span class="lx-ferien">${esc(fer.name)} ${esc(fer.from)}–${esc(fer.to)}</span>` : vac ? `<span class="lx-ferien job">Urlaub: noch ${vac.left} Tage</span>` : '';
+    put($('#lx-head'), `<div class="lb-date"><div><span>${esc(L.dateText(V))}${freeTag}</span><small>Diese Runde: ${V.stepM === 1 ? '1 Monat' : `${V.stepM} Monate`}${nextAp ? ` · nächster Termin: ${esc(L.dayText(nextAp))} (${esc(nextAp.title)})` : ''}</small></div>
       <span class="chip lb-gm">${V.gm === 'ai' ? 'April (KI)' : 'April (Karten)'}</span></div>
       ${V.settings.years ? `<div class="lb-life"><i style="--v:${pct}%"></i><small>${Math.floor(yearsDone)} von ${V.settings.years} Jahren</small></div>` : ''}
       ${V.world[0] && V.world[0].d === L.dateText(V) ? `<div class="lb-world"><span class="lb-k">Weltgeschehen</span>${para(V.world[0].t)}</div>` : ''}`);
@@ -822,7 +824,8 @@
         <div class="btn-row"><button class="btn btn-small btn-primary" data-mk="mApply" data-id="${esc(x.id)}" ${!open ? 'disabled' : ''}>Bewerben</button></div></div>`;
     }
     if (x.cat === 'travel') {
-      return `<div class="lx-ls lx-trip">${x.last ? '<span class="lx-taken lx-last">Last Minute</span>' : ''}<b>${esc(x.title)}</b><small>${x.days} Tage${x.visa ? ` · Visum ${eur(x.visa)}` : ''}</small>
+      const Wd = window.DULI_LARP_WORLD, T = Wd ? Wd.tripStatus(V, JSON.parse(JSON.stringify(c)), x.days) : null;
+      return `<div class="lx-ls lx-trip">${x.last ? '<span class="lx-taken lx-last">Last Minute</span>' : ''}<b>${esc(x.title)}</b><small>${x.days} Tage${x.visa ? ` · Visum ${eur(x.visa)}` : ''}${x.peak ? ' · Hauptsaison (+30 %)' : ''}</small>${T ? `<p class="lx-tripst ${T.ok ? 'ok' : 'bad'}">${esc(T.text)}</p>` : ''}
         <div class="lx-price"><b>${eur(x.price)}</b> <span>Happiness +${x.happy}</span></div>
         <div class="btn-row"><button class="btn btn-small btn-primary" data-mk="mTravel" data-id="${esc(x.id)}" ${!open ? 'disabled' : ''}>Buchen</button></div></div>`;
     }
@@ -959,21 +962,58 @@
 
   // ----- Karte -----
   function drawMap(V, me) {
-    const Lf = window.L, layer = skel.layer;
-    const key = JSON.stringify(V.players.map((p) => { const c = V.chars[p.id]; return c ? [c.home, c.props.length, c.edu.school && c.edu.school.name, c.dead] : 0; }));
+    const Lf = window.L, layer = skel.layer, Wd = window.DULI_LARP_WORLD;
+    const awayOf = (c) => (c.away && V.round < c.away.until && Number.isFinite(c.away.lat) ? c.away : null);
+    const key = JSON.stringify([V.round, V.phase, V.players.map((p) => { const c = V.chars[p.id]; return c ? [c.home, awayOf(c), c.props.length, c.edu.school && c.edu.school.name, c.dead] : 0; })]);
     if (skel.mapKey === key) return;
     skel.mapKey = key;
     layer.clearLayers();
+    skel.anim = skel.anim || {};
     const pts = [];
+    const canGo = V.phase === 'act' && V.chars[me] && !V.chars[me].dead;
     V.players.forEach((p) => {
       const c = V.chars[p.id];
       if (!c || c.dead || !c.home) return;
-      pts.push([c.home.lat, c.home.lng]);
-      Lf.circleMarker([c.home.lat, c.home.lng], { radius: p.id === me ? 11 : 8, color: p.id === me ? '#fff' : '#0e0b13', weight: p.id === me ? 3 : 2, fillColor: c.color, fillOpacity: 1 }).bindTooltip(`${esc(c.name)} · ${esc(c.home.label)}`, { direction: 'top' }).addTo(layer);
+      const away = awayOf(c), at = away || c.home;
+      pts.push([at.lat, at.lng]);
+      // Zuhause bleibt als kleiner Punkt sichtbar, die Figur steht da, wo sie gerade ist
+      if (away) {
+        Lf.circleMarker([c.home.lat, c.home.lng], { radius: 4, color: c.color, weight: 2, fillOpacity: 0.2 }).bindTooltip(`${esc(c.name)} wohnt hier`).addTo(layer);
+        Lf.polyline([[c.home.lat, c.home.lng], [away.lat, away.lng]], { color: c.color, weight: 2, dashArray: '6 8', opacity: 0.8 }).addTo(layer);
+      }
+      const mk = Lf.marker([at.lat, at.lng], { icon: Lf.divIcon({ className: 'lx-me', html: `<span class="${p.id === me ? 'mine' : ''}" style="--pc:${esc(c.color)}">${esc(c.name[0])}</span>${away ? `<i class="lx-away" style="--pc:${esc(c.color)}">${esc(away.kind === 'trip' ? 'auf Reise' : 'unterwegs')}</i>` : ''}`, iconSize: [30, 30], iconAnchor: [15, 15] }), zIndexOffset: p.id === me ? 1000 : 500 })
+        .bindTooltip(`${esc(c.name)} · ${esc(away ? away.label : c.home.label)}`, { direction: 'top' }).addTo(layer);
+      if (canGo && p.id !== me) mk.bindPopup(`<b>${esc(c.name)}</b><br>${esc(away ? away.label : c.home.label)}<br><button class="btn btn-small btn-primary lx-gobtn" data-lat="${at.lat}" data-lng="${at.lng}" data-label="${esc(away ? away.city : c.home.city || '')}">Besuchen</button>`);
+      // Reise-Animation: einmal von zu Hause zum Ziel gleiten
+      const ak = `${p.id}:${away ? away.until + away.label : ''}`;
+      if (away && !skel.anim[ak]) {
+        skel.anim[ak] = 1;
+        const t0 = performance.now(), dur = 1800, a0 = [c.home.lat, c.home.lng], a1 = [away.lat, away.lng];
+        mk.setLatLng(a0);
+        const step = (t) => { const k = Math.min(1, (t - t0) / dur), e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2; mk.setLatLng([a0[0] + (a1[0] - a0[0]) * e, a0[1] + (a1[1] - a0[1]) * e]); if (k < 1) requestAnimationFrame(step); };
+        requestAnimationFrame(step);
+        if (p.id === me) skel.map.flyToBounds([a0, a1], { padding: [40, 40], maxZoom: 9, duration: 1.2 });
+      }
       if (c.edu.school && c.edu.school.lat) Lf.marker([c.edu.school.lat, c.edu.school.lng], { icon: Lf.divIcon({ className: 'lb-pin', html: `<span style="--pc:${esc(c.color)}">S</span>`, iconSize: [22, 22] }) }).bindTooltip(`${esc(c.name)}: ${esc(c.edu.school.name)}`).addTo(layer);
       c.props.forEach((q) => { Lf.marker([q.lat, q.lng], { icon: Lf.divIcon({ className: 'lb-pin', html: `<span style="--pc:${esc(c.color)}">${q.kind === 'house' ? '⌂' : '▤'}</span>`, iconSize: [22, 22] }) }).bindTooltip(`${esc(c.name)}: ${esc(q.title || q.label)}`).addTo(layer); });
     });
     if (!skel.fitted && pts.length > 1) { skel.map.fitBounds(pts, { padding: [30, 30], maxZoom: 10 }); skel.fitted = true; }
+    // Klick auf die Karte: Ausflug dorthin
+    if (!skel.clickBound) {
+      skel.clickBound = true;
+      skel.map.on('click', (e) => {
+        const V2 = last && last.V, c = V2 && V2.chars[last.me];
+        if (!V2 || V2.phase !== 'act' || !c || c.dead) return;
+        const d = Wd ? Math.round(Wd.km(c.home, { lat: e.latlng.lat, lng: e.latlng.lng })) : 0;
+        const trip = c.away && c.away.kind === 'trip' && V2.round < c.away.until;
+        const done = c.flags.goAt === V2.round || trip;
+        Lf.popup().setLatLng(e.latlng).setContent(`<b>Ausflug hierhin?</b><br>${d} km von zu Hause · ${d > 900 ? 'Flug' : c.car && c.license.has ? 'mit dem Auto' : d < 25 ? 'Bus und Bahn' : 'Zug'}<br>${done ? `<small>${trip ? `Du bist gerade in ${esc(c.away.city)}.` : 'Diese Runde warst du schon unterwegs.'}</small>` : `<button class="btn btn-small btn-primary lx-gobtn" data-lat="${e.latlng.lat}" data-lng="${e.latlng.lng}" data-label="">Hinfahren</button>`}`).openOn(skel.map);
+      });
+      skel.map.on('popupopen', (ev) => {
+        const b = ev.popup.getElement() && ev.popup.getElement().querySelector('.lx-gobtn');
+        if (b) b.onclick = () => { act({ type: 'wGo', lat: Number(b.dataset.lat), lng: Number(b.dataset.lng), label: b.dataset.label || '' }); skel.map.closePopup(); };
+      });
+    }
   }
 
   // ----- Spielende -----

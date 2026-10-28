@@ -234,3 +234,15 @@
 .lx-doc-sig { text-align: right; font-weight: 800; color: #d03aa8; transform: rotate(-3deg); }
 .lx-pace { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin: 8px 0; font-size: 13px; }
 .lx-pace select { padding: 6px 10px; border-radius: 10px; background: rgba(17, 14, 26, .9); color: var(--fg); border: 1px solid var(--line); }
+/* Figuren auf der Karte */
+.lx-me { background: none; border: 0; }
+.lx-me span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--pc); color: #fff; font: 800 13px var(--font); border: 2px solid #0e0b13; box-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
+.lx-me span.mine { width: 30px; height: 30px; border: 3px solid #fff; margin: -2px; animation: lxPulse 2s infinite; }
+@keyframes lxPulse { 50% { box-shadow: 0 0 0 8px rgba(255, 255, 255, .15); } }
+.lx-away { position: absolute; left: 50%; top: -18px; transform: translateX(-50%); white-space: nowrap; padding: 1px 7px; border-radius: 999px; background: var(--pc); color: #fff; font: 700 10px var(--font); font-style: normal; }
+.lx-ferien { display: inline-block; margin-left: 10px; padding: 2px 10px; border-radius: 999px; background: #3ddc97; color: #08130e; font: 700 12px var(--font); vertical-align: middle; }
+.lx-ferien.job { background: #7ab8ff; color: #07111f; }
+.lx-tripst { margin: 6px 0 0; font-size: 12px; }
+.lx-tripst.ok { color: #3ddc97; }
+.lx-tripst.bad { color: #ff7a8a; }
+.leaflet-popup-content .btn { margin-top: 6px; }

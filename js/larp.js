@@ -382,6 +382,8 @@
         if (M && M.act && /^m[A-Z]/.test(a.type)) return M.act(S, pid, a, API);
         const Ac = ACAD();
         if (Ac && /^a[A-Z]/.test(a.type)) return Ac.act(S, pid, a, API);
+        const Wd = root.DULI_LARP_WORLD || (isNode ? require('./larp-world') : null);
+        if (Wd && /^w[A-Z]/.test(a.type)) { if (S.phase !== 'act' || !me || me.dead) return 'Geht nur, während ihr plant.'; return Wd.act(S, pid, a, API); }
       }
     }
     return 'Unbekannte Aktion.';
@@ -467,8 +469,11 @@
       }
     });
     // Wer zur Schule geht, lernt nebenbei in allen Prüfungsfächern
+    const Wd = root.DULI_LARP_WORLD || (isNode ? require('./larp-world') : null);
+    const fer = Wd && M === 1 ? Wd.holidayIn(c, S.date.m) : null;
+    if (fer && !c.prison) { c.stats.happy = clampStat(c.stats.happy + 3); report(S, pid, '•', `${fer.name}! ${c.edu.kind === 'school' ? 'Keine Schule' : 'Keine Vorlesungen'} (${fer.from}–${fer.to}). Zeit zum Verreisen: Markt → Reisen.`, 'good'); }
     if (c.edu.kind === 'school' && c.abi && !plan.focus.includes('skip')) {
-      Object.keys(c.abi.exams).forEach((k) => { c.abi.prep[k] = clamp((c.abi.prep[k] || 0) + 6 * M, 0, 100); });
+      Object.keys(c.abi.exams).forEach((k) => { c.abi.prep[k] = clamp((c.abi.prep[k] || 0) + (fer ? 2 : 6) * M, 0, 100); });
       if (!plan.focus.includes('learn')) c.abi.blockI = clamp(c.abi.blockI + 1 * M, 200, 600);
     }
     // Fahrschule: Theorie und Fahrstunden

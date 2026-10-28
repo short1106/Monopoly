@@ -78,7 +78,8 @@
   function addData(list) {
     if (!Array.isArray(list)) return;
     const have = new Set(UNIS.map((u) => u.name));
-    list.forEach((u) => { if (u && u.name && COUNTRIES[u.cc] && !have.has(u.name) && u.city) { have.add(u.name); UNIS.push({ id: `w-${slug(u.name)}`, name: u.name, cc: u.cc, city: u.city, lat: u.lat, lng: u.lng, rank: u.rank || 500, kind: 'uni' }); } });
+    // nur die größten (ab 40.000 Studierenden), damit die Liste übersichtlich bleibt
+    list.filter((u) => u && u.students >= 40000).slice(0, 120).forEach((u) => { if (u && u.name && COUNTRIES[u.cc] && !have.has(u.name) && u.city) { have.add(u.name); UNIS.push({ id: `w-${slug(u.name)}`, name: u.name, cc: u.cc, city: u.city, lat: u.lat, lng: u.lng, rank: u.rank || 500, kind: 'uni' }); } });
     CITY_CACHE = null;
   }
   if (isNode) { try { addData(JSON.parse(require('fs').readFileSync(require('path').join(__dirname, '..', 'assets', 'larp', 'world.json'), 'utf8')).unis); } catch (e) { /* ohne Daten */ } }
@@ -108,6 +109,42 @@
     return u ? programs(S, u, rngOf).find((p) => p.id === id) || null : null;
   }
 
+  // ---------- Ferien und Urlaub ----------
+  // Schulferien (jedes Jahr gleich angenommen, Richtwerte nach NRW und BW): [Name, Monat von, Tag von, Monat bis, Tag bis] (Monat 0 = Januar)
+  const SCHOOL_HOLIDAYS = {
+    NW: [['Weihnachtsferien', 0, 1, 0, 6], ['Osterferien', 2, 22, 3, 3], ['Pfingstferien', 4, 18, 4, 18], ['Sommerferien', 6, 15, 7, 27], ['Herbstferien', 9, 12, 9, 24], ['Weihnachtsferien', 11, 23, 11, 31]],
+    BW: [['Weihnachtsferien', 0, 1, 0, 9], ['Osterferien', 2, 29, 3, 3], ['Pfingstferien', 4, 18, 4, 29], ['Sommerferien', 6, 29, 8, 11], ['Herbstferien', 9, 26, 9, 31], ['Weihnachtsferien', 11, 23, 11, 31]],
+  };
+  // Vorlesungsfreie Zeit (Semesterferien) grob: Mitte Februar bis Mitte April, August und September
+  const UNI_BREAKS = [['Semesterferien', 1, 15, 3, 15], ['Semesterferien', 7, 1, 8, 30]];
+  const inRange = (m, d, r) => { const v = m * 100 + d, a = r[1] * 100 + r[2], b = r[3] * 100 + r[4]; return v >= a && v <= b; };
+  // Welche Ferien hat diese Person im Monat m? (null = keine)
+  function holidayIn(c, m) {
+    const list = c.edu && c.edu.kind === 'school' ? SCHOOL_HOLIDAYS[c.st] || SCHOOL_HOLIDAYS.NW : c.edu && c.edu.kind === 'uni' ? UNI_BREAKS : null;
+    if (!list) return null;
+    const h = list.find((r) => (r[1] <= m && r[3] >= m));
+    return h ? { name: h[0], from: `${h[2]}.${h[1] + 1}.`, to: `${h[4]}.${h[3] + 1}.`, full: list.filter((r) => r[1] <= m && r[3] >= m).reduce((s, r) => s + Math.min(r[3] === m ? r[4] : 31, 31) - (r[1] === m ? r[2] : 1) + 1, 0) } : null;
+  }
+  // Urlaubstage im Job (gesetzlich mindestens 20, üblich 30, Azubis meist 25–30)
+  function vacation(c, y) {
+    const J = c.job2;
+    if (!J || J.kind === 'mini') return null;
+    if (!c.vac || c.vac.y !== y) c.vac = { y, left: J.kind === 'azubi' ? 27 : J.kind === 'werk' ? 20 : 30 };
+    return c.vac;
+  }
+  // Was bedeutet eine Reise von `days` Tagen jetzt für diese Person?
+  function tripStatus(S, c, days) {
+    const m = S.date.m, h = holidayIn(c, m), work = Math.max(1, Math.round(days * 5 / 7));
+    if (c.edu && c.edu.kind === 'school') return h ? { ok: true, kind: 'ferien', text: `${h.name} (${h.from}–${h.to})` } : { ok: false, kind: 'schwaenzen', work, text: `Keine Ferien: ${work} Fehltage, Bußgeld möglich` };
+    if (c.edu && c.edu.kind === 'uni' && !c.job2) return h ? { ok: true, kind: 'ferien', text: 'Semesterferien' } : { ok: true, kind: 'vorlesung', work, text: `Mitten im Semester: ${work} Tage Vorlesungen verpasst` };
+    const v = vacation(c, S.date.y);
+    if (!v) return { ok: true, kind: 'frei', text: 'Du hast frei' };
+    return v.left >= work ? { ok: true, kind: 'urlaub', work, text: `${work} Urlaubstage (noch ${v.left} von ${c.job2.kind === 'azubi' ? 27 : c.job2.kind === 'werk' ? 20 : 30})` } : { ok: false, kind: 'unbezahlt', work, text: `Nur noch ${v.left} Urlaubstage: Rest unbezahlt, Abmahnung möglich` };
+  }
+  // Hauptsaison: in den Sommer- und Osterferien sind Reisen teurer
+  const peak = (m) => m === 6 || m === 7 || m === 3 || m === 11;
+  const km = (a, b) => { const R = 6371, t = Math.PI / 180, dl = (b.lat - a.lat) * t, dg = (b.lng - a.lng) * t; const h = Math.sin(dl / 2) ** 2 + Math.cos(a.lat * t) * Math.cos(b.lat * t) * Math.sin(dg / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+
   // ---------- Reisen ----------
   const STYLES = [['backpack', 'Backpacking', 35, 6, 1], ['urlaub', 'Pauschalurlaub', 110, 8, 1.1], ['staedte', 'Städtetrip', 140, 6, 1], ['luxus', 'Luxusreise', 420, 12, 1.4], ['abenteuer', 'Abenteuerreise', 160, 10, 0.9]];
   const DEST = [['Mallorca (Palma)', 'ES'], ['Barcelona', 'ES'], ['Rom', 'IT'], ['Paris', 'FR'], ['Lissabon', 'PT'], ['Antalya', 'TR'], ['Istanbul', 'TR'], ['Prag', 'CZ'], ['Kopenhagen', 'DK'], ['Reykjavík', 'IS'],
@@ -117,9 +154,11 @@
     for (let i = 0; i < 8; i++) {
       const [city, cc] = DEST[Math.floor(r() * DEST.length)], [style, sname, daily, days0, happy] = STYLES[Math.floor(r() * STYLES.length)], K = country(cc);
       const days = Math.max(3, Math.round(days0 * (0.7 + r() * 0.8)));
-      const priceT = Math.round((K.flight * (0.7 + r() * 0.7) + days * daily * Math.max(0.6, Math.min(1.5, K.sal + 0.3))) / 10) * 10;
+      let priceT = Math.round((K.flight * (0.7 + r() * 0.7) + days * daily * Math.max(0.6, Math.min(1.5, K.sal + 0.3))) / 10) * 10;
+      if (peak(mIdx % 12)) priceT = Math.round(priceT * 1.3 / 10) * 10;
       const last = r() < 0.2;
-      out.push({ id: `trip:${mIdx}:${i}`, cat: 'travel', city, cc, country: K.name, style, title: `${sname}: ${city} (${K.name})`, days, price: last ? Math.round(priceT * 0.65 / 10) * 10 : priceT, last, happy: Math.round(8 * happy + days * 0.6), visa: !K.eu && K.visa ? K.visa : 0 });
+      const wc = cityOf(city) || {};
+      out.push({ id: `trip:${mIdx}:${i}`, cat: 'travel', city, cc, lat: wc.lat, lng: wc.lng, peak: peak(mIdx % 12), country: K.name, style, title: `${sname}: ${city} (${K.name})`, days, price: last ? Math.round(priceT * 0.65 / 10) * 10 : priceT, last, happy: Math.round(8 * happy + days * 0.6), visa: !K.eu && K.visa ? K.visa : 0 });
     }
     return out;
   }
@@ -138,12 +177,16 @@
       const cost = t.price + t.visa;
       if (c.stats.money + c.bank.dispo < cost) return `Kostet ${X.eur(cost)}. Das hast du nicht.`;
       if (c.key === 'april' && !c.flags.body) return 'April kann nicht reisen. Sie ist eine KI. Sie schaut sich Fotos an.';
+      if (c.prison) return 'Aus dem Gefängnis gibt es keinen Urlaub.';
+      const T = tripStatus(S, c, t.days);
       c.stats.money -= cost;
       c.flags.tripAt = X.idx(S.date);
+      c.away = { city: t.city, label: `${t.city} (${t.country})`, lat: t.lat, lng: t.lng, until: S.round + 1, kind: 'trip' };
       c.flags.trips = (c.flags.trips || 0) + 1;
       c.stats.happy = X.clampStat(c.stats.happy + t.happy);
       c.stats.health = X.clampStat(c.stats.health + (t.style === 'luxus' ? 4 : t.style === 'abenteuer' ? -1 : 2));
       let txt = `${t.title}, ${t.days} Tage: −${X.eur(cost)}${t.visa ? ` (inklusive Visum ${X.eur(t.visa)})` : ''}, Happiness +${t.happy}.`;
+      txt += ` ${consequences(S, pid, c, T, X)}`;
       let roll = (X.rnd(1000) / 1000);
       const inc = INCIDENTS.find(([p]) => { roll -= p; return roll < 0; });
       if (inc) {
@@ -160,12 +203,75 @@
       X.log(S, `${c.name} fliegt weg: ${t.city}.`);
       return null;
     }
+    if (a.type === 'wGo') return go(S, pid, a, X);
     return 'Unbekannt.';
   }
+  // Folgen einer Reise je nach Ferien, Urlaubstagen oder Schwänzen
+  function consequences(S, pid, c, T, X) {
+    if (T.kind === 'ferien') return `Ferien: ${T.text}.`;
+    if (T.kind === 'urlaub') { c.vac.left -= T.work; return `${T.work} Urlaubstage genommen, noch ${c.vac.left} übrig.`; }
+    if (T.kind === 'vorlesung') { c.flags.study = Math.max(0, (c.flags.study || 0) - 1); return 'Vorlesungen verpasst, die Klausurvorbereitung leidet.'; }
+    if (T.kind === 'schwaenzen') {
+      if (c.abi) { c.abi.absent += T.work; c.abi.blockI = Math.max(200, c.abi.blockI - T.work * 2); }
+      if (X.rnd(100) < 30) { c.stats.money -= 300; c.stats.happy = X.clampStat(c.stats.happy - 6); return `Vor den Ferien abgehauen: ${T.work} Fehltage. Kontrolle am Flughafen, die Schule erfährt es: 300 € Bußgeld.`; }
+      return `Vor den Ferien abgehauen: ${T.work} unentschuldigte Fehltage. Diesmal fällt es nicht auf.`;
+    }
+    if (T.kind === 'unbezahlt') {
+      const left = c.vac.left, unpaid = T.work - left;
+      c.vac.left = 0;
+      const lost = Math.round(c.job2.gross / 21 * unpaid);
+      c.stats.money -= lost;
+      if (X.rnd(100) < 50) { c.job2.warnings = (c.job2.warnings || 0) + 1; return `Urlaub aufgebraucht: ${unpaid} Tage unbezahlt (−${X.eur(lost)}) und eine Abmahnung.`; }
+      return `Urlaub aufgebraucht: ${unpaid} Tage unbezahlt (−${X.eur(lost)}).`;
+    }
+    return '';
+  }
+  // Ausflug: auf der Karte irgendwohin fahren (einmal pro Runde), Treffen mit anderen am selben Ort
+  function go(S, pid, a, X) {
+    const c = S.chars[pid];
+    if (c.prison) return 'Du sitzt im Gefängnis.';
+    const lat = Number(a.lat), lng = Number(a.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 85 || Math.abs(lng) > 180) return 'Da kann man nicht hin.';
+    if (c.flags.goAt === S.round) return 'Diese Runde warst du schon unterwegs.';
+    if (c.away && c.away.kind === 'trip' && c.away.until > S.round) return `Du bist gerade in ${c.away.city}. Ausflüge gehen erst wieder nach der Reise.`;
+    const from = c.home && c.home.lat ? c.home : { lat: 51.4, lng: 6.8 }, to = { lat, lng }, d = km(from, to);
+    let how, cost;
+    if (d > 900) { how = 'Flug'; cost = Math.round(120 + d * 0.09); }
+    else if (c.car && c.license && c.license.has) { how = `mit dem ${c.car.brand}`; cost = Math.round(d * 2 * (c.car.fuel === 'E' ? 0.07 : 0.14)); }
+    else { how = d < 25 ? 'mit Bus und Bahn (Deutschlandticket)' : 'mit dem Zug'; cost = d < 25 ? 0 : Math.round(Math.min(160, d * 2 * 0.12)); }
+    if (c.stats.money + c.bank.dispo < cost) return `Die Fahrt kostet ${X.eur(cost)}. Das hast du nicht.`;
+    const label = X.cleanText(a.label || '', 60) || nearestName(to) || 'irgendwo';
+    c.stats.money -= cost;
+    c.flags.goAt = S.round;
+    c.away = { city: label, label, lat, lng, until: S.round + 1, kind: 'go' };
+    c.stats.happy = X.clampStat(c.stats.happy + (d < 25 ? 2 : d < 300 ? 4 : 6));
+    let txt = `Ausflug nach ${label} (${Math.round(d)} km, ${how}${cost ? `, −${X.eur(cost)}` : ''}).`;
+    // Wer ist auch da? (andere unterwegs oder zu Hause in der Nähe)
+    Object.entries(S.chars).forEach(([oid, o]) => {
+      if (oid === pid || o.dead) return;
+      const op = o.away && o.away.until > S.round ? o.away : o.home;
+      if (!op || !Number.isFinite(op.lat) || km(op, to) > 20) return;
+      c.stats.happy = X.clampStat(c.stats.happy + 4); o.stats.happy = X.clampStat(o.stats.happy + 4);
+      const r1 = c.relations.find((r) => r.name === o.name); if (r1) r1.val = Math.min(100, r1.val + 6); else c.relations.push({ name: o.name, kind: 'trifft sich', val: 55 });
+      const r2 = o.relations.find((r) => r.name === c.name); if (r2) r2.val = Math.min(100, r2.val + 6); else o.relations.push({ name: c.name, kind: 'trifft sich', val: 55 });
+      txt += ` Du triffst ${o.name}! Ihr verbringt den Tag zusammen.`;
+      X.report(S, oid, '•', `${c.name} kommt in ${label} vorbei. Ihr verbringt den Tag zusammen.`, 'good');
+    });
+    X.report(S, pid, '•', txt, 'good');
+    return null;
+  }
+  function nearestName(p) {
+    let best = null, bd = 1e9;
+    const MKT = root.DULI_LARP_MARKET || (isNode ? require('./larp-market') : null);
+    const all = allCities().concat(MKT ? MKT.cities() : []);
+    all.forEach((x) => { if (!Number.isFinite(x.lat)) return; const d = km(p, x); if (d < bd) { bd = d; best = x.name; } });
+    return best && bd < 60 ? best : null;
+  }
+
   // Leben im Ausland: Gehalt und Lebenshaltung passen sich an
   function livingAbroad(c) { if (!c.abroad) return 0; const K = country(c.abroad); return Math.round(950 * (Math.min(1.8, Math.max(0.35, K.sal * 0.9 + 0.1)) - 1)); }
 
-  const WORLD = { COUNTRIES, get UNIS() { return UNIS; }, country, cities: allCities, cityOf, price, unisIn, programs, abroad, findProgram, travel, act, livingAbroad, addData, needGrade };
+  const WORLD = { COUNTRIES, get UNIS() { return UNIS; }, country, cities: allCities, cityOf, price, unisIn, programs, abroad, findProgram, travel, act, livingAbroad, addData, needGrade, holidayIn, tripStatus, vacation, km, SCHOOL_HOLIDAYS };
   if (isNode) module.exports = WORLD;
   else root.DULI_LARP_WORLD = WORLD;
 })(typeof window !== 'undefined' ? window : globalThis);
