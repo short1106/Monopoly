@@ -95,7 +95,7 @@
     if (V.phase !== 'think' || V.gm !== 'ai' || aiRun === V.aiSeq || (aiErr && aiErr.seq === V.aiSeq)) return;
     const seq = V.aiSeq;
     aiRun = seq;
-    AI.runAI(V).then((r) => {
+    AI.runAI(V).catch((e) => ({ error: 'network', detail: String((e && e.message) || e) })).then((r) => {
       aiRun = null;
       if (r.error) { aiErr = { seq, code: r.error, detail: r.detail || '' }; redraw(); return; }
       aiErr = null;

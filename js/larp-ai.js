@@ -78,6 +78,14 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
       }),
     },
   });
+  // Kleines Format ohne die Bausteine (Skills, Besitz, Mitarbeiter, Termine, Orte, Gedächtnis, SMS) – falls die API das große ablehnt
+  const LITE_SCHEMA = JSON.parse(JSON.stringify(ROUND_SCHEMA));
+  ['skills', 'assets', 'staff', 'appointments', 'places', 'memory', 'sms'].forEach((k) => {
+    const it = LITE_SCHEMA.properties.players.items;
+    delete it.properties[k];
+    it.required = it.required.filter((x) => x !== k);
+  });
+  let liteOnly = false;
   const FINAL_SCHEMA = obj({ world: str, players: { type: 'array', items: obj({ id: str, title: str, story: str }) } });
 
   const nameOf = (S, id) => (/^npc:/.test(id) ? id.slice(4) : (S.chars[id] && S.chars[id].name) || id);
@@ -95,13 +103,13 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
         auftraege: c.firm ? c.firm.jobs.map((j) => `${j.title} ${j.progress} %`) : undefined,
         firmen_skills: c.firm && window.DULI_LARP_COMPANY ? window.DULI_LARP_COMPANY.skills(JSON.parse(JSON.stringify(c))) : undefined,
       } : undefined,
-      besitz: (c.assets || []).length ? c.assets.map((a) => `${a.name}${a.kind ? ` (${a.kind})` : ''}`) : undefined,
+      sonstiger_besitz: (c.assets || []).length ? c.assets.map((a) => `${a.name}${a.kind ? ` (${a.kind})` : ''}`) : undefined,
       orte: (c.places || []).length ? c.places.map((o) => o.name) : undefined,
       gedaechtnis: (c.memory || []).length ? c.memory : undefined,
       sms: (S.sms || []).filter((m) => (m.from === pid || m.to === pid) && m.round >= S.round - 2).slice(-12).map((m) => `${nameOf(S, m.from)} an ${nameOf(S, m.to)}: ${m.t}`),
       entscheidung: S.decided && S.decided[pid] ? `${S.decided[pid].by} hat für diese Person entschieden: ${S.decided[pid].yes ? 'Ja' : 'Nein'}` : undefined,
       werte: { gesundheit: c.stats.health, happiness: c.stats.happy, macht: c.stats.power, geld: c.stats.money },
-      laufende_effekte: eff, besitz: c.props.map((q) => `${L.KINDS[q.kind].name} in ${q.label} (Wert ${q.value} €${q.leased ? ', vermietet' : ''})`),
+      laufende_effekte: eff, immobilien: (c.props || []).map((q) => `${q.title || (q.kind === 'house' ? 'Haus' : 'Wohnung')} in ${q.label} (Wert ${q.value} €${q.leased ? ', vermietet' : ''})`),
       beziehungen: c.relations.map((r) => `${r.name} (${r.kind || 'bekannt'}, ${r.val}/100)`),
       chronik: c.chronicle.slice(-8).map((x) => `${x.d}: ${x.t}`),
       bundesland: c.st, bildung: c.edu && c.edu.kind, job_vertrag: c.job2 ? `${c.job2.title} bei ${c.job2.firm}, ${c.job2.gross} € brutto` : undefined,
@@ -135,6 +143,12 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
 
   // ---------- Claude aufrufen ----------
   async function runAI(S) {
+    try { return await runAI0(S); } catch (e) {
+      console.error('April (KI):', e);
+      return { error: 'network', detail: `Fehler im Spiel beim Vorbereiten der Anfrage: ${String((e && e.message) || e).slice(0, 200)}` };
+    }
+  }
+  async function runAI0(S) {
     const k = keys();
     if (!k.anthropic || !window.Anthropic) return { error: 'nokey' };
     const client = new window.Anthropic({ apiKey: k.anthropic, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 180000 });
@@ -144,8 +158,9 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
       max_tokens: 16000,
       system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userMessage(S) }],
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: S.aiTask === 'final' ? FINAL_SCHEMA : ROUND_SCHEMA } },
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: S.aiTask === 'final' ? FINAL_SCHEMA : liteOnly ? LITE_SCHEMA : ROUND_SCHEMA } },
     };
+    const lite = () => Object.assign({}, params, { output_config: { effort: 'low', format: { type: 'json_schema', schema: LITE_SCHEMA } } });
     let res;
     try {
       // Sonnet/Opus: bei einer Ablehnung durch die Sicherheitsfilter springt automatisch ein anderes Modell ein
@@ -155,8 +170,13 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
     } catch (e0) {
       // 400 bei Sonnet/Opus: vielleicht kennt das Konto die Beta noch nicht – einmal ohne Fallback-Beta versuchen
       let e = e0;
+      console.warn('April (KI), erster Versuch:', e0 && e0.status, e0 && e0.message);
       if (e0 && e0.status === 400 && model !== 'claude-haiku-5-5') {
         try { res = await client.messages.create(params); e = null; } catch (e1) { e = e1; }
+      }
+      // Lehnt die API das große Antwortformat ab: mit dem kleinen Format weiter (dann ohne die neuen Bausteine)
+      if (e && e.status === 400 && S.aiTask !== 'final' && !liteOnly) {
+        try { res = await client.messages.create(lite()); e = null; liteOnly = true; console.warn('April (KI): großes Antwortformat abgelehnt, nutze das kleine.'); } catch (e2) { e = e2; }
       }
       if (!e) return parse(res);
       const status = e && e.status;
