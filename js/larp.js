@@ -400,7 +400,7 @@
         delete S.aprilWait[tp];
         const x = a.data || {};
         const t = cleanText(x.reply, 900) || (a.error ? `Ich komme gerade nicht durch (${cleanText(a.error, 80)}). Versuch es gleich nochmal.` : '…');
-        S.aprilChat[tp].push({ who: 'april', t, d: dateText(S), round: S.round });
+        S.aprilChat[tp].push({ who: 'april', t, d: dateText(S), round: S.round, ask: !a.error && x.ask ? 1 : 0, off: x.offline ? 1 : 0 });
         if (!a.error) applyChat(S, tp, c, x);
         return null;
       }
@@ -836,6 +836,7 @@
     if (st.living) c.living = cleanText(st.living, 100);
     // Job mit echtem Vertrag (Gehalt läuft jeden Monat)
     const j = x.job || {};
+    if (j.quit && c.job2) { endJob(S, c, 'selbst gekündigt'); c.job = 'arbeitssuchend'; }
     if (j.set && cleanText(j.title, 80)) {
       if (c.job2) endJob(S, c, 'neuer Job');
       const gross = num(j.gross, 0, 30000);

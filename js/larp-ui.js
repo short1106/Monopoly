@@ -95,8 +95,16 @@
       if (aprilBusy[pid] === seq) return;
       aprilBusy[pid] = seq;
       const k = AI.keys();
-      if (!k.anthropic) { api.act({ type: 'aprilReply', pid, seq, data: { reply: 'Ich bin gerade ohne KI unterwegs. Der Host muss oben unter „KI & Stimme“ einen Anthropic-Schlüssel eintragen, dann kann ich alles für dich umsetzen. Bis dahin: Markt, Akademie, Firma und die Ereignisse.' } }); return; }
-      AI.chat(V, pid).then((r) => { api.act(r.error ? { type: 'aprilReply', pid, seq, error: ERRORS[r.error] || r.error } : { type: 'aprilReply', pid, seq, data: r.data }); });
+      // Ohne Schlüssel (oder wenn die KI streikt) antwortet Aprils Offline-Kopf: versteht die häufigsten Wünsche und fragt nach
+      const offline = (note) => {
+        const list = (V.aprilChat || {})[pid] || [], last = [...list].reverse().find((m) => m.who === 'me');
+        const OFF = window.DULI_LARP_OFFLINE, d = OFF && last ? OFF.answer(V, pid, last.t) : { reply: '…' };
+        d.offline = true;
+        if (note) d.reply = `${note} ${d.reply}`;
+        api.act({ type: 'aprilReply', pid, seq, data: d });
+      };
+      if (!k.anthropic) { offline(''); return; }
+      AI.chat(V, pid).then((r) => { if (r.error) offline(`(KI gerade nicht erreichbar: ${ERRORS[r.error] || r.error}. Ich mache es so lange ohne.)`); else api.act({ type: 'aprilReply', pid, seq, data: r.data }); }).catch(() => offline('(KI-Fehler, ich mache es ohne.)'));
     });
   }
   function controller(V, api) {
@@ -1290,12 +1298,21 @@
       <label class="field"><span>Modell</span><select id="k-model">${AI.MODELS.map(([id, n]) => `<option value="${id}" ${k.model === id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
       <label class="field"><span>ElevenLabs-Schlüssel (Erzählung vorlesen, optional)</span><input id="k-el" type="password" autocomplete="off" placeholder="leer = ohne" value="${esc(k.eleven)}"></label>
       <label class="row lb-row"><span>Erzählung vorlesen</span><input type="checkbox" class="switch" id="k-voice" ${k.voice ? 'checked' : ''}></label>
-      <div class="btn-row"><button class="btn btn-primary" id="k-save">Speichern</button>${k.anthropic || k.eleven ? '<button class="btn btn-ghost" id="k-clear">Schlüssel löschen</button>' : ''}</div></div>`;
+      <div class="lx-diag" id="k-diag"></div>
+      <div class="btn-row"><button class="btn btn-primary" id="k-save">Speichern</button><button class="btn" id="k-test">Verbindung testen</button>${k.anthropic || k.eleven ? '<button class="btn btn-ghost" id="k-clear">Schlüssel löschen</button>' : ''}</div></div>`;
     document.body.appendChild(back);
     const close = () => back.remove();
     back.onclick = (e) => { if (e.target === back) close(); };
     $('.modal-x', back).onclick = close;
     $('#k-save', back).onclick = () => { AI.saveKeys({ anthropic: $('#k-ant', back).value.trim(), model: $('#k-model', back).value, eleven: $('#k-el', back).value.trim(), voice: $('#k-voice', back).checked }); AI.voice.paused = false; if (!$('#k-voice', back).checked) AI.stopVoice(); close(); if (aiErr && aiErr.code !== 'refusal') aiErr = null; redraw(); };
+    $('#k-test', back).onclick = async () => {
+      AI.saveKeys({ anthropic: $('#k-ant', back).value.trim(), model: $('#k-model', back).value, eleven: $('#k-el', back).value.trim(), voice: $('#k-voice', back).checked });
+      const box = $('#k-diag', back);
+      box.innerHTML = '<p class="p-sub">Teste … (bis zu einer Minute)</p>';
+      const res = await AI.diagnose();
+      box.innerHTML = `<ul>${res.map((r) => `<li class="${r.ok ? 'ok' : 'bad'}"><b>${r.ok ? 'OK' : 'FEHLER'}</b> ${esc(r.step)}${r.msg ? `<small>${esc(r.msg)}</small>` : ''}</li>`).join('')}</ul><button class="btn btn-small btn-ghost" id="k-copy">Ergebnis kopieren</button>`;
+      $('#k-copy', back).onclick = () => navigator.clipboard.writeText(res.map((r) => `${r.ok ? 'OK' : 'FEHLER'} ${r.step} ${r.msg}`).join('\n')).then(() => toast('Kopiert.'), () => {});
+    };
     if ($('#k-clear', back)) $('#k-clear', back).onclick = () => { AI.saveKeys({ anthropic: '', eleven: '', model: k.model, voice: k.voice }); close(); redraw(); };
   }
   document.addEventListener('click', (e) => { if (e.target.closest('[data-open-keys]')) { e.preventDefault(); openKeys(); } });

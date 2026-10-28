@@ -265,5 +265,26 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
       return { error: st === 401 ? 'badkey' : st === 429 ? 'ratelimit' : st === 400 ? 'badrequest' : 'network', detail: String((e && e.message) || e).slice(0, 200) };
     }
   }
-  window.DULI_LARP_AI = { chat, MODELS, VOICE_ID, keys, saveKeys, runAI, speak, play, stopVoice, voice, userMessage, SYSTEM };
+  // ---------- Verbindungstest: zeigt Schritt für Schritt, woran es hakt ----------
+  async function diagnose() {
+    const out = [], k = keys();
+    const add = (step, ok, msg) => out.push({ step, ok, msg });
+    if (!window.Anthropic) { add('SDK geladen', false, 'vendor/anthropic-sdk.js fehlt oder wurde blockiert.'); return out; }
+    add('SDK geladen', true, '');
+    if (!k.anthropic) { add('Schlüssel', false, 'Kein Anthropic-Schlüssel eingetragen.'); return out; }
+    add('Schlüssel', true, `${k.anthropic.slice(0, 10)}…`);
+    const client = new window.Anthropic({ apiKey: k.anthropic, dangerouslyAllowBrowser: true, maxRetries: 0, timeout: 60000 });
+    const model = MODELS.some(([id]) => id === k.model) ? k.model : MODELS[0][0];
+    const msg = (e) => `${e && e.status ? `HTTP ${e.status}: ` : ''}${String((e && e.error && e.error.error && e.error.error.message) || (e && e.message) || e).slice(0, 220)}`;
+    try { const r = await client.messages.create({ model, max_tokens: 30, messages: [{ role: 'user', content: 'Sag nur: Hallo.' }] }); add(`Einfache Anfrage (${model})`, true, (r.content[0] && r.content[0].text) || 'ok'); } catch (e) { add(`Einfache Anfrage (${model})`, false, msg(e)); return out; }
+    const small = { world: '', players: [] };
+    for (const [name, schema] of [['Antwortformat Runde (groß)', ROUND_SCHEMA], ['Antwortformat Runde (klein)', LITE_SCHEMA], ['Antwortformat „Frag April“', CHAT_SCHEMA]]) {
+      try { await client.messages.create({ model, max_tokens: 400, messages: [{ role: 'user', content: `Antworte mit einem minimalen gültigen Beispiel. ${JSON.stringify(small)}` }], output_config: { effort: 'low', format: { type: 'json_schema', schema } } }); add(name, true, 'wird akzeptiert'); } catch (e) { add(name, false, msg(e)); }
+    }
+    if (model !== 'claude-haiku-5-5') {
+      try { await client.beta.messages.create({ model, max_tokens: 30, messages: [{ role: 'user', content: 'Hallo' }], betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' }); add('Fallback-Beta', true, ''); } catch (e) { add('Fallback-Beta', false, `${msg(e)} (nicht schlimm, dann ohne)`); }
+    }
+    return out;
+  }
+  window.DULI_LARP_AI = { diagnose, chat, MODELS, VOICE_ID, keys, saveKeys, runAI, speak, play, stopVoice, voice, userMessage, SYSTEM };
 })();
