@@ -1,0 +1,38 @@
+# LARP EXTREME: lädt Hochschulen, Städte, Schulen und Straßennamen einmal herunter und committet sie nach assets/larp/.
+# Läuft, wenn sich das Skript ändert, oder per Hand (Actions → Run workflow, optional nur ein Teil: cities, unis, schools, streets).
+name: LARP-Daten laden
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: 'all, cities, unis, schools oder streets'
+        required: false
+        default: 'all'
+  push:
+    paths:
+      - tools/larp-data.mjs
+      - .github/workflows/larp-data.yml
+permissions:
+  contents: write
+concurrency:
+  group: larp-data-${{ github.ref }}
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Daten laden
+        run: node tools/larp-data.mjs "${{ github.event.inputs.part || 'all' }}"
+      - name: Daten committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/larp
+          if git diff --cached --quiet; then echo "Nichts Neues."; exit 0; fi
+          git commit -m "LARP: Daten aktualisiert"
+          git pull --rebase
+          git push
