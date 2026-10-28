@@ -379,6 +379,7 @@
     const mine = V.chars[me];
     notifyOffers(V, me);
     notifyDocs(V, me);
+    renderPhone(V, me);
     if (put($('#lx-left'), mine ? sheet(V, me, true) : '<p class="p-sub">Du schaust zu.</p>')) {
       const left = $('#lx-left');
       left.querySelectorAll('[data-mv]').forEach((b) => { b.onclick = () => act({ type: 'mMoveIn', prop: b.dataset.mv }); });
@@ -790,27 +791,141 @@
     }
   }
   // ----- Tab: Firma -----
+  function ladderHTML(V, me, C, F, people) {
+    const rows = CO.LADDER.map((L, i) => ({ i, L, who: people.filter((p) => (p.level != null ? p.level : 2) === i) })).reverse();
+    return `<div class="lx-panel lx-ladder"><span class="lb-k">Hierarchie</span><p class="p-sub">So hoch kann man hier steigen. Für jede Stufe zählen Skills (Schnitt der zwei besten), Führung, Zeit in der Firma und Firmengröße.</p>
+      <div class="lx-rung top"><div><b>Gründer:in und CEO</b><small>gehört dir</small></div><div class="lx-who"><span class="me" style="--pc:${esc(C.color)}">${esc(C.name)}</span></div></div>
+      ${rows.map(({ i, L, who }) => `<div class="lx-rung ${who.length ? '' : 'empty'}"><div><b>${esc(L.name)}</b><small>${eur(L.band[0])}–${eur(L.band[1])} · ab Skill ${L.avg}${L.lead ? ` · Führung ${L.lead}` : ''}${L.months ? ` · ${L.months} Mon.` : ''}${L.team ? ` · ab ${L.team} Leuten` : ''}</small></div><div class="lx-who">${who.map((p) => `<span class="${p.player ? 'pl' : ''}" style="--pc:${esc(p.player ? V.chars[p.pid].color : '#7a6a90')}">${esc(p.name)}</span>`).join('') || '<em>noch niemand</em>'}</div></div>`).join('')}</div>`;
+  }
   function renderFirm(body, V, me) {
     const c = V.chars[me];
     if (!c || !CO) { put(body, '<p class="p-sub">Du schaust zu.</p>'); return; }
-    if (!CO.can(c)) { put(body, '<div class="lx-panel"><span class="lb-k">Firma</span><p>Du hast noch keine Firma. Gründen geht über den Fokus „Eigenes Projekt“ (ab etwas Erfahrung) oder über Ereignisse. Danach kannst du hier Leute einstellen, Aufträge annehmen und im Markt Büros mieten.</p></div>'); return; }
-    const C = JSON.parse(JSON.stringify(c)), F = CO.firm(C), fs = CO.skills(C), now = idx(V.date), open = V.phase === 'act' && !c.dead && !c.prison;
+    const open = V.phase === 'act' && !c.dead && !c.prison;
+    // Ich arbeite für eine andere Spieler-Figur
+    let mineJob = '';
+    if (c.job2 && c.job2.boss && V.chars[c.job2.boss]) {
+      const B = V.chars[c.job2.boss], BC = JSON.parse(JSON.stringify(B)), BF = CO.firm(BC), lv = c.job2.level != null ? c.job2.level : 2;
+      const next = CO.LADDER[lv + 1], miss = next ? CO.missingFor({ skills: c.skills || {} }, lv + 1, idx(V.date) - c.job2.since, 99) : [];
+      const pending = (V.offers || []).filter((o) => o.from === me && o.to === c.job2.boss && o.status === 'open' && (o.kind === 'raise' || o.kind === 'promo'));
+      const people = CO.players(V, c.job2.boss).concat(BF.staff.map((p) => Object.assign({ level: 2 }, p)));
+      mineJob = `<div class="lx-panel"><span class="lb-k">Dein Job bei ${esc(BF.name)}</span><p>Chef:in: <b style="color:${esc(B.color)}">${esc(B.name)}</b> (Spieler:in). Über Gehalt und Beförderung entscheidet ${esc(B.name)} selbst, nicht der Würfel.</p>
+        <p>Stufe: <b>${esc(CO.LADDER[lv].name)}</b> · ${eur(c.job2.gross)} brutto${next ? ` · nächste Stufe: <b>${esc(next.name)}</b>${miss.length ? ` <small class="down">(fehlt: ${esc(miss.join(', '))})</small>` : ' <small class="up">(du erfüllst alles)</small>'}` : ''}</p>
+        ${pending.length ? `<p class="p-sub">Offen bei ${esc(B.name)}: ${pending.map((o) => esc(o.kind === 'raise' ? `${o.terms.pct} % mehr Gehalt` : `Beförderung zu ${o.terms.next}`)).join(', ')}</p>` : ''}
+        <div class="lb-inline"><select id="fj-pct">${[5, 8, 10, 15, 20].map((x) => `<option value="${x}">${x} %</option>`).join('')}</select><input id="fj-why" maxlength="140" placeholder="Begründung (optional)"><button class="btn btn-small btn-primary" id="fj-raise" ${open ? '' : 'disabled'}>Gehaltserhöhung beantragen</button></div>
+        <div class="btn-row">${next ? `<button class="btn btn-small" id="fj-promo" ${open ? '' : 'disabled'}>Beförderung zu ${esc(next.name)} beantragen</button>` : ''}<button class="btn btn-small btn-ghost" id="fj-quit" ${open ? '' : 'disabled'}>Kündigen</button></div></div>
+        ${ladderHTML(V, me, BC, BF, people)}`;
+    }
+    if (!CO.can(c)) {
+      if (put(body, mineJob || '<div class="lx-panel"><span class="lb-k">Firma</span><p>Du hast noch keine Firma. Gründen geht über den Fokus „Eigenes Projekt“ (ab etwas Erfahrung) oder über Ereignisse. Danach kannst du hier Leute einstellen, Aufträge annehmen und im Markt Büros mieten. Oder du arbeitest für eine andere Figur: Die kann dir unter „Leute“ einen Job anbieten.</p></div>')) bindFirm(body, c);
+      return;
+    }
+    const C = JSON.parse(JSON.stringify(c)), F = CO.firm(C), fs = CO.skills(C, V, me), now = idx(V.date);
+    const pl = CO.players(V, me), teamN = F.staff.length + pl.length;
     const apps = CO.applicants(V, C, now).filter((p) => !(V.market.taken || {})[`${me}:${p.id}`]), offers = CO.offers(V, C, now).filter((j) => !F.jobs.some((x) => x.id === j.id));
-    const cap = CO.capacity(C), salary = F.staff.reduce((s, p) => s + Math.round(p.gross * 1.21), 0);
+    const cap = CO.capacity(C), salary = F.staff.reduce((s2, p) => s2 + Math.round(p.gross * 1.21), 0);
     const reqHTML = (req) => Object.entries(req).map(([k, v]) => { const have = fs[k] || 0; return `<span class="${have >= v ? 'ok' : have >= v * 0.6 ? 'mid' : 'bad'}">${esc(k)} ${v} <small>(ihr ${have})</small></span>`; }).join('');
-    const html = `<div class="lx-panel lx-firm"><span class="lb-k">${esc(F.name)}</span>
-      <div class="lx-firm-kpi"><div><b>${F.rep}</b><small>Ruf</small></div><div><b>${F.staff.length}/${cap}</b><small>Leute (Büro + 2 Homeoffice)</small></div><div><b>${eur(salary)}</b><small>Gehälter/Monat</small></div><div><b class="${F.lastRev >= 0 ? 'up' : 'down'}">${eur(F.lastRev || 0)}</b><small>Ergebnis letzter Monat</small></div><div><b>${F.done}</b><small>Aufträge fertig</small></div></div>
+    const people = pl.concat(F.staff.map((p) => Object.assign({ level: 2 }, p)));
+    const staffRow = (p) => {
+      const lv = p.level != null ? p.level : 2, nx = CO.LADDER[lv + 1], miss = nx ? CO.missingFor(p, lv + 1, now - p.since, teamN) : ['Höher geht es nicht.'];
+      return `<div class="lx-staff"><div><b>${esc(p.name)}</b> <span class="lx-lv">${esc(CO.LADDER[lv].name)}</span><small>${esc(p.role)} · ${esc(p.trait[0])} · ${eur(p.gross)} brutto · Laune ${p.mood}${nx ? ` · ${miss.length ? `für ${esc(nx.name)} fehlt: ${esc(miss.join(', '))}` : `<b class="up">bereit für ${esc(nx.name)}</b>`}` : ''}</small><div class="lx-req">${Object.entries(p.skills).map(([k, v]) => `<span>${esc(k)} ${Math.round(v)}</span>`).join('')}</div></div>
+        <div class="btn-row">${nx ? `<button class="btn btn-small ${miss.length ? 'btn-ghost' : 'btn-primary'}" data-promo="${esc(p.id)}" ${open && !miss.length ? '' : 'disabled'}>Befördern</button>` : ''}<button class="btn btn-small btn-ghost" data-raise="${esc(p.id)}" ${open ? '' : 'disabled'}>+10 % Gehalt</button><button class="btn btn-small btn-ghost" data-fire="${esc(p.id)}" ${open ? '' : 'disabled'}>Entlassen</button></div></div>`;
+    };
+    const playerRow = (p) => {
+      const lv = p.level, nx = CO.LADDER[lv + 1], miss = nx ? CO.missingFor(p, lv + 1, now - p.since, teamN) : [];
+      return `<div class="lx-staff is-player" style="--pc:${esc(V.chars[p.pid].color)}"><div><b>${esc(p.name)}</b> <span class="lx-lv">${esc(CO.LADDER[lv].name)}</span> <span class="lx-lv pl">Spieler:in</span><small>${eur(p.gross)} brutto${nx ? ` · ${miss.length ? `für ${esc(nx.name)} fehlt: ${esc(miss.join(', '))}` : `bereit für ${esc(nx.name)}`}` : ''}</small><div class="lx-req">${Object.entries(p.skills).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `<span>${esc(k)} ${Math.round(v)}</span>`).join('')}</div></div>
+        <div class="btn-row">${nx ? `<button class="btn btn-small" data-ppromo="${esc(p.pid)}" ${open ? '' : 'disabled'}>Befördern</button>` : ''}<button class="btn btn-small btn-ghost" data-praise="${esc(p.pid)}" ${open ? '' : 'disabled'}>+10 % Gehalt</button><button class="btn btn-small btn-ghost" data-pfire="${esc(p.pid)}" ${open ? '' : 'disabled'}>Entlassen</button></div></div>`;
+    };
+    const html = `${mineJob}<div class="lx-panel lx-firm"><span class="lb-k">${esc(F.name)}</span>
+      <div class="lx-firm-kpi"><div><b>${F.rep}</b><small>Ruf</small></div><div><b>${teamN}/${cap}</b><small>Leute (Büro + 2 Homeoffice)</small></div><div><b>${eur(salary)}</b><small>Gehälter/Monat</small></div><div><b class="${F.lastRev >= 0 ? 'up' : 'down'}">${eur(F.lastRev || 0)}</b><small>Ergebnis letzter Monat</small></div><div><b>${F.done}</b><small>Aufträge fertig</small></div></div>
       <h4>Firmen-Skills <small>du + Team kombiniert: der oder die Beste zählt voll, alle anderen helfen mit</small></h4>
       <ul class="lx-sk">${Object.entries(fs).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `<li><span><b>${esc(k)}</b><small>${lvlName(Math.min(100, v))}</small></span>${sbar(Math.min(100, v), 'firm')}<em>${v}</em></li>`).join('')}</ul></div>
-      ${F.jobs.length ? `<div class="lx-panel"><span class="lb-k">Laufende Aufträge</span>${F.jobs.map((j) => `<div class="lx-job"><b>${esc(j.title)}</b><small>${eur(j.pay)} · Deadline ${esc(L.MONTHS[j.deadline % 12])} ${Math.floor(j.deadline / 12)} · etwa ${CO.pace(C, j)} % pro Monat</small><div class="lx-prog"><i style="--v:${j.progress}%"></i><span>${j.progress} %</span></div></div>`).join('')}</div>` : ''}
-      <div class="lx-panel"><span class="lb-k">Aufträge diesen Monat</span><p class="p-sub">Grün: euer Firmen-Skill reicht. Gleichzeitig schafft ihr ${1 + Math.floor(F.staff.length / 2)} Auftrag${F.staff.length >= 2 ? 'e' : ''}.</p>${offers.map((j) => `<div class="lx-job"><b>${esc(j.title)}</b><small>${eur(j.pay)} · ${j.months} Monate geplant${j.minRep ? ` · braucht Ruf ${j.minRep}` : ''} · bei euch etwa ${CO.pace(C, j)} % pro Monat</small><div class="lx-req">${reqHTML(j.req)}</div><div class="btn-row"><button class="btn btn-small btn-primary" data-take="${esc(j.id)}" ${open ? '' : 'disabled'}>Annehmen</button></div></div>`).join('')}</div>
-      <div class="lx-panel"><span class="lb-k">Team</span>${F.staff.length ? F.staff.map((p) => `<div class="lx-staff"><div><b>${esc(p.name)}</b><small>${esc(p.role)} · ${esc(p.trait[0])} · ${eur(p.gross)} brutto · Laune ${p.mood}</small><div class="lx-req">${Object.entries(p.skills).map(([k, v]) => `<span>${esc(k)} ${Math.round(v)}</span>`).join('')}</div></div><div class="btn-row"><button class="btn btn-small btn-ghost" data-raise="${esc(p.id)}" ${open ? '' : 'disabled'}>+10 % Gehalt</button><button class="btn btn-small btn-ghost" data-fire="${esc(p.id)}" ${open ? '' : 'disabled'}>Entlassen</button></div></div>`).join('') : '<p class="p-sub">Noch niemand. Unten warten Bewerbungen.</p>'}</div>
-      <div class="lx-panel"><span class="lb-k">Bewerbungen</span><p class="p-sub">Arbeitgeberkosten sind etwa 21 % mehr als das Bruttogehalt. Mehr Plätze gibt es mit einem größeren Büro (Markt → Büros).</p>${apps.map((p) => `<div class="lx-staff"><div><b>${esc(p.name)}</b><small>${esc(p.role)} · ${esc(p.trait[0])} · will ${eur(p.gross)} brutto${p.junior ? ' · Berufseinsteiger:in' : ''}</small><div class="lx-req">${Object.entries(p.skills).map(([k, v]) => `<span>${esc(k)} ${v}</span>`).join('')}</div></div><div class="btn-row"><button class="btn btn-small btn-primary" data-hire="${esc(p.id)}" ${open && F.staff.length < cap ? '' : 'disabled'}>Einstellen</button></div></div>`).join('')}</div>`;
-    if (put(body, html)) {
-      body.querySelectorAll('[data-take]').forEach((b) => { b.onclick = () => act({ type: 'kTake', id: b.dataset.take }); });
-      body.querySelectorAll('[data-hire]').forEach((b) => { b.onclick = () => act({ type: 'kHire', id: b.dataset.hire }); });
-      body.querySelectorAll('[data-raise]').forEach((b) => { b.onclick = () => act({ type: 'kRaise', staff: b.dataset.raise }); });
-      body.querySelectorAll('[data-fire]').forEach((b) => { b.onclick = () => { if (confirm('Wirklich entlassen?')) act({ type: 'kFire', staff: b.dataset.fire }); }; });
+      ${ladderHTML(V, me, C, F, people)}
+      ${F.jobs.length ? `<div class="lx-panel"><span class="lb-k">Laufende Aufträge</span>${F.jobs.map((j) => `<div class="lx-job"><b>${esc(j.title)}</b><small>${eur(j.pay)} · Deadline ${esc(L.MONTHS[j.deadline % 12])} ${Math.floor(j.deadline / 12)} · etwa ${CO.pace(C, j, V, me)} % pro Monat</small><div class="lx-prog"><i style="--v:${j.progress}%"></i><span>${j.progress} %</span></div></div>`).join('')}</div>` : ''}
+      <div class="lx-panel"><span class="lb-k">Aufträge diesen Monat</span><p class="p-sub">Grün: euer Firmen-Skill reicht. Gleichzeitig schafft ihr ${1 + Math.floor(F.staff.length / 2)} Auftrag${F.staff.length >= 2 ? 'e' : ''}. Teamleitungen machen das ganze Team schneller.</p>${offers.map((j) => `<div class="lx-job"><b>${esc(j.title)}</b><small>${eur(j.pay)} · ${j.months} Monate geplant${j.minRep ? ` · braucht Ruf ${j.minRep}` : ''} · bei euch etwa ${CO.pace(C, j, V, me)} % pro Monat</small><div class="lx-req">${reqHTML(j.req)}</div><div class="btn-row"><button class="btn btn-small btn-primary" data-take="${esc(j.id)}" ${open ? '' : 'disabled'}>Annehmen</button></div></div>`).join('')}</div>
+      <div class="lx-panel"><span class="lb-k">Team</span>${pl.map(playerRow).join('')}${F.staff.map((p) => staffRow(Object.assign({ level: 2 }, p))).join('') || (pl.length ? '' : '<p class="p-sub">Noch niemand. Unten warten Bewerbungen. Andere Spieler-Figuren stellst du unter „Leute“ ein (Angebot „Job anbieten“).</p>')}</div>
+      <div class="lx-panel"><span class="lb-k">Bewerbungen</span><p class="p-sub">Arbeitgeberkosten sind etwa 21 % mehr als das Bruttogehalt. Mehr Plätze gibt es mit einem größeren Büro (Markt → Büros).</p>${apps.map((p) => `<div class="lx-staff"><div><b>${esc(p.name)}</b> <span class="lx-lv">${esc(CO.LADDER[CO.startLevel(p)].name)}</span><small>${esc(p.role)} · ${esc(p.trait[0])} · will ${eur(p.gross)} brutto</small><div class="lx-req">${Object.entries(p.skills).map(([k, v]) => `<span>${esc(k)} ${v}</span>`).join('')}</div></div><div class="btn-row"><button class="btn btn-small btn-primary" data-hire="${esc(p.id)}" ${open && teamN < cap ? '' : 'disabled'}>Einstellen</button></div></div>`).join('')}</div>`;
+    if (put(body, html)) bindFirm(body, c);
+  }
+  function bindFirm(body, c) {
+    const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => { b.onclick = () => fn(b); });
+    on('[data-take]', (b) => act({ type: 'kTake', id: b.dataset.take }));
+    on('[data-hire]', (b) => act({ type: 'kHire', id: b.dataset.hire }));
+    on('[data-raise]', (b) => act({ type: 'kRaise', staff: b.dataset.raise }));
+    on('[data-promo]', (b) => act({ type: 'kPromote', staff: b.dataset.promo }));
+    on('[data-fire]', (b) => { if (confirm('Wirklich entlassen?')) act({ type: 'kFire', staff: b.dataset.fire }); });
+    on('[data-praise]', (b) => act({ type: 'kRaiseP', pid: b.dataset.praise, pct: 10 }));
+    on('[data-ppromo]', (b) => act({ type: 'kPromoteP', pid: b.dataset.ppromo, force: true }));
+    on('[data-pfire]', (b) => { if (confirm('Wirklich entlassen? Die Person bekommt sofort Bescheid.')) act({ type: 'kFireP', pid: b.dataset.pfire }); });
+    if ($('#fj-raise')) $('#fj-raise').onclick = () => act({ type: 'oOffer', to: c.job2.boss, kind: 'raise', terms: { pct: Number($('#fj-pct').value), reason: $('#fj-why').value } });
+    if ($('#fj-promo')) $('#fj-promo').onclick = () => act({ type: 'oOffer', to: c.job2.boss, kind: 'promo', terms: { reason: $('#fj-why') ? $('#fj-why').value : '' } });
+    if ($('#fj-quit')) $('#fj-quit').onclick = () => { if (confirm('Wirklich kündigen?')) act({ type: 'kQuit' }); };
+  }
+
+  // ----- Handy: SMS und Anfragen -----
+  const phone = { open: false, app: 'home', thread: null, seen: null, draft: {} };
+  const smsName = (V, id) => (/^npc:/.test(id) ? id.slice(4) : (V.chars[id] && V.chars[id].name) || '?');
+  const smsColor = (V, id) => (/^npc:/.test(id) ? '#6b6480' : (V.chars[id] && V.chars[id].color) || '#888');
+  function threadsOf(V, me) {
+    const by = {};
+    (V.sms || []).forEach((m) => { const k = m.from === me ? m.to : m.from; (by[k] = by[k] || []).push(m); });
+    return Object.entries(by).map(([k, list]) => ({ k, list, last: list[list.length - 1], unread: list.filter((m) => m.to === me && !phone.seen.has(m.id)).length })).sort((a, b) => (b.last.round - a.last.round) || 0);
+  }
+  function renderPhone(V, me) {
+    const c = V.chars[me];
+    let btn = document.getElementById('lx-phone-btn');
+    if (!c) { if (btn) btn.remove(); const o = document.getElementById('lx-phone'); if (o) o.remove(); return; }
+    if (!phone.seen) phone.seen = new Set((V.sms || []).map((m) => m.id));
+    // neue SMS melden
+    (V.sms || []).filter((m) => m.to === me && !phone.seen.has(m.id) && !(phone.notified || (phone.notified = new Set())).has(m.id)).forEach((m) => {
+      phone.notified.add(m.id);
+      if (!(phone.open && phone.app === 'sms' && phone.thread === m.from)) { toast(`SMS von ${smsName(V, m.from)}: ${m.t.slice(0, 60)}`); FX && FX.play('pop'); }
+    });
+    const reqs = (V.offers || []).filter((o) => o.to === me && o.status === 'open');
+    const unread = threadsOf(V, me).reduce((s2, t) => s2 + t.unread, 0);
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'lx-phone-btn'; btn.className = 'lx-phone-btn'; btn.setAttribute('aria-label', 'Handy');
+      btn.onclick = () => { phone.open = !phone.open; renderPhone(last.V, last.me); };
+      document.body.appendChild(btn);
+    }
+    put(btn, `<svg viewBox="0 0 24 24" width="22" height="22"><rect x="6" y="2" width="12" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1.3" fill="currentColor"/></svg>${unread + reqs.length ? `<i>${unread + reqs.length}</i>` : ''}`);
+    let ov = document.getElementById('lx-phone');
+    if (!phone.open) { if (ov) ov.remove(); return; }
+    if (!ov) { ov = document.createElement('div'); ov.id = 'lx-phone'; ov.className = 'lx-phone'; document.body.appendChild(ov); }
+    const top = `<div class="ph-top"><span>${esc(L.dateText(V))}</span><b>${esc(c.name)}</b><button class="ph-x" data-ph="close" aria-label="Schließen">×</button></div>`;
+    let inner = '';
+    if (phone.app === 'home') {
+      inner = `<div class="ph-home"><button class="ph-app" data-ph="sms"><span class="ic sms">SMS</span><small>Nachrichten</small>${unread ? `<i>${unread}</i>` : ''}</button><button class="ph-app" data-ph="req"><span class="ic req">!</span><small>Anfragen</small>${reqs.length ? `<i>${reqs.length}</i>` : ''}</button><button class="ph-app" data-ph="bank"><span class="ic bank">€</span><small>Banking</small></button></div><p class="ph-note">April liest mit. Was ihr schreibt, ist Teil der Geschichte.</p>`;
+    } else if (phone.app === 'sms' && !phone.thread) {
+      const th = threadsOf(V, me), others = V.players.filter((p) => p.id !== me && V.chars[p.id] && !V.chars[p.id].dead && !th.some((t) => t.k === p.id));
+      inner = `<div class="ph-head"><button data-ph="home">‹</button><b>Nachrichten</b></div><ul class="ph-list">${th.map((t) => `<li data-th="${esc(t.k)}"><span class="av" style="--pc:${esc(smsColor(V, t.k))}">${esc(smsName(V, t.k)[0])}</span><div><b>${esc(smsName(V, t.k))}</b><small>${t.last.from === me ? 'Du: ' : ''}${esc(t.last.t.slice(0, 50))}</small></div>${t.unread ? `<i>${t.unread}</i>` : ''}</li>`).join('')}
+        ${others.map((p) => `<li data-th="${esc(p.id)}" class="new"><span class="av" style="--pc:${esc(V.chars[p.id].color)}">${esc(V.chars[p.id].name[0])}</span><div><b>${esc(V.chars[p.id].name)}</b><small>Neue Nachricht schreiben</small></div></li>`).join('')}</ul>`;
+    } else if (phone.app === 'sms') {
+      const k = phone.thread, list = (V.sms || []).filter((m) => (m.from === me && m.to === k) || (m.from === k && m.to === me));
+      list.forEach((m) => phone.seen.add(m.id));
+      inner = `<div class="ph-head"><button data-ph="sms">‹</button><span class="av" style="--pc:${esc(smsColor(V, k))}">${esc(smsName(V, k)[0])}</span><b>${esc(smsName(V, k))}</b></div>
+        <div class="ph-chat" id="ph-chat">${list.map((m) => `<p class="${m.from === me ? 'me' : ''}">${esc(m.t)}<small>${esc(m.d)}</small></p>`).join('') || '<p class="ph-empty">Noch nichts geschrieben.</p>'}</div>
+        <div class="ph-in"><input id="ph-text" maxlength="400" placeholder="Nachricht …" value="${esc(phone.draft[k] || '')}"><button id="ph-send">Senden</button></div>`;
+    } else if (phone.app === 'req') {
+      inner = `<div class="ph-head"><button data-ph="home">‹</button><b>Anfragen</b></div>${reqs.length ? reqs.map((o) => `<div class="ph-req"><b>${esc(o.fromName)} · ${esc(SOC.KINDS[o.kind].name)}</b><p>${esc(SOC.KINDS[o.kind].text(o))}</p><div class="btn-row"><button class="btn btn-small btn-primary" data-pans="${o.id}" data-yes="1">${SOC.KINDS[o.kind].ask ? 'Ja' : 'Annehmen'}</button><button class="btn btn-small" data-pans="${o.id}">${SOC.KINDS[o.kind].ask ? 'Nein' : 'Ablehnen'}</button></div></div>`).join('') : '<p class="ph-empty">Keine offenen Anfragen.</p>'}`;
+    } else if (phone.app === 'bank') {
+      const loans = c.bank.loans.reduce((s2, l) => s2 + l.rest, 0);
+      inner = `<div class="ph-head"><button data-ph="home">‹</button><b>Banking</b></div><div class="ph-bank"><small>Kontostand</small><b class="${c.stats.money < 0 ? 'down' : 'up'}">${eur(c.stats.money)}</b><p>Dispo ${eur(c.bank.dispo)} · SCHUFA ${c.bank.schufa}${loans ? ` · Kredite offen ${eur(loans)}` : ''}</p>${(c.effects || []).filter((e) => e.pm).slice(0, 10).map((e) => `<p class="ph-tx"><span>${esc(e.name)}</span><b class="${e.pm > 0 ? 'up' : 'down'}">${e.pm > 0 ? '+' : ''}${eur(e.pm)}</b></p>`).join('')}</div>`;
+    }
+    if (put(ov, `<div class="ph-frame">${top}<div class="ph-screen">${inner}</div></div>`)) {
+      ov.querySelectorAll('[data-ph]').forEach((b) => { b.onclick = () => { const t = b.dataset.ph; if (t === 'close') phone.open = false; else { phone.app = t === 'home' || t === 'sms' || t === 'req' || t === 'bank' ? t : 'home'; phone.thread = null; } renderPhone(last.V, last.me); }; });
+      ov.querySelectorAll('[data-th]').forEach((b) => { b.onclick = () => { phone.thread = b.dataset.th; renderPhone(last.V, last.me); }; });
+      ov.querySelectorAll('[data-pans]').forEach((b) => { b.onclick = () => act({ type: 'oAnswer', id: b.dataset.pans, yes: !!b.dataset.yes }); });
+      const inp = ov.querySelector('#ph-text');
+      if (inp) {
+        const k = phone.thread;
+        inp.oninput = () => { phone.draft[k] = inp.value; };
+        const send = () => { const t = inp.value.trim(); if (!t) return; phone.draft[k] = ''; inp.value = ''; act({ type: 'sms', to: k, text: t }); };
+        ov.querySelector('#ph-send').onclick = send;
+        inp.onkeydown = (e) => { if (e.key === 'Enter') send(); };
+        const ch = ov.querySelector('#ph-chat'); if (ch) ch.scrollTop = ch.scrollHeight;
+        if (document.activeElement !== inp && window.innerWidth > 700) inp.focus();
+      }
     }
   }
 
@@ -978,12 +1093,12 @@
     const inc = V.offers.filter((o) => o.to === me && o.status === 'open');
     const out = V.offers.filter((o) => o.from === me && o.status === 'open');
     const recent = V.offers.filter((o) => (o.from === me || o.to === me) && o.status !== 'open' && o.round >= V.round - 2).slice(-6).reverse();
-    const kinds = Object.entries(SOC.KINDS).filter(([, k]) => !k.need || k.need(c));
+    const kinds = Object.entries(SOC.KINDS).filter(([, k]) => !k.ask && (!k.need || k.need(c)));
     if (!offerDraft.to || !others.some((p) => p.id === offerDraft.to)) offerDraft.to = others[0] ? others[0].id : '';
     if (!kinds.some(([k]) => k === offerDraft.kind)) offerDraft.kind = kinds[0][0];
     const t = V.chars[offerDraft.to];
     const contracts = (V.contracts || []).filter((v) => !v.ended && (v.payer === me || v.payee === me));
-    const html = `${inc.length ? `<div class="lx-appts"><span class="lb-k">Angebote für dich</span>${inc.map((o) => `<div class="lx-ap"><div class="lx-ap-h"><b>${esc(o.fromName)}</b><span>${esc(SOC.KINDS[o.kind].name)}</span></div><p>${esc(SOC.KINDS[o.kind].text(o))}</p><div class="btn-row"><button class="btn btn-small btn-primary" data-ans="${o.id}" data-yes="1">Annehmen</button><button class="btn btn-small" data-ans="${o.id}">Ablehnen</button></div></div>`).join('')}</div>` : ''}
+    const html = `${inc.length ? `<div class="lx-appts"><span class="lb-k">Angebote für dich</span>${inc.map((o) => `<div class="lx-ap"><div class="lx-ap-h"><b>${esc(o.fromName)}</b><span>${esc(SOC.KINDS[o.kind].name)}</span></div><p>${esc(SOC.KINDS[o.kind].text(o))}</p><div class="btn-row"><button class="btn btn-small btn-primary" data-ans="${o.id}" data-yes="1">${SOC.KINDS[o.kind].ask ? 'Ja' : 'Annehmen'}</button><button class="btn btn-small" data-ans="${o.id}">${SOC.KINDS[o.kind].ask ? 'Nein' : 'Ablehnen'}</button></div></div>`).join('')}</div>` : ''}
       ${others.length ? `<div class="lx-panel"><span class="lb-k">Jemandem etwas anbieten <small>max. ${SOC.MAX_OUT} offen</small></span>
         <div class="lx-of-grid"><label class="field"><span>An</span><select id="of-to">${others.map((p) => `<option value="${p.id}" ${p.id === offerDraft.to ? 'selected' : ''}>${esc(V.chars[p.id].name)} (${esc(p.name)})</option>`).join('')}</select></label>
         <label class="field"><span>Was</span><select id="of-kind">${kinds.map(([k, x]) => `<option value="${k}" ${k === offerDraft.kind ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>

@@ -38,6 +38,7 @@
     }
     const J = c.job2;
     if (!J || J.kind === 'azubi' || J.kind === 'mini') return;
+    const playerBoss = J.boss && S.chars[J.boss] && !S.chars[J.boss].dead;
     J.review = J.review || J.since + 12;
     if (cur >= J.review && !c.appts.some((a) => a.status === 'open' && a.kind === 'raise')) {
       J.review = cur + 12;
@@ -46,7 +47,7 @@
     }
     // Kündigung (betriebsbedingt), in schlechten Zeiten öfter
     const p = 0.0012 * (S.econ && S.econ.infl > 3.5 ? 2 : 1);
-    if (X.rnd(100000) / 100000 < p) {
+    if (!playerBoss && X.rnd(100000) / 100000 < p) {
       const years = Math.max(0, (cur - J.since) / 12), sev = Math.round(J.gross * 0.5 * Math.max(0.5, years));
       c.stats.money += sev;
       const alg = Math.round(DB.net(J.gross, J.kind) * 0.6);
@@ -61,6 +62,15 @@
     if (ap.kind === 'raise') {
       const J = c.job2;
       if (!J) return true;
+      // Chef ist eine Spieler-Figur: die entscheidet, nicht der Würfel
+      if (J.boss && S.chars[J.boss] && !S.chars[J.boss].dead) {
+        if (skip || dec.d === 'sick') { X.report(S, pid, '•', 'Jahresgespräch abgesagt.'); return true; }
+        S.offers = S.offers || [];
+        S.offers.push({ id: X.uid('o'), from: pid, to: J.boss, kind: 'raise', terms: { pct: 6, reason: 'Jahresgespräch' }, status: 'open', round: S.round, fromName: c.name, toName: S.chars[J.boss].name, fromHim: 'dir' });
+        X.report(S, pid, '•', `Jahresgespräch: Deine Bitte um 6 % mehr liegt bei ${S.chars[J.boss].name}. Die Entscheidung trifft sie oder er.`);
+        X.report(S, J.boss, '•', `Jahresgespräch mit ${c.name}: Anfrage auf 6 % mehr Gehalt (Tab „Leute“ oder Handy).`);
+        return true;
+      }
       if (skip || dec.d === 'sick') { X.report(S, pid, '•', 'Jahresgespräch verpasst. Keine Gehaltserhöhung dieses Jahr.', 'bad'); return true; }
       const roll = X.d20(), score = roll + (D ? D.mod(c, 'work') : 0) + Math.floor(c.stats.power / 25) + (c.flags.study ? 1 : 0);
       if (roll === 20 || score >= 19) {

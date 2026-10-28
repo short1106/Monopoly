@@ -332,6 +332,7 @@
           if (o.cost && me.stats.money + me.bank.dispo < o.cost) return `Dafür fehlen dir ${eur(o.cost - me.stats.money)}.`;
           S.picks[pid] = a.choice;
           S.actions[pid] = o.t;
+          askOther(S, pid, card, o);
         } else if (a.text) {
           const t = cleanText(a.text, 600);
           if (t.length < 2) return 'Schreib, was du tust.';
@@ -344,7 +345,7 @@
         if (alive(S).every((p) => S.actions[p.id])) toThink(S);
         return null;
       }
-      case 'undo': { if (S.phase === 'act') { delete S.actions[pid]; delete S.picks[pid]; } return null; }
+      case 'undo': { if (S.phase === 'act') { delete S.actions[pid]; delete S.picks[pid]; (S.offers || []).forEach((o) => { if (o.from === pid && o.kind === 'ask' && o.status === 'open') o.status = 'cancelled'; }); if (S.decided) delete S.decided[pid]; } return null; }
       case 'pace': { if (!isHost) return 'Nur der Host.'; if (PACE[a.pace] == null) return 'Gibt es nicht.'; S.settings.pace = a.pace; log(S, `Tempo: ${({ auto: 'automatisch', m: 'Monat für Monat', q: 'Quartale', y: 'ganze Jahre' })[a.pace]}.`); return null; }
       case 'force': { if (!isHost) return 'Nur der Host.'; if (S.phase === 'act') toThink(S); return null; }
       case 'ai': {
@@ -366,6 +367,17 @@
         if (S.phase === 'over' || S.phase === 'think') return null;
         S.phase = 'think'; S.aiTask = 'final'; S.aiSeq++;
         builtinNow(S);
+        return null;
+      }
+      // SMS im Handy: privat an eine Figur oder Antwort an jemanden, den April spielt (npc:Name). April liest mit.
+      case 'sms': {
+        if (!me || me.dead) return 'Deine Figur lebt nicht mehr.';
+        const t = cleanText(a.text, 400);
+        if (!t) return 'Leere Nachricht.';
+        const to = String(a.to || '');
+        if (!/^npc:/.test(to) && (!S.chars[to] || to === pid)) return 'An wen?';
+        const Co = CO();
+        if (Co) Co.sms(S, pid, /^npc:/.test(to) ? `npc:${cleanText(to.slice(4), 40)}` : to, t);
         return null;
       }
       case 'chat': {
@@ -765,6 +777,18 @@
     c.job2 = null;
   }
 
+  // Ist bei der Wahl eine andere Spieler-Figur beteiligt, entscheidet sie statt des Würfels
+  function askOther(S, pid, card, o) {
+    const fid = card && card.fid, other = fid && S.chars[fid];
+    if (!other || other.dead || !o.dc || !card.f || !o.t.includes(card.f)) return;
+    const me = S.chars[pid];
+    S.offers = S.offers || [];
+    S.offers.forEach((x) => { if (x.from === pid && x.kind === 'ask' && x.status === 'open') x.status = 'cancelled'; });
+    S.offers.push({ id: uid('o'), from: pid, to: fid, kind: 'ask', terms: { text: `${me.name}: ${card.text} – „${o.t}“. Machst du mit? (Deine Entscheidung statt Würfel.)` }, status: 'open', round: S.round, fromName: me.name, toName: other.name, fromHim: 'dir' });
+    const Co = CO();
+    if (Co) Co.sms(S, pid, fid, `${card.text} „${o.t}“ – bist du dabei?`);
+  }
+
   // ---------- Bausteine, mit denen April (KI) alles Mögliche ins Spiel bringen kann ----------
   function applyTools(S, pid, c, x, M) {
     const Co = CO();
@@ -802,6 +826,11 @@
       const name = cleanText(pl && pl.name, 50), lat = Number(pl && pl.lat), lng = Number(pl && pl.lng);
       if (!name || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 85 || Math.abs(lng) > 180) return;
       c.places = (c.places || []).filter((o) => o.name !== name).concat({ name, lat, lng }).slice(-10);
+    });
+    // SMS von Leuten, die April spielt (Mama, Chefin, Ex, Kunde …)
+    (Array.isArray(x.sms) ? x.sms : []).slice(0, 2).forEach((m) => {
+      const from = cleanText(m && m.from, 40), t = cleanText(m && m.text, 300);
+      if (from && t && CO()) CO().sms(S, `npc:${from}`, pid, t, from);
     });
     // Gedächtnis: was April sich merken will
     const mem = cleanText(x.memory, 200);
@@ -936,7 +965,8 @@
       const mm = S.date.m + M;
       S.date = { y: S.date.y + Math.floor(mm / 12), m: mm % 12 };
       alive(S).forEach((p) => { const c = S.chars[p.id]; c.age = Math.floor((idx(S.date) - c.bornIdx) / 12); });
-      S.actions = {}; S.quiz = {}; S.plans = {};
+      S.actions = {}; S.quiz = {}; S.plans = {}; S.decided = {};
+      (S.offers || []).forEach((o) => { if (o.kind === 'ask' && o.status === 'open') o.status = 'expired'; });
     }
     if (w) { S.world.unshift({ d: dateText(S), t: w }); S.world = S.world.slice(0, 16); }
     // Tod
@@ -965,6 +995,7 @@
   // Sicht: eigene Pläne bleiben geheim
   function view(S, pid) {
     const V = JSON.parse(JSON.stringify(S));
+    V.sms = (V.sms || []).filter((m) => m.from === pid || m.to === pid);
     if (pid !== S.host) {
       Object.keys(V.actions).forEach((k) => { if (k !== pid) V.actions[k] = '•'; });
       Object.keys(V.picks || {}).forEach((k) => { if (k !== pid) delete V.picks[k]; });

@@ -15,6 +15,7 @@
     Handwerk: ['Kochen', 'Elektrik', 'Schreinern', 'Autos schrauben', 'Nähen', 'Gärtnern'],
     Sprachen: ['Englisch', 'Spanisch', 'Französisch', 'Türkisch', 'Arabisch', 'Japanisch', 'Italienisch'],
     Körper: ['Fitness', 'Fußball', 'Kampfsport', 'Schwimmen', 'Erste Hilfe'],
+    Ansehen: ['Bekanntheit', 'Netzwerk', 'Charisma', 'Ruf in der Szene'],
   };
   const ALL = Object.values(CATALOG).flat();
   const catOf = (name) => Object.keys(CATALOG).find((k) => CATALOG[k].includes(name)) || 'Eigenes';
@@ -24,7 +25,7 @@
     justin: { Fitness: 55, Fußball: 45, Verkauf: 30, Kampfsport: 25, Englisch: 35 },
     april: { 'KI und Daten': 85, Programmieren: 70, Schreiben: 60, Englisch: 90, Japanisch: 40, Singen: 45 },
     deniz: { 'Autos schrauben': 50, Elektrik: 30, Verkauf: 25, Türkisch: 70, Englisch: 30 },
-    lea: { 'Social Media': 60, Fotografie: 45, Marketing: 35, Videoschnitt: 30, Englisch: 50 },
+    lea: { 'Social Media': 60, Fotografie: 45, Marketing: 35, Videoschnitt: 30, Englisch: 50, Bekanntheit: 40 },
     jonas: { Programmieren: 55, 'KI und Daten': 40, 'IT-Sicherheit': 30, Englisch: 55, Klavier: 25 },
     aylin: { Buchhaltung: 40, Verkauf: 45, Verhandeln: 40, Türkisch: 75, Führung: 25, Englisch: 40 },
   };
@@ -77,6 +78,34 @@
     ['Video-Creator', ['Videoschnitt', 'Social Media', 'Fotografie']], ['Marketing', ['Marketing', 'Social Media']], ['Vertrieb', ['Verkauf', 'Verhandeln']], ['Projektmanager:in', ['Projektmanagement', 'Führung']],
     ['Buchhaltung', ['Buchhaltung']], ['Sounddesigner:in', ['Musikproduktion', 'Singen']], ['Texter:in', ['Schreiben', 'Marketing']], ['Kundenservice', ['Kundenservice', 'Englisch']]];
   const TRAITS = [['fleißig', 1.15, 0], ['Genie', 1.35, -5], ['chaotisch', 0.9, 5], ['Diva', 1.1, -15], ['treue Seele', 1, 15], ['faul', 0.75, 5], ['Teamplayer', 1.05, 10]];
+  // Karriereleiter in jeder Firma: Gehaltsband, Mindest-Skill (Schnitt der zwei besten), Führung, Monate in der Firma, Teamgröße
+  const LADDER = [
+    { name: 'Praktikant:in', band: [600, 1200], avg: 0, lead: 0, months: 0, team: 0 },
+    { name: 'Junior', band: [2000, 2800], avg: 20, lead: 0, months: 0, team: 0 },
+    { name: 'Mitarbeiter:in', band: [2800, 3800], avg: 38, lead: 0, months: 6, team: 0 },
+    { name: 'Senior', band: [3800, 5200], avg: 58, lead: 0, months: 18, team: 0 },
+    { name: 'Teamleitung', band: [5000, 6800], avg: 60, lead: 40, months: 24, team: 4 },
+    { name: 'Abteilungsleitung', band: [6800, 9500], avg: 68, lead: 60, months: 36, team: 10 },
+    { name: 'Geschäftsführung', band: [9500, 16000], avg: 74, lead: 75, months: 48, team: 20 },
+  ];
+  const top2 = (sk) => { const v = Object.entries(sk || {}).filter(([k]) => k !== 'Führung' && k !== 'Bekanntheit').map(([, x]) => x).sort((a, b) => b - a); return v.length ? ((v[0] || 0) + (v[1] || v[0] || 0)) / 2 : 0; };
+  // Was fehlt für die nächste Stufe? (leer = darf befördert werden)
+  function missingFor(person, nextLv, months, teamSize) {
+    const L = LADDER[nextLv];
+    if (!L) return ['Höher geht es nicht.'];
+    const out = [];
+    if (top2(person.skills) < L.avg) out.push(`Skills im Schnitt ${L.avg} (hat ${Math.round(top2(person.skills))})`);
+    if (L.lead && (person.skills.Führung || 0) < L.lead) out.push(`Führung ${L.lead} (hat ${Math.round(person.skills.Führung || 0)})`);
+    if (months < L.months) out.push(`${L.months} Monate in der Firma (hat ${months})`);
+    if (L.team && teamSize < L.team) out.push(`Firma mit ${L.team} Leuten (hat ${teamSize})`);
+    return out;
+  }
+  const startLevel = (p) => (p.junior ? 1 : top2(p.skills) >= 58 ? 3 : 2);
+  // Alle Leute einer Firma: angestellte Figuren (bei Personen) und Spieler-Figuren, die für diese Person arbeiten
+  function players(S, bossPid) {
+    if (!S || !S.chars) return [];
+    return Object.entries(S.chars).filter(([id, o]) => !o.dead && o.job2 && o.job2.boss === bossPid).map(([id, o]) => ({ pid: id, name: o.name, role: o.job2.title, skills: o.skills || {}, gross: o.job2.gross, level: o.job2.level != null ? o.job2.level : 2, mood: 70, trait: ['Spieler:in', 1, 0], since: o.job2.since, player: true }));
+  }
   function firm(c) {
     if (!c.firm) c.firm = { name: OF() ? OF().firmName(c) : `${c.name}s Firma`, staff: [], jobs: [], rep: 30, done: 0, lastRev: 0 };
     return c.firm;
@@ -85,9 +114,9 @@
   // Wie viele Leute passen rein? Büro-Plätze minus du, plus 2 im Homeoffice
   const capacity = (c) => Math.max(0, (c.offices || []).reduce((s, o) => s + o.desks, 0) - 1) + 2;
   // Firmen-Skills: der oder die Beste zählt voll, alle anderen mit abnehmendem Anteil, Laune und Eigenschaft wirken mit
-  function skills(c) {
+  function skills(c, S, pid) {
     ensure(c);
-    const F = firm(c), people = [{ skills: c.skills, f: 1 }].concat(F.staff.map((p) => ({ skills: p.skills, f: p.trait[1] * (0.6 + p.mood / 250) })));
+    const F = firm(c), people = [{ skills: c.skills, f: 1 }].concat(F.staff.map((p) => ({ skills: p.skills, f: p.trait[1] * (0.6 + p.mood / 250) })), players(S, pid || c._pid).map((p) => ({ skills: p.skills, f: 1 })));
     const out = {};
     const names = new Set(people.flatMap((p) => Object.keys(p.skills)));
     names.forEach((n) => {
@@ -125,10 +154,11 @@
     return out;
   }
   // Fortschritt pro Monat: Firmen-Skill gegen Anforderung, Teamgröße hilft
-  function pace(c, job) {
-    const fs = skills(c), ratios = Object.entries(job.req).map(([n, v]) => Math.min(1.6, (fs[n] || 0) / Math.max(1, v)));
+  function pace(c, job, S, pid) {
+    const fs = skills(c, S, pid), ratios = Object.entries(job.req).map(([n, v]) => Math.min(1.6, (fs[n] || 0) / Math.max(1, v)));
     const ratio = ratios.reduce((s, v) => s + v, 0) / ratios.length;
-    const team = 1 + Math.min(0.6, firm(c).staff.length * 0.12);
+    const F = firm(c), leads = F.staff.filter((p) => (p.level || 0) >= 4).length;
+    const team = 1 + Math.min(0.6, (F.staff.length + players(S, pid || c._pid).length) * 0.12) * (1 + Math.min(3, leads) * 0.15);
     return Math.round(100 / job.months * ratio * team);
   }
 
@@ -147,6 +177,14 @@
       X.report(S, pid, '•', `Neuer Skill: ${n}. Du fängst bei null an. Im Fokus „Lernen“ trainieren.`);
       return null;
     }
+    if (a.type === 'kQuit') {
+      if (!c.job2 || !c.job2.boss) return 'Du arbeitest nicht für eine andere Figur.';
+      const boss = c.job2.boss;
+      endPlayerJob(S, pid, c, null, X);
+      X.report(S, pid, '•', 'Gekündigt. Du bist frei.');
+      if (S.chars[boss]) { X.report(S, boss, '•', `${c.name} hat bei dir gekündigt.`, 'bad'); sms(S, pid, boss, 'Ich kündige. War schön mit dir, aber ich mach jetzt was anderes.'); }
+      return null;
+    }
     if (!can(c)) return 'Erst brauchst du eine Firma (Fokus „Eigenes Projekt“).';
     const F = firm(c), now = X.idx(S.date);
     if (a.type === 'kHire') {
@@ -156,7 +194,7 @@
       if (F.staff.length >= capacity(c)) return `Kein Platz: ${capacity(c)} Plätze (Büro plus 2 im Homeoffice). Erst ein größeres Büro mieten.`;
       if (c.stats.money + c.bank.dispo < p.gross * 1.21) return `Das erste Gehalt (${X.eur(Math.round(p.gross * 1.21))} mit Sozialabgaben) musst du schon haben.`;
       S.market.taken[`${pid}:${p.id}`] = 1;
-      F.staff.push({ id: X.uid('st'), name: p.name, role: p.role, skills: p.skills, gross: p.gross, trait: p.trait, mood: 70, since: now });
+      F.staff.push({ id: X.uid('st'), name: p.name, role: p.role, skills: p.skills, gross: p.gross, trait: p.trait, mood: 70, since: now, level: startLevel(p), promoAt: now });
       X.report(S, pid, '•', `EINGESTELLT: ${p.name} als ${p.role} (${X.eur(p.gross)} brutto, mit Abgaben ${X.eur(Math.round(p.gross * 1.21))}). Eigenschaft: ${p.trait[0]}.`, 'good');
       c.chronicle.push({ d: X.dateText(S), t: `Stellt ${p.name} ein (${p.role}).` });
       return null;
@@ -176,6 +214,31 @@
       const plus = Math.round(st.gross * 0.1 / 50) * 50;
       st.gross += plus; st.mood = Math.min(100, st.mood + 20);
       X.report(S, pid, '•', `${st.name} bekommt ${X.eur(plus)} mehr. Laune steigt.`, 'good');
+      return null;
+    }
+    if (a.type === 'kPromote') {
+      if (!st) return 'Gibt es nicht.';
+      const lv = st.level || 2, miss = missingFor(st, lv + 1, now - st.since, F.staff.length + players(S, pid).length);
+      if (miss.length) return `${st.name} kann noch nicht ${LADDER[lv + 1] ? LADDER[lv + 1].name : 'höher'} werden: ${miss.join(', ')}.`;
+      st.level = lv + 1; st.promoAt = now; st.gross = Math.max(st.gross, LADDER[lv + 1].band[0]); st.mood = Math.min(100, st.mood + 25);
+      X.report(S, pid, '•', `${st.name} ist jetzt ${LADDER[st.level].name}. Neues Gehalt ${X.eur(st.gross)} brutto.`, 'good');
+      return null;
+    }
+    // Spieler-Figuren in der eigenen Firma: der Chef entscheidet direkt, ohne Würfel
+    const emp = a.pid && S.chars[a.pid] && S.chars[a.pid].job2 && S.chars[a.pid].job2.boss === pid ? S.chars[a.pid] : null;
+    if (a.type === 'kRaiseP' || a.type === 'kPromoteP' || a.type === 'kFireP') {
+      if (!emp) return 'Die Person arbeitet nicht für dich.';
+      const J = emp.job2;
+      if (a.type === 'kFireP') { endPlayerJob(S, a.pid, emp, `${c.name} hat dich entlassen.`, X); X.report(S, pid, '•', `${emp.name} entlassen.`); return null; }
+      if (a.type === 'kRaiseP') { const pct = Math.max(3, Math.min(30, Number(a.pct) || 10)); setGross(S, a.pid, emp, Math.round(J.gross * (1 + pct / 100) / 50) * 50); X.report(S, a.pid, '•', `${c.name} gibt dir ${pct} % mehr Gehalt: jetzt ${X.eur(J.gross)} brutto.`, 'good'); X.report(S, pid, '•', `${emp.name} verdient jetzt ${X.eur(J.gross)}.`); sms(S, pid, a.pid, `Ich hab dir ${pct} % mehr Gehalt gegeben. Gönn dir.`); return null; }
+      const lv = J.level != null ? J.level : 2, miss = missingFor({ skills: emp.skills || {} }, lv + 1, now - J.since, F.staff.length + players(S, pid).length);
+      if (miss.length && !a.force) return `${emp.name} erfüllt noch nicht alles für ${LADDER[lv + 1] ? LADDER[lv + 1].name : 'mehr'}: ${miss.join(', ')}. (Trotzdem befördern geht, aber das Team merkt es.)`;
+      J.level = lv + 1; J.title = `${LADDER[J.level].name} bei ${J.firm}`; emp.job = J.title;
+      setGross(S, a.pid, emp, Math.max(J.gross, LADDER[J.level].band[0]));
+      if (miss.length) F.staff.forEach((x) => { x.mood = Math.max(0, x.mood - 10); });
+      X.report(S, a.pid, '•', `BEFÖRDERT von ${c.name}: Du bist jetzt ${LADDER[J.level].name}. ${X.eur(J.gross)} brutto.`, 'good');
+      X.report(S, pid, '•', `${emp.name} ist jetzt ${LADDER[J.level].name}.`);
+      emp.chronicle.push({ d: X.dateText(S), t: `Befördert zu ${LADDER[J.level].name} bei ${J.firm}.` });
       return null;
     }
     if (a.type === 'kTake') {
@@ -202,9 +265,9 @@
     c.stats.money -= out;
     if (out) { c._spent = c._spent || {}; c._spent.Gehälter = (c._spent.Gehälter || 0) + out; }
     F.jobs.slice().forEach((j) => {
-      j.progress = Math.min(100, j.progress + Math.round(pace(c, j) * (0.75 + X.rnd(50) / 100)));
+      j.progress = Math.min(100, j.progress + Math.round(pace(c, j, S, pid) * (0.75 + X.rnd(50) / 100)));
       if (j.progress >= 100) {
-        const q = Math.min(1.3, pace(c, j) * j.months / 100);
+        const q = Math.min(1.3, pace(c, j, S, pid) * j.months / 100);
         const pay = Math.round(j.pay * (q >= 1 ? 1 : 0.85));
         inc += pay; c.stats.money += pay;
         F.rep = Math.min(100, F.rep + 3 + j.size * 2); F.done++;
@@ -222,8 +285,15 @@
     c.tx = c.tx || { y: S.date.y, gross: 0, rent: 0, biz: 0 };
     c.tx.biz += inc - out;
     F.lastRev = inc - out;
-    // Leute: lernen im Job, Laune, Zufälle
+    // Leute: lernen im Job, Laune, Zufälle, wollen aufsteigen
+    const leads = F.staff.filter((p) => (p.level || 0) >= 4).length, teamN = F.staff.length + players(S, pid).length;
     F.staff.slice().forEach((p) => {
+      if (p.level == null) p.level = 2;
+      if (teamN >= 6 && !leads) p.mood = Math.max(0, p.mood - 1);
+      if (!missingFor(p, p.level + 1, cur - p.since, teamN).length && cur - (p.promoAt || p.since) >= 12) {
+        p.mood = Math.max(0, p.mood - 3);
+        if ((cur - (p.promoAt || p.since)) % 4 === 0) X.report(S, pid, '•', `${p.name} möchte ${LADDER[p.level + 1].name} werden und erfüllt alles. Laune sinkt, bis du entscheidest (Tab „Firma“).`);
+      }
       Object.keys(p.skills).forEach((n) => { p.skills[n] = clampL(p.skills[n] + 0.4 * (1 - p.skills[n] / 120)); });
       p.mood = Math.max(0, Math.min(100, p.mood + (F.jobs.length ? 0 : -2) + (p.trait[2] > 0 ? 1 : 0) - (p.gross < 2200 ? 1 : 0)));
       const r = X.rnd(1000);
@@ -234,7 +304,25 @@
     });
     return { inc, out };
   }
-  const COMPANY = { CATALOG, ALL, catOf, ensure, change, level, train, monthSkills, firm, can, capacity, skills, applicants, offers, pace, act, month };
+  function setGross(S, pid, emp, gross) {
+    emp.job2.gross = gross;
+    (S.contracts || []).forEach((k) => { if (k.kind === 'salary' && k.payee === pid && k.viaJob) k.pm = Math.round(gross * 1.21); });
+  }
+  function endPlayerJob(S, pid, emp, msg, X) {
+    (S.contracts || []).forEach((k) => { if (k.kind === 'salary' && k.payee === pid && k.viaJob) k.ended = true; });
+    S.contracts = (S.contracts || []).filter((k) => !k.ended);
+    if (msg) X.report(S, pid, '•', msg, 'bad');
+    X.endJob(S, emp, msg ? 'entlassen' : 'selbst gekündigt');
+    emp.job = 'sucht einen Job';
+  }
+  // SMS ins Handy (auch von Leuten, die nur April spielt: from = 'npc:Name')
+  function sms(S, from, to, text, npc) {
+    S.sms = S.sms || [];
+    const d = S.date ? `${S.date.m + 1}/${S.date.y}` : '';
+    S.sms.push({ id: 's' + Math.random().toString(36).slice(2, 9), from, to, t: String(text).slice(0, 400), d, round: S.round, npc: npc || null });
+    if (S.sms.length > 400) S.sms.splice(0, S.sms.length - 400);
+  }
+  const COMPANY = { LADDER, missingFor, players, setGross, endPlayerJob, sms, top2, startLevel, CATALOG, ALL, catOf, ensure, change, level, train, monthSkills, firm, can, capacity, skills, applicants, offers, pace, act, month };
   if (isNode) module.exports = COMPANY;
   else root.DULI_LARP_COMPANY = COMPANY;
 })(typeof window !== 'undefined' ? window : globalThis);

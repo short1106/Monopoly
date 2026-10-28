@@ -742,7 +742,10 @@
         if (ok && traits(c).fumble && o.stat === 'social' && roll <= 3) { ok = false; note = ' Es lief perfekt. Bis zum letzten Satz.'; }
         // Kimberly kommt leichter aus Ärger raus
         if (!ok && traits(c).rescue && Math.random() < 0.3) { ok = true; note = ' Eigentlich wäre das schiefgegangen. Dann hat dir jemand geholfen, einfach so.'; }
-        entry.check = { used: true, stat: SKILLS[o.stat] || o.stat, dc: o.dc, success: ok, mod: m };
+        // Eine andere Spieler-Figur hat entschieden: kein Würfel
+        const dec = S.decided && S.decided[pid];
+        if (dec) { ok = dec.yes; note = ` ${dec.by} hat entschieden: ${dec.yes ? 'Ja' : 'Nein'}.`; }
+        entry.check = dec ? { used: false, stat: '', dc: 0, success: ok, mod: 0 } : { used: true, stat: SKILLS[o.stat] || o.stat, dc: o.dc, success: ok, mod: m };
         extra.margin = roll + m - o.dc;
         extra.note = note;
       }
@@ -754,6 +757,9 @@
       }
       if (out.abiGrade) x.grade = (clamp(3.6 - (extra.margin || 0) * 0.17, 1.0, 4.0)).toFixed(1).replace('.', ',');
       applyOutcome(S, pid, entry, out, x, M, extra);
+      // Bekanntheit wird zum Skill, sobald sie wichtig wird
+      const fame = { viral: 10, politik: 6, buergermeister: 14, kanzler: 30, talentshow: 12, 'ai-ruhm': 12, 'trip-strand': 2, hacker: -4 }[card.id];
+      if (fame && (ok || fame < 0)) { const Co = root.DULI_LARP_COMPANY || (typeof module !== 'undefined' && module.exports ? require('./larp-company') : null); if (Co) Co.change(c, 'Bekanntheit', fame); }
       if (out.abiGrade && c.flags.grade) x.grade = c.flags.grade;
       entry.story = fill(out.s, x) + (extra.note || '');
       // Auswirkung auf eine andere Person (verknüpfte Leben)

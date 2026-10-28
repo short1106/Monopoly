@@ -23,6 +23,11 @@
     duel: { name: 'Herausfordern', text: (o) => `${o.fromName} fordert dich heraus: ${o.terms.statName}-Duell um ${o.terms.stake} €.` },
     sell: { name: 'Verkaufen', text: (o) => `${o.fromName} will dir ${o.terms.item} für ${o.terms.price} € verkaufen.` },
     party: { name: 'Party zusammen', text: (o) => `${o.fromName} will mit dir feiern gehen.` },
+    // Anfragen an den Chef (nur wer für die andere Figur arbeitet)
+    raise: { name: 'Gehaltserhöhung', ask: true, text: (o) => `${o.fromName} bittet um ${o.terms.pct} % mehr Gehalt${o.terms.reason ? `: „${o.terms.reason}“` : '.'}` },
+    promo: { name: 'Beförderung', ask: true, text: (o) => `${o.fromName} möchte ${o.terms.next} werden${o.terms.reason ? `: „${o.terms.reason}“` : '.'}${o.terms.missing ? ` (Fehlt noch: ${o.terms.missing})` : ''}` },
+    // Entscheidung bei einem Ereignis, an dem die andere Figur beteiligt ist (statt Würfel)
+    ask: { name: 'Deine Entscheidung', ask: true, text: (o) => o.terms.text },
   };
   const STATS = { social: 'Charme', body: 'Körper', smart: 'Köpfchen' };
 
@@ -44,7 +49,9 @@
     if (K.need && !K.need(c)) return 'Das kannst du gerade nicht anbieten.';
     if (S.offers.filter((o) => o.from === pid && o.status === 'open').length >= MAX_OUT) return `Maximal ${MAX_OUT} offene Angebote gleichzeitig.`;
     if (S.offers.some((o) => o.from === pid && o.to === a.to && o.kind === a.kind && o.status === 'open')) return 'Das Angebot liegt schon bei der Person.';
+    t._pid = a.to;
     const terms = cleanTerms(S, c, t, a.kind, a.terms || {}, X);
+    delete t._pid;
     if (typeof terms === 'string') return terms;
     S.offers.push({ id: X.uid('o'), from: pid, to: a.to, kind: a.kind, terms, status: 'open', round: S.round, fromName: c.name, toName: t.name, fromHim: 'dir' });
     if (S.offers.length > 80) S.offers.splice(0, S.offers.length - 80);
@@ -79,6 +86,14 @@
         return { what: 'item', item, price };
       }
       case 'propose': if (c.flags.partner !== t.name) return 'Erst mal zusammen sein.'; return {};
+      case 'raise': case 'promo': {
+        if (!c.job2 || c.job2.boss !== t._pid) return `Du arbeitest nicht für ${t.name}.`;
+        if (kind === 'raise') return { pct: n(x.pct || 8, 2, 40), reason: X.cleanText(x.reason, 140) };
+        const Co = root.DULI_LARP_COMPANY || (isNode ? require('./larp-company') : null), lv = c.job2.level != null ? c.job2.level : 2;
+        if (!Co || !Co.LADDER[lv + 1]) return 'Höher geht es in dieser Firma nicht.';
+        const miss = Co.missingFor({ skills: c.skills || {} }, lv + 1, X.idx(S.date) - c.job2.since, 99);
+        return { next: Co.LADDER[lv + 1].name, missing: miss.join(', '), reason: X.cleanText(x.reason, 140) };
+      }
       default: return {};
     }
   }
@@ -89,6 +104,7 @@
     if (!from || from.dead) { o.status = 'expired'; return 'Die Person lebt nicht mehr.'; }
     if (!a.yes) {
       o.status = 'declined';
+      if (o.kind === 'ask') { S.decided = S.decided || {}; S.decided[o.from] = { yes: false, by: to.name }; }
       rel(from, to.name, -3); rel(to, from.name, -1);
       X.report(S, o.from, '✋', `${to.name} lehnt ab: ${KINDS[o.kind].name}.`, 'bad');
       if (o.kind === 'together' || o.kind === 'propose' || o.kind === 'date') { from.stats.happy = X.clampStat(from.stats.happy - (o.kind === 'propose' ? 20 : 8)); X.log(S, `${to.name} sagt Nein zu ${from.name} (${KINDS[o.kind].name}).`); }
@@ -109,6 +125,28 @@
   function accept(S, o, from, to, X) {
     const T = o.terms, rep = (pid, t, tone) => X.report(S, pid, '•', t, tone || 'good');
     switch (o.kind) {
+      case 'raise': case 'promo': {
+        const Co = root.DULI_LARP_COMPANY || (isNode ? require('./larp-company') : null), J = from.job2;
+        if (!Co || !J || J.boss !== o.to) return `${from.name} arbeitet nicht mehr für dich.`;
+        if (o.kind === 'raise') {
+          Co.setGross(S, o.from, from, Math.round(J.gross * (1 + T.pct / 100) / 50) * 50);
+          rep(o.from, `${to.name} sagt Ja: ${T.pct} % mehr Gehalt, jetzt ${X.eur(J.gross)} brutto.`); rep(o.to, `${from.name} verdient jetzt ${X.eur(J.gross)} brutto.`, '');
+        } else {
+          const lv = (J.level != null ? J.level : 2) + 1;
+          J.level = lv; J.title = `${Co.LADDER[lv].name} bei ${J.firm}`; from.job = J.title;
+          Co.setGross(S, o.from, from, Math.max(J.gross, Co.LADDER[lv].band[0]));
+          rep(o.from, `BEFÖRDERT von ${to.name}: Du bist jetzt ${Co.LADDER[lv].name}, ${X.eur(J.gross)} brutto.`); rep(o.to, `${from.name} ist jetzt ${Co.LADDER[lv].name}.`, '');
+          from.chronicle.push({ d: X.dateText(S), t: `Befördert zu ${Co.LADDER[lv].name} bei ${J.firm}.` });
+        }
+        rel(from, to.name, 8);
+        return null;
+      }
+      case 'ask': {
+        S.decided = S.decided || {};
+        S.decided[o.from] = { yes: true, by: to.name };
+        rep(o.from, `${to.name} hat entschieden: Ja.`); rep(o.to, `Du hast für ${from.name} entschieden: Ja.`, '');
+        return null;
+      }
       case 'perk-fahrschule': {
         to.perks = (to.perks || []).filter((p) => p.kind !== 'fahrschule').concat({ kind: 'fahrschule', discount: T.discount, from: o.from });
         if (to.license.status !== 'none' && !to.license.has) to.license.school = { id: 'opa', name: 'Opas Fahrschule', mult: 1, free: T.discount >= 1, discount: T.discount };
