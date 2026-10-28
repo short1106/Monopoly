@@ -11,6 +11,8 @@
   const MK = () => { if (root.DULI_LARP_MARKET) return root.DULI_LARP_MARKET; if (isNode && mk === null) { try { mk = require('./larp-market'); } catch (e) { mk = false; } } return mk || null; };
   let ac = null;
   const ACAD = () => { if (root.DULI_LARP_ACADEMY) return root.DULI_LARP_ACADEMY; if (isNode && ac === null) { try { ac = require('./larp-courses'); } catch (e) { ac = false; } } return ac || null; };
+  let lf = null;
+  const LIFE = () => { if (root.DULI_LARP_LIFE) return root.DULI_LARP_LIFE; if (isNode && lf === null) { try { lf = require('./larp-life'); } catch (e) { lf = false; } } return lf || null; };
   const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const STATS = ['health', 'happy', 'power'];
   const PACE = { auto: 0, m: 1, q: 3, y: 12 };
@@ -128,7 +130,7 @@
     // Das Spiel beginnt im Oktober des laufenden Schuljahres, das Abi ist im Frühjahr danach
     const y = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
     return {
-      host: players[0] && players[0].id, players: players.map((p) => ({ id: p.id, name: p.name, color: p.color })),
+      host: players[0] && players[0].id, players: players.map((p) => ({ id: p.id, name: p.name, color: p.color, bot: !!p.bot })),
       settings: st, phase: 'pick', round: 0, date: { y, m: 9 }, startIdx: y * 12 + 9, abiYear: y + 1, stepM: 1,
       chars: {}, ready: {}, plans: {}, actions: {}, picks: {}, rolls: {}, checks: {}, quiz: {}, stories: {}, events: {}, exam: {},
       cards: {}, recap: {}, reports: {}, lastAction: {}, world: [], aiTask: null, aiSeq: 0, gm: null,
@@ -339,6 +341,7 @@
         return null;
       }
       case 'undo': { if (S.phase === 'act') { delete S.actions[pid]; delete S.picks[pid]; } return null; }
+      case 'pace': { if (!isHost) return 'Nur der Host.'; if (PACE[a.pace] == null) return 'Gibt es nicht.'; S.settings.pace = a.pace; log(S, `Tempo: ${({ auto: 'automatisch', m: 'Monat für Monat', q: 'Quartale', y: 'ganze Jahre' })[a.pace]}.`); return null; }
       case 'force': { if (!isHost) return 'Nur der Host.'; if (S.phase === 'act') toThink(S); return null; }
       case 'ai': {
         if (!isHost) return 'Nur der Host.';
@@ -399,7 +402,7 @@
 
   // ---------- Plan des Monats (Fokus, Termine, Fahrstunden) ----------
   const FOCUS = {
-    learn: 'Lernen', work: 'Mehr arbeiten', party: 'Feiern', sport: 'Sport', chill: 'Chillen', people: 'Freunde und Familie', skip: 'Schule oder Arbeit schwänzen', hustle: 'Eigenes Projekt',
+    learn: 'Lernen', work: 'Mehr arbeiten', party: 'Feiern', sport: 'Sport', chill: 'Chillen', people: 'Freunde und Familie', skip: 'Schule oder Arbeit schwänzen', hustle: 'Eigenes Projekt', shady: 'Krumme Dinger',
   };
   function sanitizePlan(S, c, p) {
     const focus = (Array.isArray(p.focus) ? p.focus : []).filter((f) => FOCUS[f]).slice(0, 2);
@@ -433,8 +436,10 @@
     const c = S.chars[pid], plan = S.plans[pid] || { focus: [], subj: [], appts: {}, drive: {} };
     const M = S.stepM;
     c._spent = {};
+    if (c.prison) report(S, pid, '•', `Im Gefängnis. Noch ${Math.max(1, c.prison.until - idx(S.date))} Monate. Hofgang, Kantine, Briefe schreiben.`, 'bad');
     // Fokus
-    plan.focus.forEach((f) => {
+    (c.prison ? [] : plan.focus).forEach((f) => {
+      if (f === 'shady') { const Lf = LIFE(); if (Lf) Lf.shady(S, pid, c, M, API); return; }
       if (f === 'learn') {
         if (c.edu.kind === 'school' && c.abi) {
           const subs = plan.subj.length ? plan.subj : Object.keys(c.abi.exams).slice(0, 2);
@@ -601,6 +606,8 @@
         return;
       }
       default: {
+        const Lf = LIFE();
+        if (Lf && Lf.appt(S, pid, ap, dec, late, API)) return;
         const Ac = ACAD();
         if (Ac && Ac.appt(S, pid, ap, dec, late, API)) return;
         const M = MK();
@@ -725,6 +732,8 @@
     } else { c.bank.overdue = 0; if (c.bank.schufa < 97 && rng() < 0.1) c.bank.schufa++; }
     const M = MK();
     if (M && M.month) { const r = M.month(S, c, pid, API) || {}; inc += r.inc || 0; out += r.out || 0; }
+    const Lf = LIFE();
+    if (Lf) Lf.month(S, c, pid, API);
     return { inc, out };
   }
   function endJob(S, c, why) {
@@ -896,7 +905,56 @@
     }
     return V;
   }
-  const bot = () => null;
+  // Bots (Mitspieler für alleine): wählen eine freie Figur, nehmen die Standard-Abifächer, planen jeden Monat grob vernünftig
+  function bot(S) {
+    const bots = (S.players || []).filter((p) => p.bot);
+    if (!bots.length) return null;
+    const M = MK();
+    if (S.phase === 'pick') {
+      const p = bots.find((b) => !S.chars[b.id]);
+      if (!p) return null;
+      const used = new Set(Object.values(S.chars).map((c) => c.key));
+      const free = Object.keys(PRESETS).filter((k) => !used.has(k) && k !== 'april');
+      return free.length ? { pid: p.id, action: { type: 'pick', char: { key: free[rnd(free.length)] } }, delay: 500 } : null;
+    }
+    if (S.phase === 'setup') {
+      const p = bots.find((b) => S.chars[b.id] && !S.ready[b.id]);
+      return p ? { pid: p.id, action: { type: 'setup', sel: S.chars[p.id].abi ? S.chars[p.id].abi.sel : null }, delay: 600 } : null;
+    }
+    if (S.phase !== 'act') return null;
+    const p = bots.find((b) => S.chars[b.id] && !S.chars[b.id].dead && !S.actions[b.id]);
+    if (!p) return null;
+    const c = S.chars[p.id];
+    // erst Markt, dann der Monat (pro Aufruf eine Aktion)
+    c._bot = c._bot || {};
+    const now = idx(S.date);
+    if (M && c._bot.mk !== now) {
+      c._bot.mk = now;
+      const waiting = c.appts.some((t) => t.status === 'open' && /interview|start-|uni-letter/.test(t.kind));
+      const city = c.home.city || 'Duisburg';
+      if (c.edu.kind === 'none' && !c.job2 && !waiting && c.key !== 'april') {
+        const uni = c.flags.abi && S.date.m <= 6 && rnd(2) ? M.list(S, 'uni', city).filter((x) => !x.taken && (!x.nc || x.nc >= Number(String(c.flags.grade || '3').replace(',', '.')))) : [];
+        const l = uni.length ? uni : M.list(S, rnd(2) ? 'training' : 'job', city).filter((x) => !x.taken && x.req !== 'st' && M.quals(c).has(x.req === 'h' ? '-' : x.req));
+        if (l.length) return { pid: p.id, action: { type: 'mApply', id: l[rnd(l.length)].id }, delay: 700 };
+      }
+      if ((c.job2 || c.edu.kind === 'uni') && c.housing.kind === 'family' && c.stats.money > 2500 && rnd(4) === 0) {
+        const l = M.list(S, 'wg', c.edu.kind === 'uni' ? c.edu.prog.city : city).filter((x) => !x.taken && !x.scam);
+        if (l.length) return { pid: p.id, action: { type: 'mRent', id: l[0].id }, delay: 700 };
+      }
+    }
+    const appts = {};
+    dueAppts(S, c).concat(overdue(S, c)).forEach((t) => { appts[t.id] = { d: c.stats.health < 25 && /abi|lic/.test(t.kind) ? 'sick' : 'go', quiz: null }; });
+    const focus = c.edu.kind === 'school' || c.edu.kind === 'uni' ? ['learn', c.stats.health < 50 ? 'sport' : c.stats.happy < 40 ? 'chill' : 'people'] : [c.stats.money < 500 ? 'work' : 'sport', c.stats.happy < 40 ? 'party' : 'people'];
+    const plan = { focus, subj: [], appts, drive: { theory: 4, lessons: c.stats.money > 600 ? 3 : 0, special: c.stats.money > 900 ? 2 : 0 }, courses: Object.keys(c.courses || {}).filter((k) => c.courses[k].status === 'learning').slice(0, 2) };
+    const card = S.cards[p.id];
+    let action = { type: 'do', plan };
+    if (card) {
+      const opts = card.opts.map((o, i) => ({ i, o, ch: DECK ? DECK.chance(c, o) : 50 })).filter((x) => !x.o.cost || c.stats.money + c.bank.dispo >= x.o.cost);
+      opts.sort((a, b) => b.ch - a.ch + (rnd(3) - 1) * 10);
+      action = opts.length ? { type: 'do', choice: opts[0].i, plan } : { type: 'do', text: 'Macht einfach weiter.', plan };
+    }
+    return { pid: p.id, action, delay: 900 };
+  }
 
   // Hilfen für Markt und Verträge (larp-market.js)
   const API = { DB, addAppt, report, pay, eur, dateText, dayText, idx, uid, rnd: (n) => rnd(n), d20, clamp, clampStat, cleanText, num, log, alive, endJob, schoolPrice, MONTHS };

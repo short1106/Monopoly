@@ -75,7 +75,7 @@
   // Welche Zeile passt zu welchem Bericht (erste passende gewinnt)
   const VOICE_RULES = [
     [/gestorben/, 'larp-death'], [/Abi bestanden|Abitur bestanden|Gerettet\. Abi/, 'larp-abi-pass'], [/Abi nicht bestanden|Kein Abitur|nicht gereicht\. Abi/, 'larp-abi-fail'],
-    [/FÜHRERSCHEIN BESTANDEN/, 'larp-license'], [/ZERTIFIKAT:/, 'larp-cert'], [/Theorie nicht bestanden|: nicht bestanden \(Wurf/, 'larp-cert-fail'], [/Fahrprüfung nicht bestanden|Theorie durchgefallen/, 'larp-license-fail'],
+    [/FÜHRERSCHEIN BESTANDEN/, 'larp-license'], [/HAFTBEFEHL|Monate Haft/, 'larp-prison'], [/BEFÖRDERT/, 'larp-promo'], [/KÜNDIGUNG:/, 'larp-fired'], [/ANZEIGE wegen/, 'larp-busted'], [/ZERTIFIKAT:/, 'larp-cert'], [/Theorie nicht bestanden|: nicht bestanden \(Wurf/, 'larp-cert-fail'], [/Fahrprüfung nicht bestanden|Theorie durchgefallen/, 'larp-license-fail'],
     [/verpfeift|nimmt alles|Aufgeflogen|verraten/, 'larp-betray'], [/nie existiert|Paket kommt nie/, 'larp-scam'], [/Hochzeit/, 'larp-wedding'],
     [/ZULASSUNG/, 'larp-uni'], [/Absage/, 'larp-reject'], [/Erster Tag bei|Zusage/, 'larp-job'], [/Mietvertrag unterschrieben/, 'larp-move'],
     [/gekauft\. Laufende Kosten/, 'larp-car'], [/nicht erschienen|geschwänzt|Geschwänzt/, 'larp-skip'],
@@ -509,8 +509,10 @@
     // Wer ist fertig
     const living = L.alive(V);
     const who = V.phase === 'act' && (living.length > 1 || api.isHost) ? `<div class="lb-who">${living.length > 1 ? `<span class="lb-k">Wer ist fertig?</span><ul>${living.map((p) => `<li class="${V.actions[p.id] ? 'done' : ''}" style="--pc:${p.color}">${esc(V.chars[p.id].name)} <small>${V.actions[p.id] ? 'fertig' : 'plant …'}</small></li>`).join('')}</ul>` : ''}<span id="lb-timer" class="lb-timer"></span>
+      ${api.isHost ? `<label class="lx-pace"><span>Tempo ab der nächsten Runde (Zeitsprung)</span><select id="lb-pace">${[['auto', 'automatisch'], ['m', '1 Monat'], ['q', 'Quartal'], ['y', 'ganzes Jahr']].map(([k, n]) => `<option value="${k}" ${V.settings.pace === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>` : ''}
       ${api.isHost ? '<div class="btn-row"><button class="btn btn-small" id="lb-force">Jetzt abrechnen</button><button class="btn btn-small btn-ghost" id="lb-end">Spiel beenden</button></div>' : ''}</div>` : '';
     if (put($('#mo-who'), who)) {
+      if ($('#lb-pace')) $('#lb-pace').onchange = (e) => act({ type: 'pace', pace: e.target.value });
       if ($('#lb-force')) $('#lb-force').onclick = () => { if (Object.keys(V.actions).length || confirm('Noch hat niemand entschieden. Trotzdem abrechnen?')) act({ type: 'force' }); };
       if ($('#lb-end')) $('#lb-end').onclick = () => { if (confirm('Spiel jetzt beenden? Dann kommt die Lebensbilanz.')) act({ type: 'endGame' }); };
     }
@@ -526,7 +528,7 @@
     const d = (dr.appts[a.id] && dr.appts[a.id].d) || 'go', q = dr.appts[a.id] && dr.appts[a.id].quiz;
     const late = idx(a) < idx(V.date);
     const exam = /^(abi|lic|ac-)/.test(a.kind);
-    const opts = a.kind === 'tax' ? [['go', 'Selbst machen (STEUER-RUSH)'], ['sick', 'Steuerberaterin'], ['skip', 'Ignorieren']] : [['go', 'Hingehen'], ['sick', exam ? 'Krankmelden (Attest)' : 'Absagen'], ['skip', 'Schwänzen']];
+    const opts = a.kind === 'tax' ? [['go', 'Selbst machen (STEUER-RUSH)'], ['sick', 'Steuerberaterin'], ['skip', 'Ignorieren']] : a.kind === 'court' ? [['go', 'Mit Anwältin hin (ca. 1.000 €)'], ['sick', 'Ohne Anwalt hin'], ['skip', 'Nicht erscheinen']] : a.kind === 'raise' ? [['go', 'Hingehen und verhandeln'], ['skip', 'Absagen']] : [['go', 'Hingehen'], ['sick', exam ? 'Krankmelden (Attest)' : 'Absagen'], ['skip', 'Schwänzen']];
     return `<div class="lx-ap ${late ? 'late' : ''}"><div class="lx-ap-h"><b>${esc(L.dayText(a))}</b><span>${esc(a.title)}</span>${a.fee ? `<small>Gebühr ${eur(a.fee)}</small>` : ''}</div>
       ${late ? '<p class="lx-warn">Verpasst – das wird jetzt abgerechnet.</p>' : `<div class="lx-ap-opts">${opts.map(([k, n]) => `<button type="button" class="lx-chip sm ${d === k ? 'on' : ''} ${k === 'skip' ? 'bad' : ''}" data-ap="${a.id}" data-ad="${k}" ${locked ? 'disabled' : ''}>${n}</button>`).join('')}</div>
       ${needsQuiz(V, a) && d === 'go' ? (q ? `<p class="lx-quizres">${a.kind === 'tax' ? `STEUER-RUSH: ${q.ok}/${q.total} Belege richtig` : `Prüfung geschrieben: ${a.kind === 'lic-theory' ? `${q.err} Fehlerpunkte` : `${q.ok}/${q.total} richtig`}`}</p>` : `<button class="btn btn-small btn-primary" data-quiz="${a.id}" ${locked ? 'disabled' : ''}>${a.kind === 'tax' ? 'STEUER-RUSH starten' : 'Prüfung jetzt schreiben'}</button>`) : ''}${a.kind === 'ac-theory' ? `<button class="btn btn-small btn-ghost" data-doc="${esc(a.data.course)}">Lernzettel</button>` : ''}`}</div>`;
@@ -1017,7 +1019,7 @@
   const sel = (key, st, host, opts) => `<select data-set="${key}" ${typeof opts[0][0] === 'number' ? 'data-num="1"' : ''} ${host ? '' : 'disabled'}>${opts.map(([v, n]) => `<option value="${v}" ${String(st[key]) === String(v) ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
   app = window.DULI_PARTY.start({
     id: 'larp', title: 'LARP EXTREME', kicker: 'LIVE ACTION ROLEPLAY', titleHTML: 'LARP <span class="outline">EXTREME</span>',
-    min: 1, max: 6, soloBots: 0, noBots: true, soloLabel: 'Alleine spielen', soloChip: 'Alleine',
+    min: 1, max: 6, soloBots: 0, noBots: false, botNames: ['Bot Deniz', 'Bot Lea', 'Bot Jonas', 'Bot Aylin', 'Bot Kevin'], soloLabel: 'Alleine spielen', soloChip: 'Alleine',
     tagline: 'Ihr seid 18 und lebt euer Leben. Echte Abiprüfungen nach Landesregeln, Fahrschule, Wohnungen, Autos, Unis und Jobs aus ganz Deutschland. Termine kann man schwänzen. Das hat Folgen.',
     defaults: { pace: 'auto', years: 20, death: 'rejoin', exam: 'quiz', timer: 0, gm: 'auto' },
     settingsHTML: (st, host) => `
@@ -1038,7 +1040,9 @@
       <li>Prüfungen schreibt ihr als <b>Quiz</b>, eure Vorbereitung zählt mit. Danach wird nach der echten Formel der Abischnitt berechnet.</li>
       <li><b>Führerschein</b>: anmelden, Sehtest, Erste Hilfe, Theorie, Fahrstunden, 12 Sonderfahrten, Theorie- und Praxisprüfung. Kostet wie in echt.</li>
       <li>Im <b>Markt</b>: Wohnungen und WGs auf echten Straßen, Häuser mit Grunderwerbsteuer, Notar und Kredit, Autos mit Versicherung und TÜV, echte Hochschulen mit NC, Ausbildungsplätze, Jobs, Kleinanzeigen.</li>
-      <li>Jede Runde gibt es ein <b>Ereignis</b> mit Würfelprobe. Am Ende zählt das beste Leben.</li></ul></div>`,
+      <li>In der <b>Akademie</b> gibt es Prüfungen für fast alles: Pilot, Polizei, Bundeswehr, Rettungsdienst, Motorrad, Tauchen … April schickt dir einen Lernzettel.</li>
+      <li><b>Weltweit</b>: im Ausland studieren (IELTS, Visum), auswandern, reisen.</li>
+      <li>Jede Runde gibt es ein <b>Ereignis</b> mit Würfelprobe. Am Ende zählt das beste Leben. In der Lobby kann der Host <b>Bots</b> dazuholen.</li></ul></div>`,
     engine: L, render,
     onCustom: (d) => { if (d && d.kind === 'voice' && d.audio) AI.play(d.audio); },
   });

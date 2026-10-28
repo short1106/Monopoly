@@ -208,6 +208,7 @@
     const c = S.chars[pid];
     if (!c || c.dead) return 'Deine Figur lebt nicht mehr.';
     if (S.phase !== 'act') return 'Der Markt hat nur offen, während ihr plant.';
+    if (c.prison) return 'Du sitzt im Gefängnis. Der Markt muss warten.';
     const x = a.id ? find(S, a.id) : null;
     if (a.id && !x) return 'Die Anzeige gibt es nicht mehr.';
     if (x && x.taken && a.type !== 'mSellAd') return 'Schon weg. Jemand war schneller.';
