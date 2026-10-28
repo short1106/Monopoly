@@ -544,3 +544,6 @@
 .is-larp ::-webkit-scrollbar { width: 10px; height: 10px; }
 .is-larp ::-webkit-scrollbar-thumb { background: rgba(255, 79, 216, .25); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
 @media (prefers-reduced-motion: reduce) { .is-larp .lb-card, .is-larp .lb-result, .is-larp .lx-askbtn::before { animation: none; } }
+.ph-quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px 0; }
+.ph-quick button { padding: 6px 11px; border: 1px solid rgba(255, 79, 216, .5); border-radius: 999px; background: rgba(255, 79, 216, .1); color: var(--fg); font: 600 12px var(--font); cursor: pointer; }
+.ph-quick button:hover { background: rgba(255, 79, 216, .25); }

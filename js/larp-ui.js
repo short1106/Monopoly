@@ -959,6 +959,7 @@
       const waiting = V.aprilWait && V.aprilWait[me];
       inner = `<div class="ph-head"><button data-ph="home">‹</button><span class="av" style="--pc:#ff4fd8">A</span><b>April</b><small class="ph-sub">${V.gm === 'ai' || AI.keys().anthropic || !last.api.isHost ? 'deine Spielleiterin' : 'ohne KI-Schlüssel'}</small></div>
         <div class="ph-chat" id="ph-chat">${achat.length ? '' : '<p class="ph-hint">Schreib mir, was du machen willst. Alles. Ich frag nach, wenn mir was fehlt, und setz es dann um. Mit echtem Geld und echten Folgen.</p>'}${achat.map((m) => `<p class="${m.who === 'me' ? 'me' : 'april'}">${esc(m.t)}<small>${esc(m.d)}</small></p>`).join('')}${waiting ? '<p class="april typing"><span></span><span></span><span></span></p>' : ''}</div>
+        ${waiting ? '' : (() => { const lm = achat[achat.length - 1]; const q = lm && lm.who === 'april' && lm.pend ? ['Ja, mach', 'Nein'] : !achat.length ? ['Was habe ich?', 'Firma gründen', 'Singen lernen', 'Pferd kaufen', 'Video posten'] : []; return q.length ? `<div class="ph-quick">${q.map((x) => `<button data-qa="${esc(x)}">${esc(x)}</button>`).join('')}</div>` : ''; })()}
         <div class="ph-in"><input id="ph-text" maxlength="600" placeholder="Ich will …" value="${esc(phone.draft.april || '')}" ${waiting ? 'disabled' : ''}><button id="ph-send" ${waiting ? 'disabled' : ''}>Senden</button></div>`;
     } else if (phone.app === 'bank') {
       const loans = c.bank.loans.reduce((s2, l) => s2 + l.rest, 0);
@@ -968,6 +969,7 @@
       ov.querySelectorAll('[data-ph]').forEach((b) => { b.onclick = () => { const t = b.dataset.ph; if (t === 'close') phone.open = false; else { phone.app = ['home', 'sms', 'req', 'bank', 'april'].includes(t) ? t : 'home'; phone.thread = null; } renderPhone(last.V, last.me); }; });
       ov.querySelectorAll('[data-th]').forEach((b) => { b.onclick = () => { phone.thread = b.dataset.th; renderPhone(last.V, last.me); }; });
       ov.querySelectorAll('[data-pans]').forEach((b) => { b.onclick = () => act({ type: 'oAnswer', id: b.dataset.pans, yes: !!b.dataset.yes }); });
+      ov.querySelectorAll('[data-qa]').forEach((b) => { b.onclick = () => act({ type: 'askApril', text: b.dataset.qa }); });
       const inp = ov.querySelector('#ph-text');
       if (inp) {
         const k = phone.app === 'april' ? 'april' : phone.thread;

@@ -400,7 +400,8 @@
         delete S.aprilWait[tp];
         const x = a.data || {};
         const t = cleanText(x.reply, 900) || (a.error ? `Ich komme gerade nicht durch (${cleanText(a.error, 80)}). Versuch es gleich nochmal.` : '…');
-        S.aprilChat[tp].push({ who: 'april', t, d: dateText(S), round: S.round, ask: !a.error && x.ask ? 1 : 0, off: x.offline ? 1 : 0 });
+        const pend = !a.error && x.pend && typeof x.pend === 'object' && JSON.stringify(x.pend).length < 6000 ? x.pend : null;
+        S.aprilChat[tp].push(Object.assign({ who: 'april', t, d: dateText(S), round: S.round, ask: !a.error && x.ask ? 1 : 0, off: x.offline ? 1 : 0 }, pend ? { pend } : {}));
         if (!a.error) applyChat(S, tp, c, x);
         return null;
       }
