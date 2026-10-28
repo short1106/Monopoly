@@ -29,6 +29,10 @@ jobs:
         continue-on-error: true
         timeout-minutes: 15
         run: node tools/larp-data.mjs unis
+      - name: Hochschulen weltweit (Wikidata)
+        continue-on-error: true
+        timeout-minutes: 10
+        run: node tools/larp-data.mjs world
       - name: Schulen (NRW-Schulministerium, OpenStreetMap)
         continue-on-error: true
         timeout-minutes: 15
