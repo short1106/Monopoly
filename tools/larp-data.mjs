@@ -15,7 +15,7 @@ const summary = [];
 async function get(url, opts = {}, tries = 3) {
   for (let i = 0; i < tries; i++) {
     try {
-      const r = await fetch(url, Object.assign({ headers: { 'User-Agent': UA, Accept: opts.accept || '*/*' } }, opts));
+      const r = await fetch(url, Object.assign({ headers: { 'User-Agent': UA, Accept: opts.accept || '*/*' }, signal: AbortSignal.timeout(opts.ms || 150000) }, opts));
       if (r.ok) return r;
       console.log(`  ${r.status} bei ${url.slice(0, 120)}`);
       if (r.status === 429 || r.status >= 500) { await sleep(8000 * (i + 1)); continue; }
@@ -183,7 +183,7 @@ function schoolKind(n) {
 const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 async function overpass(q) {
   for (const base of OVERPASS) {
-    const r = await get(base, { method: 'POST', body: `data=${encodeURIComponent(q)}`, headers: { 'User-Agent': UA, 'Content-Type': 'application/x-www-form-urlencoded' } }, 2);
+    const r = await get(base, { method: 'POST', body: `data=${encodeURIComponent(q)}`, headers: { 'User-Agent': UA, 'Content-Type': 'application/x-www-form-urlencoded' }, ms: 200000 }, 2);
     if (r) { try { return (await r.json()).elements || []; } catch (e) { /* nächster */ } }
     await sleep(3000);
   }
@@ -201,6 +201,7 @@ async function schoolsOSM(iso, st) {
   }).filter(Boolean);
 }
 // Straßennamen für Wohnungsanzeigen (ohne Hausnummer) und Stadtteile
+async function prevStreets() { try { return JSON.parse(await readFile(new URL('streets.json', OUT), 'utf8')); } catch (e) { return null; } }
 const AGS = { SH: '01', HH: '02', NI: '03', HB: '04', NW: '05', HE: '06', RP: '07', BW: '08', BY: '09', SL: '10', BE: '11', BB: '12', MV: '13', SN: '14', ST: '15', TH: '16' };
 async function streets(cityList) {
   const out = {};
@@ -224,6 +225,8 @@ async function streets(cityList) {
     const step = Math.max(1, Math.floor(sts.length / 220));
     out[`${c.name}|${c.st}`] = { s: sts.filter((x, i) => i % step === 0).slice(0, 220), q: subs.slice(0, 60) };
     console.log(`  ${c.name}: ${sts.length} Straßen, ${subs.length} Stadtteile`);
+    await mkdir(OUT, { recursive: true });
+    await writeFile(new URL('streets.json', OUT), JSON.stringify(Object.assign((await prevStreets()) || {}, out)));
     await sleep(2500);
   }
   return out;
@@ -249,7 +252,10 @@ if (only === 'all' || only === 'schools') {
 }
 if (only === 'all' || only === 'streets') {
   const list = CORE.map((n) => (cityList || []).find((c) => c.name === n) || { name: n, st: '' });
-  const s = await streets(list);
-  if (Object.keys(s).length) await save('streets.json', s);
+  const old = (await prevStreets()) || {};
+  // Was schon da ist, nicht nochmal holen
+  const todo = list.filter((c) => !Object.keys(old).some((k) => k.startsWith(`${c.name}|`)));
+  const s = await streets(todo);
+  if (Object.keys(s).length || Object.keys(old).length) await save('streets.json', Object.assign(old, s));
 }
 console.log('\nZusammenfassung:\n' + (summary.join('\n') || 'nichts geschrieben'));
