@@ -32,6 +32,7 @@
     if (a.type === 'oAnswer') return answer(S, pid, a, X);
     if (a.type === 'oCancel') { const o = S.offers.find((x) => x.id === a.id && x.from === pid && x.status === 'open'); if (o) o.status = 'cancelled'; return null; }
     if (a.type === 'oScene') return sceneChoice(S, pid, a);
+    if (a.type === 'oVote') return voteChoice(S, pid, a);
     if (S.phase !== 'act') return 'Geht nur, während ihr plant.';
     if (a.type === 'oRumor') return rumor(S, pid, a, X);
     if (a.type === 'oBreakup') return breakup(S, pid, a, X);
@@ -414,10 +415,57 @@
     A.chronicle.push({ d: X.dateText(S), t: text }); B.chronicle.push({ d: X.dateText(S), t: text });
     X.log(S, text);
   }
+  // ---------- Abstimmungen (alle stimmen geheim, niemand für sich selbst) ----------
+  const VOTES = [
+    { id: 'sprecher', school: true, text: 'Wahl zur Jahrgangssprecherin oder zum Jahrgangssprecher. Wer von euch soll es machen?', title: 'Jahrgangssprecher:in', power: 5 },
+    { id: 'abimotto', school: true, text: 'Wer darf das Abimotto bestimmen? Die Person hat damit für immer die Schuld.', title: '', power: 3 },
+    { id: 'ortsrat', text: 'Kommunalwahl. Ihr kandidiert alle für den Ortsrat. Wem gebt ihr eure Stimme?', title: 'Ortsrat', power: 8 },
+    { id: 'gruppenchef', text: 'Eure Freundesgruppe braucht jemanden, der den Urlaub plant. Wer soll das machen?', title: '', power: 3 },
+    { id: 'verein', text: 'Vorstandswahl im Sportverein. Alle von euch sind Mitglied. Wer wird Vorsitz?', title: 'Vereinsvorsitz', power: 6 },
+  ];
+  function maybeVote(S, X) {
+    if (S.vote && !S.vote.done) return;
+    const living = X.alive(S).map((p) => p.id);
+    if (living.length < 3 || S.round < 2 || S.round - (S.lastVoteRound || -9) < 6 || X.rnd(100) > 35) return;
+    const school = living.every((id) => S.chars[id].edu.kind === 'school');
+    const pool = VOTES.filter((v) => !v.school || school);
+    const v = pool[X.rnd(pool.length)];
+    S.vote = { id: X.uid('w'), kind: v.id, text: v.text, candidates: living, votes: {}, done: false, round: S.round };
+    S.lastVoteRound = S.round;
+  }
+  function voteChoice(S, pid, a) {
+    const v = S.vote;
+    if (!v || v.done || !v.candidates.includes(pid)) return 'Keine Abstimmung.';
+    if (a.for === pid || !v.candidates.includes(a.for)) return 'Für dich selbst geht nicht.';
+    v.votes[pid] = a.for;
+    return null;
+  }
+  function resolveVote(S, X) {
+    const v = S.vote;
+    if (!v || v.done) return;
+    v.done = true;
+    const count = {};
+    Object.values(v.votes).forEach((id) => { count[id] = (count[id] || 0) + 1; });
+    const max = Math.max(0, ...Object.values(count));
+    const top = Object.keys(count).filter((id) => count[id] === max);
+    if (!top.length) return;
+    const win = top[X.rnd(top.length)], W = S.chars[win], def = VOTES.find((x) => x.id === v.kind);
+    if (!W) return;
+    W.stats.power = X.clampStat(W.stats.power + def.power); W.stats.happy = X.clampStat(W.stats.happy + 5);
+    if (def.title && !W.title) W.title = def.title;
+    v.winner = win; v.count = count;
+    const line = `Abstimmung: ${W.name} gewinnt mit ${max} Stimme${max > 1 ? 'n' : ''}${def.title ? ` und ist jetzt ${def.title}` : ''}.`;
+    v.candidates.forEach((id) => X.report(S, id, '•', line, id === win ? 'good' : ''));
+    // Wer gegen dich gestimmt hat, bleibt geheim. Fast.
+    v.candidates.forEach((id) => { if (id !== win && v.votes[id] === win) rel(W, S.chars[id].name, 3); });
+    W.chronicle.push({ d: X.dateText(S), t: line });
+    X.log(S, line);
+  }
+
   // Offene Angebote verfallen nach der Runde
   function expire(S) { S.offers.forEach((o) => { if (o.status === 'open' && o.round < S.round - 1) o.status = 'expired'; }); }
 
-  const SOCIAL = { KINDS, STATS, MAX_OUT, SCENES, act, month, maybeScene, resolveScene, expire };
+  const SOCIAL = { KINDS, STATS, MAX_OUT, SCENES, VOTES, act, month, maybeScene, resolveScene, maybeVote, resolveVote, expire };
   if (isNode) module.exports = SOCIAL;
   else root.DULI_LARP_SOCIAL = SOCIAL;
 })(typeof window !== 'undefined' ? window : globalThis);

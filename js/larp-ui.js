@@ -433,7 +433,7 @@
   }
   const KIND = { real: 'Alltag', odd: 'Ungewöhnlich', absurd: 'Absurd' };
   function renderMonth(body, V, me, api) {
-    if (!body.querySelector('#mo-result')) body.innerHTML = '<div id="mo-result"></div><div id="mo-think"></div><div id="mo-offers"></div><div id="mo-appts"></div><div id="mo-scene"></div><div id="mo-card"></div><div id="mo-focus"></div><div id="mo-drive"></div><div id="mo-send"></div><div id="mo-who"></div><div id="mo-more"></div>';
+    if (!body.querySelector('#mo-result')) body.innerHTML = '<div id="mo-result"></div><div id="mo-think"></div><div id="mo-offers"></div><div id="mo-appts"></div><div id="mo-vote"></div><div id="mo-scene"></div><div id="mo-card"></div><div id="mo-focus"></div><div id="mo-drive"></div><div id="mo-send"></div><div id="mo-who"></div><div id="mo-more"></div>';
     const c = V.chars[me];
     put($('#mo-result'), c ? (c.dead ? `<div class="lb-result bad"><span class="lb-k">Tot</span><p>${esc(c.name)} ist gestorben. ${esc(c.deathReason || '')}</p></div>` : resultHTML(V, me)) : '');
     const k = AI.keys();
@@ -450,6 +450,9 @@
     // Angebote, gemeinsame Szene
     const incN = playing ? V.offers.filter((o) => o.to === me && o.status === 'open').length : 0;
     if (put($('#mo-offers'), incN ? `<button class="lx-banner" id="mo-gooffers">${incN} Angebot${incN > 1 ? 'e' : ''} von anderen warten auf dich. Ansehen</button>` : '')) { if ($('#mo-gooffers')) $('#mo-gooffers').onclick = () => { tab = 'people'; redraw(); }; }
+    const vt = V.vote && !V.vote.done && V.vote.candidates.includes(me) && playing ? V.vote : null;
+    const voteHtml = vt ? `<div class="lb-card kind-odd"><span class="lb-k">Abstimmung · geheim</span><p class="lb-card-t">${esc(vt.text)}</p><div class="lb-opts">${vt.candidates.filter((id) => id !== me).map((id) => `<button type="button" class="lb-opt ${vt.votes[me] === id ? 'is-picked' : ''}" data-vote="${id}" style="--odds:0%"><b>${esc(V.chars[id].name)}</b><span class="lb-odds">${vt.votes[me] === id ? 'deine Stimme' : ''}</span></button>`).join('')}</div></div>` : '';
+    if (put($('#mo-vote'), voteHtml)) $('#mo-vote').querySelectorAll('[data-vote]').forEach((b) => { b.onclick = () => act({ type: 'oVote', for: b.dataset.vote }); });
     if (put($('#mo-scene'), sceneHTML(V, me))) $('#mo-scene').querySelectorAll('[data-scene]').forEach((b) => { b.onclick = () => { FX && FX.play('pop'); act({ type: 'oScene', choice: Number(b.dataset.scene) }); }; });
     // Ereigniskarte
     const card = V.cards && V.cards[me];

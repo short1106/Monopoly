@@ -416,7 +416,7 @@
     alive(S).forEach((p) => { S.rolls[p.id] = d20(); });
     alive(S).forEach((p) => processPlan(S, p.id));
     const So = SOC();
-    if (So) So.resolveScene(S, API);
+    if (So) { So.resolveScene(S, API); So.resolveVote(S, API); }
     builtinNow(S);
   }
   function builtinNow(S) {
@@ -873,7 +873,7 @@
     S.phase = 'act';
     chooseStep(S);
     const So = SOC();
-    if (So) { So.expire(S); So.maybeScene(S, API); }
+    if (So) { So.expire(S); So.maybeScene(S, API); So.maybeVote(S, API); }
     S.deadline = S.settings.timer ? Date.now() + S.settings.timer * 1000 : 0;
   }
 
