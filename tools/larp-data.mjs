@@ -112,23 +112,29 @@ async function unis() {
 
 // ---------- Hochschulen weltweit (für „Studium weltweit“) ----------
 async function world() {
-  console.log('Hochschulen weltweit (Wikidata) …');
-  const rows = await sparql(`SELECT ?u ?uLabel ?iso ?coord ?cityLabel ?students WHERE {
-    ?u wdt:P31 wd:Q3918 ; wdt:P2196 ?students ; wdt:P17 ?c ; wdt:P625 ?coord .
-    ?c wdt:P297 ?iso .
-    FILTER(?students >= 25000 && ?iso != "DE")
-    OPTIONAL { ?u wdt:P131 ?city }
-    SERVICE wikibase:label { bd:serviceParam wikibase:language "de,en". }
-  }`);
-  if (!rows) return null;
+  console.log('Hochschulen weltweit (Wikidata, Land für Land) …');
+  // Eine große Abfrage läuft in ein Timeout, deshalb einzeln pro Land
+  const CC = ['AT', 'CH', 'NL', 'BE', 'FR', 'ES', 'IT', 'PT', 'DK', 'SE', 'NO', 'FI', 'IE', 'PL', 'CZ', 'GB', 'US', 'CA', 'AU', 'NZ', 'JP', 'KR', 'CN', 'SG', 'AE', 'TR', 'ZA', 'BR', 'MX', 'AR', 'IN'];
   const by = {};
-  rows.forEach((x) => {
-    const name = x.uLabel.value, p = point(x.coord.value), students = Math.round(Number(x.students.value));
-    if (!p || /^Q\d+$/.test(name) || !x.cityLabel || /^Q\d+$/.test(x.cityLabel.value)) return;
-    if (!by[name] || by[name].students < students) by[name] = { name, cc: x.iso.value, city: x.cityLabel.value, lat: r4(p[0]), lng: r4(p[1]), students };
-  });
+  for (const cc of CC) {
+    const rows = await sparql(`SELECT ?u ?uLabel ?coord ?cityLabel ?students WHERE {
+      ?c wdt:P297 "${cc}" .
+      ?u wdt:P17 ?c ; wdt:P31 wd:Q3918 ; wdt:P2196 ?students ; wdt:P625 ?coord .
+      FILTER(?students >= 15000)
+      OPTIONAL { ?u wdt:P131 ?city }
+      SERVICE wikibase:label { bd:serviceParam wikibase:language "de,en". }
+    }`);
+    let n = 0;
+    (rows || []).forEach((x) => {
+      const name = x.uLabel.value, p = point(x.coord.value), students = Math.round(Number(x.students.value));
+      if (!p || /^Q\d+$/.test(name) || !x.cityLabel || /^Q\d+$/.test(x.cityLabel.value)) return;
+      if (!by[name] || by[name].students < students) { by[name] = { name, cc, city: x.cityLabel.value, lat: r4(p[0]), lng: r4(p[1]), students }; n++; }
+    });
+    console.log(`  ${cc}: ${rows ? n : 'Fehler'}`);
+    await sleep(1500);
+  }
   const unisW = Object.values(by).sort((a, b) => b.students - a.students).slice(0, 1500);
-  await save('world.json', { unis: unisW });
+  if (unisW.length) await save('world.json', { unis: unisW });
   return unisW;
 }
 
