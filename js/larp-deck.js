@@ -369,6 +369,151 @@
       { t: 'Mehr arbeiten', stat: 'work', dc: 8, ok: R('Überstunden, Extra-Geld.', { money: 1200, health: -3 }), bad: R('Unbezahlte Überstunden. Die Firma bedankt sich mit Pizza.', { health: -3, happy: -3 }) },
     ] });
 
+  // ----- Mehr Leben (damit sich in 20 Jahren nichts ständig wiederholt) -----
+  ev({ id: 'wg-streit', stage: ['uni', 'azubi', 'job'], when: (c) => /WG/.test(c.living || ''), text: 'In der WG eskaliert der Putzplan. Jemand hat einen Teller mit Schimmel als „Kunstprojekt“ deklariert.',
+    opts: [
+      { t: 'WG-Sitzung einberufen', stat: 'social', dc: 10, ok: R('Neuer Putzplan, laminiert. Frieden. Vorerst.', { happy: 5 }), bad: R('Die Sitzung dauert vier Stunden. Am Ende ist der Teller noch da und alle hassen sich.', { happy: -6 }) },
+      { t: 'Einfach selbst putzen', stat: 'work', dc: 6, ok: R('Sauber. Du bist jetzt die WG-Mama. Für immer.', { happy: -1, power: 1 }), bad: R('Du putzt, und am nächsten Tag ist es wie vorher.', { happy: -4 }) },
+      { t: 'Passiv-aggressive Zettel', stat: 'luck', dc: 11, ok: R('Die Zettel wirken. Und sie gehen viral im WG-Chat.', { happy: 4 }), bad: R('Jemand antwortet mit Zetteln. Es ist jetzt ein Krieg aus Post-its.', { happy: -5 }) },
+    ] });
+  ev({ id: 'praktikum', stage: ['uni'], text: 'Ein Praktikum bei einer bekannten Firma in {c}. Unbezahlt, aber „super für den Lebenslauf“.',
+    opts: [
+      { t: 'Annehmen', stat: 'work', dc: 10, ok: R('Du machst dich unentbehrlich. Sie bieten dir einen Werkstudentenjob an.', { power: 4, happy: 4 }, { add: [{ name: 'Werkstudentenjob', pm: 900, mo: 18 }], chron: 'Praktikum wird zum Werkstudentenjob.' }), bad: R('Drei Monate Kopieren. Der Lebenslauf ist eine Zeile länger.', { happy: -5, money: -400 }) },
+      { t: 'Bezahlung verhandeln', stat: 'social', dc: 13, ok: R('Sie zahlen tatsächlich. 1.200 € im Monat.', { money: 3600, power: 3, happy: 5 }), bad: R('„Dann nehmen wir jemand anderen.“ Haben sie.', { happy: -3 }) },
+      { t: 'Ablehnen', dc: 0, ok: R('Du hast Semesterferien. Echte.', { happy: 6 }) },
+    ] });
+  ev({ id: 'ausland-semester', stage: ['uni'], text: 'Erasmus! Ein Semester in Valencia. Du müsstest dich bis Freitag entscheiden.',
+    opts: [
+      { t: 'Ja, sofort', stat: 'social', dc: 7, ok: R('Ein Semester voller Sonne, Paella und Freunde aus zwölf Ländern. Spanisch sprichst du jetzt auch.', { happy: 16, money: -2500, power: 2 }, { chron: 'Erasmus-Semester in Valencia.' }), bad: R('Du verbringst das Semester mit Heimweh und Deutschen in einer Bar namens „Bierkönig“.', { happy: -2, money: -2500 }) },
+      { t: 'Zu Hause bleiben, durchziehen', dc: 0, ok: R('Du bist schneller fertig. Und hast keine einzige Geschichte.', { happy: -2 }, { flag: { study: 1 } }) },
+    ] });
+  ev({ id: 'berufsschule', stage: ['azubi'], text: 'Zwischenprüfung in der Berufsschule. Dein Lehrer sagt: „Wer jetzt nicht lernt, wiederholt das Jahr.“',
+    opts: [
+      { t: 'Lernen', stat: 'smart', dc: 10, ok: R('Note 2. Dein Ausbilder ist beeindruckt und erzählt es allen.', { happy: 6, power: 2 }, { flag: { study: 1 } }), bad: R('Note 4. Bestanden, aber nur knapp.', { happy: -4 }) },
+      { t: 'Von den Älteren die Lösungen besorgen', stat: 'luck', dc: 12, ok: R('Die Lösungen passen. Du hast eine 1. Niemand fragt nach.', { happy: 6 }), bad: R('Die Lösungen sind vom falschen Jahr. Und der Lehrer weiß Bescheid.', { happy: -8, power: -2 }) },
+    ] });
+  ev({ id: 'betriebsfeier', stage: ['job', 'azubi'], kind: 'odd', text: 'Weihnachtsfeier der Firma. Freibier, Karaoke und der Chef hat schon zwei Glühwein.',
+    opts: [
+      { t: 'Mit dem Chef Karaoke singen', stat: 'social', dc: 11, ok: R('„Atemlos“ im Duett. Ab jetzt duzt er dich. Das zahlt sich aus.', { happy: 8, power: 4 }), bad: R('Du triffst keinen Ton. Es gibt ein Video. Es gibt immer ein Video.', { happy: -6, power: -2 }) },
+      { t: 'Früh gehen', dc: 0, ok: R('Am nächsten Tag reden alle über Dinge, die du verpasst hast. Gut so.', { happy: 1 }) },
+      { t: 'Am Buffet eskalieren', stat: 'body', dc: 9, ok: R('Du isst für drei Wochen. Kosten gespart.', { happy: 5, money: 80 }), bad: R('Die Garnelen waren nicht mehr gut.', { health: -6, happy: -3 }) },
+    ] });
+  ev({ id: 'headhunter', stage: ['job'], when: (c) => !!c.job2, text: 'Ein Headhunter schreibt dir auf LinkedIn. Eine Firma will dich abwerben, 25 Prozent mehr Gehalt.',
+    opts: [
+      { t: 'Wechseln', stat: 'luck', dc: 10, ok: R('Neuer Job, neues Team, mehr Geld. Gute Entscheidung.', { happy: 8, power: 3 }, { raise: 0.25, chron: 'Wechselt für 25 Prozent mehr Gehalt.' }), bad: R('Der neue Chef ist ein Albtraum. Aber das Geld stimmt.', { happy: -6 }, { raise: 0.25 }) },
+      { t: 'Dem eigenen Chef zeigen und Gegenangebot holen', stat: 'social', dc: 12, ok: R('Dein Chef legt 12 Prozent drauf. Du bleibst, mit mehr Geld.', { happy: 6, power: 2 }, { raise: 0.12 }), bad: R('Dein Chef sagt: „Dann geh doch.“ Peinliche Stille.', { happy: -8, power: -3 }) },
+      { t: 'Ignorieren', dc: 0, ok: R('Du bleibst loyal. Niemand merkt es.', { happy: 0 }) },
+    ] });
+  ev({ id: 'homeoffice', stage: ['job'], kind: 'odd', text: 'Homeoffice-Tag. Deine Kamera war die ganze Zeit an. Auch als du in Unterhose Nudeln gekocht hast.',
+    opts: [
+      { t: 'So tun, als wäre nichts', stat: 'luck', dc: 10, ok: R('Keiner hat hingeschaut. Wahrscheinlich.', { happy: 2 }), bad: R('Es gibt jetzt ein Team-Emoji mit dir und Nudeln.', { happy: -6, power: -2 }) },
+      { t: 'Mit Humor nehmen', stat: 'social', dc: 9, ok: R('Du bist die Legende des Quartals. Alle lieben dich.', { happy: 6, power: 2 }), bad: R('Die Personalabteilung findet das nicht lustig.', { happy: -4 }) },
+    ] });
+  ev({ id: 'gehaltsgeheimnis', stage: ['job'], when: (c) => !!c.job2, text: 'Beim Mittagessen verrät {f}, was die neue Kollegin verdient. 600 € mehr als du. Für denselben Job.',
+    opts: [
+      { t: 'Zum Chef und Gleichbehandlung fordern', stat: 'social', dc: 12, ok: R('Er druckst rum, dann gibt es 400 € mehr. Mit Zusatz: „Erzählen Sie das nicht weiter.“', { happy: 6, power: 3 }, { raise: 0.12 }), bad: R('„Gehälter sind vertraulich.“ Jetzt bist du die Person, die über Gehälter redet.', { happy: -6 }) },
+      { t: 'Bewerbungen schreiben', stat: 'work', dc: 11, ok: R('Zwei Angebote in drei Wochen. Plötzlich gibt dein Chef dir mehr.', { happy: 5 }, { raise: 0.15 }), bad: R('Nichts Besseres in Sicht. Du bleibst, mit Wut im Bauch.', { happy: -5 }) },
+      { t: 'Hinnehmen', dc: 0, ok: R('Du schluckst es. Es schmeckt nach Kantinensoße.', { happy: -4 }) },
+    ] });
+  ev({ id: 'nebengewerbe', stage: ['job', 'uni', 'azubi'], text: 'Du könntest nebenbei was verkaufen: selbstgemachte Kerzen, gedruckte Hüllen oder Nachhilfe. Gewerbe anmelden kostet 30 €.',
+    opts: [
+      { t: 'Gewerbe anmelden und loslegen', stat: 'work', dc: 11, ok: R('Es läuft. Langsam, aber es läuft.', { money: -30, happy: 6, power: 2 }, { add: [{ name: 'Nebengewerbe', pm: 280 }], flag: { company: 0.2 }, chron: 'Meldet ein Nebengewerbe an.' }), bad: R('Du verkaufst drei Kerzen. Zwei davon an deine Mutter.', { money: -230, happy: -4 }) },
+      { t: 'Lieber nicht', dc: 0, ok: R('Freizeit ist auch was wert.', { happy: 2 }) },
+    ] });
+  ev({ id: 'zahnarzt', stage: ['any'], text: 'Zahnschmerzen. Der Zahnarzt sagt „Wurzelbehandlung“ und lächelt dabei so komisch.',
+    opts: [
+      { t: 'Sofort machen lassen', stat: 'body', dc: 6, ok: R('Es tut weh, aber nur einmal. Eigenanteil 180 €.', { money: -180, health: 4 }), bad: R('Es braucht drei Termine und eine Krone. 950 € Eigenanteil.', { money: -950, health: 2, happy: -5 }) },
+      { t: 'Schmerzmittel und abwarten', stat: 'luck', dc: 14, ok: R('Es geht von selbst weg. Wirklich. Medizinisch unerklärlich.', { happy: 3 }), bad: R('Wochenende, Notdienst, dicke Backe. Doppelt so teuer.', { money: -600, health: -8, happy: -8 }) },
+    ] });
+  ev({ id: 'bahnchaos', stage: ['any'], kind: 'odd', text: 'Die Bahn fällt aus. Wieder. Du hast einen wichtigen Termin in zwei Stunden.',
+    opts: [
+      { t: 'Taxi, egal was es kostet', dc: 0, ok: R('Du kommst pünktlich. 140 € ärmer.', { money: -140 }) },
+      { t: 'Trampen', stat: 'social', dc: 11, ok: R('Ein Rentner nimmt dich mit. Ihr redet über Schlager. Du bist pünktlich.', { happy: 6 }), bad: R('Niemand hält. Du verpasst den Termin.', { happy: -7, power: -1 }) },
+      { t: 'Fahrgastrechte geltend machen', stat: 'smart', dc: 8, ok: R('25 Prozent vom Ticket zurück. 4,75 €. Ein Sieg.', { money: 5, happy: 2 }), bad: R('Das Formular ist kaputt. Natürlich.', { happy: -3 }) },
+    ] });
+  ev({ id: 'hochzeit-freund', stage: ['any'], when: (c) => c.age >= 22, text: '{f} heiratet und will dich als Trauzeug:in. Junggesellenabschied auf Mallorca inklusive.',
+    opts: [
+      { t: 'Klar, mit voller Hingabe', stat: 'social', dc: 9, ok: R('Deine Rede bringt alle zum Weinen. Die gute Art von Weinen.', { happy: 10, money: -900 }, { rel: [{ name: '{f}', change: 20 }] }), bad: R('In der Rede erwähnst du die Ex. Die Stimmung kippt.', { happy: -8, money: -900 }, { rel: [{ name: '{f}', change: -15 }] }) },
+      { t: 'Absagen, zu teuer', dc: 0, ok: R('Verständnis. Aber ein bisschen Kälte bleibt.', { happy: -3 }, { rel: [{ name: '{f}', change: -10 }] }) },
+    ] });
+  ev({ id: 'haustier', stage: ['any'], when: (c) => !c.flags.pet, text: 'Im Tierheim sitzt ein Hund mit einem Ohr hoch und einem runter. Er schaut dich an.',
+    opts: [
+      { t: 'Adoptieren', dc: 0, ok: R('Du hast jetzt einen Hund. Er heißt Keks. Dein Leben ist besser.', { happy: 14, health: 3, money: -350 }, { flag: { pet: 1 }, add: [{ name: 'Hund Keks (Futter, Tierarzt, Steuer)', pm: -110, happy: 1 }], rel: [{ name: 'Keks (Hund)', kind: 'Haustier', change: 60 }], chron: 'Adoptiert Hund Keks.' }) },
+      { t: 'Lieber eine Katze', dc: 0, ok: R('Die Katze ignoriert dich. Du liebst sie trotzdem.', { happy: 9, money: -150 }, { flag: { pet: 1 }, add: [{ name: 'Katze (Futter, Tierarzt)', pm: -60, happy: 1 }], chron: 'Eine Katze zieht ein.' }) },
+      { t: 'Nicht jetzt', dc: 0, ok: R('Du denkst noch drei Tage an das Ohr.', { happy: -2 }) },
+    ] });
+  ev({ id: 'marathon', stage: ['any'], text: '{f} hat dich für einen Halbmarathon angemeldet. Ohne zu fragen. In acht Wochen.',
+    opts: [
+      { t: 'Trainieren und laufen', stat: 'body', dc: 11, ok: R('Ziel erreicht. Medaille. Du erzählst es jedem. Jedem.', { health: 8, happy: 10, power: 2 }, { chron: 'Läuft einen Halbmarathon.' }), bad: R('Kilometer 14, Krämpfe, Sanitäter. Aber du hast es versucht.', { health: -4, happy: -2 }) },
+      { t: 'Am Start Fotos machen und heimgehen', stat: 'luck', dc: 9, ok: R('Niemand merkt es. Dein Insta-Post bekommt mehr Likes als die Läufer.', { happy: 5 }), bad: R('{f} sieht dich im Café sitzen.', { happy: -4 }, { rel: [{ name: '{f}', change: -8 }] }) },
+    ] });
+  ev({ id: 'hacker', stage: ['any'], kind: 'odd', text: 'Dein Instagram wurde gehackt. Der Account postet jetzt Krypto-Werbung an deine Oma.',
+    opts: [
+      { t: 'Support kontaktieren', stat: 'smart', dc: 12, ok: R('Nach elf Tagen hast du ihn zurück. Oma hat nichts gekauft.', { happy: 3 }), bad: R('Der Support ist ein Bot, der dich an einen Bot verweist.', { happy: -6 }) },
+      { t: 'Neuen Account anlegen', dc: 0, ok: R('Von vorne. 37 Follower. Ein Neuanfang.', { happy: -3, power: -1 }) },
+    ] });
+  ev({ id: 'ehrenamt', stage: ['any'], text: 'Die Tafel in {c} sucht Leute, die samstags helfen.',
+    opts: [
+      { t: 'Mitmachen', stat: 'work', dc: 6, ok: R('Jeden Samstag drei Stunden. Du gehst immer besser gelaunt heim, als du gekommen bist.', { happy: 8, power: 3 }, { chron: 'Hilft ehrenamtlich bei der Tafel.' }), bad: R('Du schaffst es zweimal, dann nicht mehr. Schlechtes Gewissen inklusive.', { happy: -2 }) },
+      { t: 'Spenden statt helfen', dc: 0, ok: R('100 € überwiesen. Spendenquittung für die Steuer.', { money: -100, happy: 3 }) },
+    ] });
+  ev({ id: 'schwarzfahren', stage: ['any'], kind: 'odd', when: (c) => !c.car, text: 'Fahrkartenkontrolle. Dein Deutschlandticket ist gestern abgelaufen.',
+    opts: [
+      { t: 'Ehrlich sein', dc: 0, ok: R('60 € erhöhtes Beförderungsentgelt. Der Kontrolleur wünscht dir einen schönen Tag.', { money: -60, happy: -2 }) },
+      { t: 'An der nächsten Station rennen', stat: 'body', dc: 12, ok: R('Du bist weg. Adrenalin pur.', { happy: 4 }), bad: R('Du rennst direkt in die zweite Kontrolleurin. Anzeige wegen Erschleichens von Leistungen.', { money: -60, happy: -8, power: -2 }) },
+    ] });
+  ev({ id: 'familienfeier', stage: ['any'], text: 'Familienfeier. Tante Gisela fragt vor allen nach deinem Gehalt, deiner Beziehung und deinem Gewicht.',
+    opts: [
+      { t: 'Charmant ausweichen', stat: 'social', dc: 10, ok: R('Du lenkst auf Onkel Horsts neue Hüfte. Alle reden darüber. Rettung.', { happy: 5 }), bad: R('Gisela lässt nicht locker. Alle hören zu.', { happy: -6 }) },
+      { t: 'Ehrlich zurückfragen', stat: 'luck', dc: 11, ok: R('„Und, Gisela, wie läuft die dritte Ehe?“ Stille. Dann lacht Opa laut los.', { happy: 8, power: 2 }), bad: R('Eklat. Du wirst nächstes Jahr nicht eingeladen. Vielleicht gut so.', { happy: -4 }) },
+    ] });
+  ev({ id: 'fuehrerschein-reminder', stage: ['job', 'uni', 'azubi'], when: (c) => c.license && c.license.status === 'none' && c.key !== 'april', text: 'Ohne Führerschein dauert alles doppelt so lange. Dein Chef fragt, ob du „mal eben“ zum Kunden fahren kannst.',
+    opts: [
+      { t: 'Zugeben, dass du keinen hast', dc: 0, ok: R('Er schaut, als hättest du gesagt, du kannst nicht lesen. Fahrschule wäre eine Idee (Dieser Monat → Führerschein).', { happy: -3 }) },
+      { t: 'Mit dem Fahrrad hin', stat: 'body', dc: 10, ok: R('22 Kilometer. Du kommst an. Der Kunde ist beeindruckt.', { health: 4, power: 2 }), bad: R('Platten nach acht Kilometern. Du kommst zu spät und verschwitzt.', { happy: -5 }) },
+    ] });
+  ev({ id: 'jobmesse', stage: ['uni', 'azubi'], text: 'Jobmesse in {c}. Hunderte Firmen, tausende Kugelschreiber.',
+    opts: [
+      { t: 'Gut vorbereitet hin', stat: 'social', dc: 10, ok: R('Drei Visitenkarten, ein Gespräch, das sich echt angefühlt hat. Nach dem Abschluss melden die sich.', { power: 4, happy: 4 }, { flag: { study: 1 } }), bad: R('Du hast nur Kugelschreiber gesammelt. 43 Stück.', { happy: -2 }) },
+      { t: 'Nur für die Snacks', dc: 0, ok: R('Kostenlose Brezeln. Für einen Studenten ist das eine Mahlzeit.', { happy: 3, money: 15 }) },
+    ] });
+  ev({ id: 'pflegefall', stage: ['any'], when: (c) => c.age >= 28, text: 'Deine Mutter ist gestürzt und braucht für ein paar Monate Hilfe im Alltag.',
+    opts: [
+      { t: 'Selbst helfen, Stunden reduzieren', stat: 'work', dc: 9, ok: R('Anstrengend, aber ihr wachst zusammen. Sie ist bald wieder fit.', { happy: 4, health: -4, money: -1500 }, { rel: [{ name: 'Mama', kind: 'Familie', change: 20 }] }), bad: R('Du bist zwischen Job und Pflege zerrieben.', { happy: -8, health: -8, money: -1500 }) },
+      { t: 'Pflegedienst bezahlen', dc: 0, ok: R('Professionelle Hilfe, 1.800 € Eigenanteil. Sie ruft trotzdem dich an, wenn der Fernseher nicht geht.', { money: -1800, happy: -1 }) },
+    ] });
+  ev({ id: 'immobilien-tipp', stage: ['job', 'founder'], when: (c) => c.stats.money > 20000, text: 'Ein Bekannter erzählt von einer Wohnung, die bald unter Marktwert verkauft wird. Er kennt den Makler.',
+    opts: [
+      { t: 'Im Markt nach Wohnungen schauen', dc: 0, ok: R('Kauf-Wohnungen findest du im Markt. Rechne Grunderwerbsteuer und Notar mit ein.', { happy: 1 }) },
+      { t: 'Ihm 2.000 € „Vermittlung“ zahlen', stat: 'luck', dc: 15, ok: R('Er hält Wort: Du bekommst Rabatt auf eine Wohnung. 10.000 € gespart.', { money: 8000, happy: 6 }), bad: R('Der Bekannte ist weg. Die 2.000 € auch.', { money: -2000, happy: -8 }) },
+    ] });
+  ev({ id: 'quarterlife', stage: ['job', 'azubi', 'uni'], when: (c) => c.age >= 24 && c.age <= 32, text: 'Quarterlife-Crisis. Alle auf Instagram heiraten, kaufen Häuser oder ziehen nach Bali. Du sitzt hier.',
+    opts: [
+      { t: 'Etwas Neues lernen', stat: 'smart', dc: 8, ok: R('Du meldest dich in der Akademie für etwas Verrücktes an. Das fühlt sich richtig an.', { happy: 6 }, { flag: { study: 1 } }), bad: R('Du kaufst drei Online-Kurse. Keinen schaust du an.', { money: -150, happy: -3 }) },
+      { t: 'Spontan verreisen', dc: 0, ok: R('Im Markt unter „Reisen“ gibt es gerade Last-Minute-Angebote. Du buchst fast.', { happy: 3 }) },
+      { t: 'Handy weg, Freunde treffen', stat: 'social', dc: 6, ok: R('Ein Abend ohne Vergleiche. Es geht dir besser.', { happy: 8 }, { rel: [{ name: '{f}', change: 8 }] }), bad: R('Alle reden über ihre Hauskredite.', { happy: -4 }) },
+    ] });
+  ev({ id: 'erbschaft-streit', stage: ['any'], when: (c) => c.age >= 30, w: 0.5, text: 'Opa ist gestorben. Im Testament steht etwas, das die Familie spaltet.',
+    opts: [
+      { t: 'Vermitteln', stat: 'social', dc: 12, ok: R('Ihr einigt euch. Jeder bekommt etwas, niemand ist zufrieden, alle reden noch miteinander.', { money: 9000, happy: -2 }), bad: R('Anwälte. Drei Jahre. Am Ende frisst das Verfahren das Erbe.', { money: -2000, happy: -10 }) },
+      { t: 'Verzichten', dc: 0, ok: R('Du verzichtest. Die Familie respektiert dich, das Konto nicht.', { happy: 3, power: 2 }) },
+    ] });
+  ev({ id: 'stromausfall', stage: ['any'], kind: 'absurd', w: 0.5, text: 'Stromausfall im ganzen Viertel. Drei Tage. Die Nachbarn grillen alles aus ihren Gefriertruhen.',
+    opts: [
+      { t: 'Mitgrillen', stat: 'social', dc: 7, ok: R('Bestes Straßenfest seit Jahren. Du kennst jetzt alle Nachbarn.', { happy: 10 }), bad: R('Du bringst vegane Würstchen mit. Es wird diskutiert.', { happy: 2 }) },
+      { t: 'Zu {f} ziehen', dc: 0, ok: R('Drei Tage Pyjamaparty mit Mitte zwanzig. Überraschend schön.', { happy: 6 }, { rel: [{ name: '{f}', change: 10 }] }) },
+    ] });
+  ev({ id: 'talentshow', stage: ['any'], kind: 'absurd', w: 0.4, text: 'Eine TV-Talentshow castet in {c}. Du kannst ein bisschen jonglieren. Ein bisschen.',
+    opts: [
+      { t: 'Hingehen', stat: 'luck', dc: 16, ok: R('Die Jury lacht, das Publikum tobt. Du bist im Halbfinale und eine Woche lang berühmt.', { happy: 14, power: 8, money: 2000 }, { chron: 'Im Halbfinale einer TV-Talentshow.' }), bad: R('Du lässt alles fallen. In Zeitlupe. Im Fernsehen.', { happy: -8, power: -2 }) },
+      { t: 'Nur zuschauen', dc: 0, ok: R('Du siehst einen Mann, der mit Kettensägen jongliert. Du hättest keine Chance gehabt.', { happy: 2 }) },
+    ] });
+  ev({ id: 'sabbatical', stage: ['job'], when: (c) => c.age >= 27 && !!c.job2, w: 0.6, text: 'Dein Arbeitgeber bietet ein Sabbatical an: drei Monate frei, ohne Gehalt, Job bleibt sicher.',
+    opts: [
+      { t: 'Nehmen und die Welt sehen', dc: 0, ok: R('Drei Monate Südostasien und Neuseeland. Du kommst zurück und bist ein anderer Mensch. Mit Sonnenbrand.', { happy: 18, health: 6, money: -6000 }, { chron: 'Drei Monate Sabbatical.' }) },
+      { t: 'Lieber weiterarbeiten', dc: 0, ok: R('Die Kolleginnen kommen braun gebrannt zurück. Du hast Überstunden.', { happy: -3, money: 500 }) },
+    ] });
+
   // ---------- Weltgeschehen ----------
   const WORLD = [
     { t: 'Die Inflation zieht wieder an. Alles wird teurer, Löhne nicht.', d: { happy: -2 }, money: -0.03 },
@@ -425,11 +570,13 @@
     const forced = E.find((e) => typeof e.forced === 'function' && (e.stage.includes(st) || e.stage.includes('any')) && e.forced(c, S, M) && !recently(c, e.id, 2));
     if (forced) return forced;
     const kindRoll = Math.random(), wantKind = kindRoll < 0.6 ? 'real' : kindRoll < 0.9 ? 'odd' : 'absurd';
-    const pool = E.filter((e) => !e.forced && (e.stage.includes(st) || (e.stage.includes('any') && (st !== 'ai' || AI_OK.has(e.id) || c.flags.body))) && (!e.when || e.when(c, S)) && !recently(c, e.id, 8));
+    const pool = E.filter((e) => !e.forced && !RETIRED.has(e.id) && (e.stage.includes(st) || (e.stage.includes('any') && (st !== 'ai' || AI_OK.has(e.id) || c.flags.body))) && (!e.when || e.when(c, S)) && !recently(c, e.id, 8));
     const prefer = pool.filter((e) => e.kind === wantKind);
     const list = prefer.length ? prefer : pool.length ? pool : [byId('alltag')];
     // Stufen-Events bevorzugen, damit das eigene Leben vorankommt
-    const weight = (e) => e.w * (e.stage.includes(st) ? 2.2 : 1);
+    // schon oft gesehene Ereignisse werden selten
+    const seenN = c.flags.seenN || {};
+    const weight = (e) => e.w * (e.stage.includes(st) ? 2.2 : 1) / (1 + 2 * (seenN[e.id] || 0));
     let sum = list.reduce((s, e) => s + weight(e), 0), r = Math.random() * sum;
     for (const e of list) { r -= weight(e); if (r <= 0) return e; }
     return list[0];
@@ -437,12 +584,15 @@
   // April lebt auf dem Server: nur Ereignisse, die ohne Körper Sinn ergeben (bis sie einen hat)
   const AI_OK = new Set(['crush', 'beziehung', 'freund-geld', 'freund-drama', 'krypto', 'erbe', 'viral', 'politik', 'buergermeister', 'kanzler', 'gewinnspiel', 'alien', 'ohio', 'lotto', 'alltag', 'familie', 'nachbar']);
   const byId = (id) => E.find((e) => e.id === id);
+  // Steuer und Mieterhöhung laufen inzwischen über echte Systeme (Termin, Markt)
+  const RETIRED = new Set(['steuer', 'vermieter']);
   const recently = (c, id, n) => (c.flags.seen || []).slice(-n).includes(id);
 
   function makeCard(S, pid, e) {
     const c = S.chars[pid], x = ctxOf(S, pid);
     if (c.key === 'kimberly' && e.id === 'crush' && x.f === 'Justin') x.f = 'Shaquille';
     c.flags.seen = (c.flags.seen || []).concat(e.id).slice(-16);
+    c.flags.seenN = Object.assign({}, c.flags.seenN || {}, { [e.id]: ((c.flags.seenN || {})[e.id] || 0) + 1 });
     return {
       id: e.id, text: fill(e.text, x), f: x.f, fid: x.fid || null, exam: !!e.exam, kind: e.kind,
       opts: e.opts.map((o) => ({ t: fill(o.t, x), stat: o.stat || '', dc: o.dc || 0, cost: o.cost || 0 })),
@@ -475,6 +625,7 @@
       entry.end_effects.push('Kind (Unterhalt)');
       c.flags.partner = ''; c.flags.together = 0; c.flags.married = 0;
     }
+    if (out.raise && c.job2) { const plus = Math.round(c.job2.gross * out.raise / 10) * 10; c.job2.gross += plus; }
     if (out.chron) entry.chronicle = fill(out.chron, x);
     if (out.reset != null) entry.delta.money += out.reset - c.stats.money;
     if (out.abiGrade) {
@@ -558,7 +709,10 @@
   const fmt = (n) => `${Math.abs(Math.round(n)).toLocaleString('de-DE')} €`;
 
   function nextFor(S, pid, entry) {
-    const card = makeCard(S, pid, chooseEvent(S, pid));
+    const ev = chooseEvent(S, pid);
+    // Nicht jeder Monat bringt ein Ereignis: ruhige Runden lassen Platz für Markt, Akademie und die anderen
+    if (!ev.forced && ev.id !== 'weg' && ev.id !== 'abi-fail' && Math.random() < ((S.stepM || 1) >= 3 ? 0.12 : 0.35)) { entry.card = null; entry.next_event = ''; return; }
+    const card = makeCard(S, pid, ev);
     entry.card = card;
     entry.next_event = card.text;
     entry.exam = card.exam;

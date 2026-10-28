@@ -188,7 +188,8 @@
   function chooseStep(S) {
     let base = PACE[S.settings.pace] || 0;
     if (!base) {
-      const busy = alive(S).some((p) => { const c = S.chars[p.id]; return c.edu.kind === 'school' || (c.license.status !== 'none' && !c.license.has) || c.appts.some((a) => a.status === 'open' && !a.soft && idx(a) - idx(S.date) <= 3); });
+      // Schulzeit und laufender Führerschein monatlich, sonst Quartale (Termine halten die Zeit sowieso an)
+      const busy = alive(S).some((p) => { const c = S.chars[p.id]; return c.edu.kind === 'school' || (c.license.status !== 'none' && !c.license.has && idx(S.date) - (c.license.appliedIdx || 0) < 8); });
       base = busy ? 1 : 3;
     }
     const nx = nextApptIdx(S);
@@ -719,6 +720,8 @@
     if (c.job2) {
       const n = c.job2.net != null ? c.job2.net : DB.net(c.job2.gross, c.job2.kind);
       c.stats.money += n; inc += n;
+      // Wer mehr verdient, gibt auch mehr aus (Urlaub, Essen gehen, Abos, Klamotten)
+      if (n > 1800 && !c.prison) { const life = Math.round((n - 1800) * 0.35); c.stats.money -= life; out += life; c._spent = c._spent || {}; c._spent.Lebensstil = (c._spent.Lebensstil || 0) + life; }
     }
     // Dispozinsen und Mahnungen
     if (c.stats.money < 0) {
@@ -806,7 +809,7 @@
         return;
       }
       S.stories[p.id] = cleanText(x.story, 1400);
-      S.events[p.id] = cleanText(x.next_event, 600) || 'Was machst du als Nächstes?';
+      S.events[p.id] = cleanText(x.next_event, 600) || (data.builtin ? 'Ruhige Zeit, kein Ereignis. Nutz sie: Markt, Akademie, Reisen oder die anderen.' : 'Was machst du als Nächstes?');
       S.exam[p.id] = !!x.exam;
       const ck = x.check || {};
       if (task === 'resolve' && ck.used) S.checks[p.id] = { stat: cleanText(ck.stat, 40), dc: num(ck.dc, 1, 30), roll: S.rolls[p.id] || 0, success: !!ck.success, mod: num(ck.mod, -15, 15) };
@@ -925,8 +928,27 @@
     const p = bots.find((b) => S.chars[b.id] && !S.chars[b.id].dead && !S.actions[b.id]);
     if (!p) return null;
     const c = S.chars[p.id];
-    // erst Markt, dann der Monat (pro Aufruf eine Aktion)
     c._bot = c._bot || {};
+    // Angebote anderer beantworten (meistens ja, Bots sind nett)
+    const inc = (S.offers || []).find((o) => o.to === p.id && o.status === 'open');
+    if (inc) return { pid: p.id, action: { type: 'oAnswer', id: inc.id, yes: rnd(10) < 7 }, delay: 800 };
+    // Bots gehen auf Menschen zu: Lerngruppe, Party, Duell, Date
+    if (c._bot.soc !== idx(S.date) && rnd(100) < 12) {
+      c._bot.soc = idx(S.date);
+      const humans = S.players.filter((x) => !x.bot && S.chars[x.id] && !S.chars[x.id].dead);
+      if (humans.length) {
+        const h = humans[rnd(humans.length)], t = S.chars[h.id];
+        const both = c.edu.kind === 'school' && t.edu.kind === 'school';
+        const kinds = both ? ['lerngruppe', 'party', 'duel'] : ['party', 'duel', c.flags.partner ? 'party' : 'date'];
+        const kind = kinds[rnd(kinds.length)];
+        const terms = kind === 'duel' ? { stat: ['social', 'body', 'smart'][rnd(3)], stake: Math.min(200, Math.max(0, Math.floor(c.stats.money / 10))) } : kind === 'lerngruppe' ? { subj: Object.keys(t.abi.exams)[0] } : {};
+        return { pid: p.id, action: { type: 'oOffer', to: h.id, kind, terms }, delay: 700 };
+      }
+    }
+    // Führerschein, wenn genug Geld da ist
+    if (c._bot.lic !== idx(S.date) && c.license.status === 'none' && c.key !== 'april' && c.stats.money > 1600) { c._bot.lic = idx(S.date); return { pid: p.id, action: { type: 'licEnroll', school: (c.contacts || []).includes('opa-fahrschule') ? 'opa' : DB.LICENSE.schools[0].id }, delay: 600 }; }
+    if (c._bot.book !== idx(S.date) && c.license.status !== 'none' && !c.license.has) { c._bot.book = idx(S.date); if (!c.appts.some((t) => t.status === 'open' && /^lic-/.test(t.kind))) return { pid: p.id, action: { type: 'licBook', kind: c.license.theoryPass ? 'practical' : 'theory' }, delay: 600 }; }
+    // erst Markt, dann der Monat (pro Aufruf eine Aktion)
     const now = idx(S.date);
     if (M && c._bot.mk !== now) {
       c._bot.mk = now;
