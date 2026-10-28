@@ -36,6 +36,29 @@
     b.onclick = (e) => { e.stopPropagation(); m.hidden = !m.hidden; b.setAttribute('aria-expanded', String(!m.hidden)); };
     document.addEventListener('click', (e) => { if (!nav.contains(e.target)) { m.hidden = true; b.setAttribute('aria-expanded', 'false'); } });
   });
+  // Musik-Player: Track wählen, Play/Stop, Lautstärke (die Wahl bleibt gespeichert)
+  const MU = window.DULI_MUSIC, FX0 = window.DULI_FX;
+  if (MU && FX0) {
+    document.querySelectorAll('.games-nav').forEach((nav) => {
+      const box = document.createElement('div');
+      box.className = 'gn-mu';
+      nav.prepend(box);
+      const draw = (open) => {
+        const on = FX0.musicOn && MU.playing;
+        box.innerHTML = `<button type="button" class="btn btn-small btn-ghost gn-mu-btn ${on ? 'is-on' : ''}" title="Musik" aria-label="Musik">${on ? '<i class="gn-eq"><b></b><b></b><b></b></i>' : '♪'}</button>
+          <div class="gn-mu-menu" ${open ? '' : 'hidden'}><strong>Musik</strong>${MU.tracks.map((t) => `<button type="button" data-tr="${t.id}" class="${on && MU.track === t.id ? 'is-here' : ''}"><span>${t.name}</span><small>${t.sub}${on && MU.track === t.id && MU.section() ? ` · ${MU.section()}` : ''}</small></button>`).join('')}
+          <button type="button" class="gn-mu-dl" data-dl="1">Als WAV speichern</button><label>Lautstärke <input type="range" min="0" max="100" value="${Math.round(MU.vol * 100)}"></label>${on ? '<button type="button" data-tr="off" class="gn-mu-off">Musik aus</button>' : ''}</div>`;
+        box.querySelector('.gn-mu-btn').onclick = (e) => { e.stopPropagation(); draw(box.querySelector('.gn-mu-menu').hidden); };
+        box.querySelectorAll('[data-tr]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); if (b.dataset.tr === 'off') FX0.music(false); else FX0.music(true, b.dataset.tr); draw(true); }; });
+        const dl = box.querySelector('[data-dl]');
+        dl.onclick = (e) => { e.stopPropagation(); dl.disabled = true; dl.textContent = 'Wird gerendert …'; MU.download(MU.track).catch(() => {}).then(() => { dl.disabled = false; dl.textContent = 'Als WAV speichern'; }); };
+        box.querySelector('input').oninput = (e) => MU.setVol(e.target.value / 100);
+      };
+      draw(false);
+      document.addEventListener('click', (e) => { if (!box.contains(e.target)) { const m = box.querySelector('.gn-mu-menu'); if (m && !m.hidden) draw(false); } });
+      setInterval(() => { const m = box.querySelector('.gn-mu-menu'); if (m && !m.hidden) { const sm = box.querySelector('.is-here small'); const t = MU.tracks.find((x) => x.id === MU.track); if (sm && t) sm.textContent = `${t.sub}${MU.section() ? ` · ${MU.section()}` : ''}`; } else if (!m || m.hidden) { const b = box.querySelector('.gn-mu-btn'); if (b && b.classList.contains('is-on') !== (FX0.musicOn && MU.playing)) draw(false); } }, 1000);
+    });
+  }
   const FX = window.DULI_FX, snd = document.getElementById('p-sound');
   if (FX) {
     document.addEventListener('pointerdown', () => FX.unlock(), { once: true });

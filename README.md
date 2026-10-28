@@ -31,7 +31,7 @@ Dazu zehn Varianten (Klassisch, Blitz, Millionär, April-Chaos, Hardcore, Turbo,
 **🕹️ Spielhalle (ohne Monopoly):** Kniffel gegen Bots, Vier gewinnt gegen einen Minimax-Bot oder zu zweit, Memory, Döner-Snake, Flappy April und Dulidan 2048 – mit Highscores und XP.
 **📖 Kampagne „Aprils Story“:** 12 Level gegen Bots durch alle Modi, je 3 Sterne, Level schalten sich nacheinander frei.
 **🛠️ Brett-Editor:** eigene Straßennamen fürs klassische Brett, per Code teilbar, online sehen alle die Namen.
-**⭐ Profil:** XP und Level mit Titeln vom Praktikanten bis zur Dulidan-Legende. **🎨 Brett-Skins:** Neon, Retro-Papier, Gold, Matrix, Pastell. **🎵 Musik:** Synthwave-Loop im Browser erzeugt.
+**⭐ Profil:** XP und Level mit Titeln vom Praktikanten bis zur Dulidan-Legende. **🎨 Brett-Skins:** Neon, Retro-Papier, Gold, Matrix, Pastell. **🎵 Musik** (`js/music.js`, Knopf ♪ oben auf jeder Seite): komplett im Browser synthetisiert. **DULIDAN ANTHEM** – Dark Trap/Phonk, 140 BPM, f-Moll, 60 Takte: Intro mit Vinyl-Knistern und sich öffnendem Pad, Build-up mit Snare-Roll und Riser, Drop mit 808-Glides, Hi-Hat-Rolls, Supersaw-Stabs und Hook-Lead mit Delay, Breakdown, zweiter Drop mit Phonk-Cowbell. Sidechain-Ducking, Hall, Delay, Kompressor und Limiter. **Synthwave Classic** – der alte Loop, gespeichert. Track, Lautstärke und an/aus bleiben gespeichert; jeder Track lässt sich als WAV herunterladen.
 
 **💖 Aprils Laune** (in der Lobby abschaltbar): April mag jede Person anders, lässt sich bestechen, macht ihrem Liebling Geschenke und rächt sich bei Hass (Haus abreißen, Straße in Hypothek). Dazu Tageslaune und Live-Kommentar über dem Brett.
 
