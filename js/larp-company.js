@@ -241,6 +241,14 @@
       emp.chronicle.push({ d: X.dateText(S), t: `Befördert zu ${LADDER[J.level].name} bei ${J.firm}.` });
       return null;
     }
+    if (a.type === 'kAuto') {
+      const U = autoUnlocks(c, S, pid), key = a.key;
+      if (!U[key]) return 'Gibt es nicht.';
+      if (a.on && !U[key].ok) return `Dafür braucht deine Firma ${U[key].need}.`;
+      F.auto = Object.assign({ maxGross: 4500, safety: 1.15 }, F.auto || {}, { [key]: !!a.on });
+      if (a.maxGross) F.auto.maxGross = Math.max(1500, Math.min(15000, Number(a.maxGross) || 4500));
+      return null;
+    }
     if (a.type === 'kTake') {
       const j = offers(S, c, now).find((x) => x.id === a.id);
       if (!j) return 'Den Auftrag gibt es nicht mehr.';
@@ -302,7 +310,51 @@
       else if (r < 22 && p.trait[0] === 'Genie') { F.rep = Math.min(100, F.rep + 4); X.report(S, pid, '•', `${p.name} hat eine geniale Idee. Der Kunde ist begeistert, Ruf ${F.rep}.`, 'good'); }
       else if (r < 27 && p.trait[0] === 'Diva') { p.mood -= 15; X.report(S, pid, '•', `${p.name} will mehr Geld und einen Fensterplatz.`, 'bad'); }
     });
+    if (F.auto) runAuto(S, c, pid, X, cur);
     return { inc, out };
+  }
+  // ---------- Automatisierung: Wenn die Firma wächst, machen die Leute das selbst ----------
+  // Freischaltung über Skills im Team (nicht deine eigenen) oder eine Teamleitung
+  function autoUnlocks(c, S, pid) {
+    const F = firm(c), staff = F.staff, lead = staff.some((p) => (p.level || 0) >= 4);
+    const best = (n) => Math.max(0, ...staff.map((p) => p.skills[n] || 0), ...players(S, pid).map((p) => p.skills[n] || 0));
+    return {
+      jobs: { ok: lead || Math.max(best('Verkauf'), best('Projektmanagement')) >= 40, need: 'jemand mit Verkauf oder Projektmanagement 40, oder eine Teamleitung' },
+      hire: { ok: lead || (staff.length >= 4 && best('Führung') >= 30), need: 'mindestens 4 Leute und jemand mit Führung 30, oder eine Teamleitung' },
+      promo: { ok: lead, need: 'eine Teamleitung' },
+    };
+  }
+  function runAuto(S, c, pid, X, cur) {
+    const F = firm(c), A = F.auto || {}, U = autoUnlocks(c, S, pid), done = [];
+    // Beförderungen (nur angestellte Personen, Spieler-Figuren entscheidest immer du)
+    if (A.promo && U.promo.ok) {
+      const teamN = F.staff.length + players(S, pid).length;
+      F.staff.forEach((p) => { const lv = p.level || 2; if (LADDER[lv + 1] && lv + 1 <= 5 && !missingFor(p, lv + 1, cur - p.since, teamN).length && cur - (p.promoAt || p.since) >= 6) { p.level = lv + 1; p.promoAt = cur; p.gross = Math.max(p.gross, LADDER[p.level].band[0]); p.mood = Math.min(100, p.mood + 20); done.push(`${p.name} → ${LADDER[p.level].name}`); } });
+    }
+    // Personal: fehlende Skills der aktuellen Aufträge zuerst, Gehaltsgrenze beachten
+    if (A.hire && U.hire.ok && F.staff.length < capacity(c)) {
+      const want = new Set(offers(S, c, cur).concat(F.jobs).flatMap((j) => Object.keys(j.req)));
+      const fs = skills(c, S, pid);
+      const gain = (p) => Object.entries(p.skills).reduce((s2, [k, v]) => s2 + (want.has(k) ? Math.max(0, v - (fs[k] || 0)) : 0), 0);
+      const pool = applicants(S, c, cur).filter((p) => !(S.market.taken || {})[`${pid}:${p.id}`] && p.gross <= (A.maxGross || 4500) && p.trait[0] !== 'faul' && gain(p) > 0);
+      pool.sort((a, b) => gain(b) - gain(a));
+      const p = pool[0];
+      if (p && c.stats.money > p.gross * 3) {
+        S.market.taken[`${pid}:${p.id}`] = 1;
+        F.staff.push({ id: X.uid('st'), name: p.name, role: p.role, skills: p.skills, gross: p.gross, trait: p.trait, mood: 70, since: cur, level: startLevel(p), promoAt: cur });
+        done.push(`eingestellt: ${p.name} (${p.role}, ${X.eur(p.gross)})`);
+      }
+    }
+    // Vertrieb: nur Aufträge, die das Team rechtzeitig schafft, die lukrativsten zuerst
+    if (A.jobs && U.jobs.ok) {
+      const max = 1 + Math.floor(F.staff.length / 2);
+      offers(S, c, cur).filter((j) => !F.jobs.some((x) => x.id === j.id) && F.rep >= j.minRep && pace(c, j, S, pid) * j.months >= 100 * (A.safety || 1.15)).sort((a, b) => b.pay / b.months - a.pay / a.months).forEach((j) => {
+        if (F.jobs.length >= max) return;
+        F.jobs.push(Object.assign({}, j, { progress: 0, start: cur, deadline: cur + Math.ceil(j.months * 1.5), auto: true }));
+        done.push(`Auftrag: ${j.title} (${X.eur(j.pay)})`);
+      });
+    }
+    if (done.length) X.report(S, pid, '•', `Deine Firma hat selbst entschieden: ${done.join('; ')}.`);
   }
   function setGross(S, pid, emp, gross) {
     emp.job2.gross = gross;
@@ -322,7 +374,7 @@
     S.sms.push({ id: 's' + Math.random().toString(36).slice(2, 9), from, to, t: String(text).slice(0, 400), d, round: S.round, npc: npc || null });
     if (S.sms.length > 400) S.sms.splice(0, S.sms.length - 400);
   }
-  const COMPANY = { LADDER, missingFor, players, setGross, endPlayerJob, sms, top2, startLevel, CATALOG, ALL, catOf, ensure, change, level, train, monthSkills, firm, can, capacity, skills, applicants, offers, pace, act, month };
+  const COMPANY = { autoUnlocks, LADDER, missingFor, players, setGross, endPlayerJob, sms, top2, startLevel, CATALOG, ALL, catOf, ensure, change, level, train, monthSkills, firm, can, capacity, skills, applicants, offers, pace, act, month };
   if (isNode) module.exports = COMPANY;
   else root.DULI_LARP_COMPANY = COMPANY;
 })(typeof window !== 'undefined' ? window : globalThis);

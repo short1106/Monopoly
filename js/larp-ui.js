@@ -839,6 +839,7 @@
       <div class="lx-firm-kpi"><div><b>${F.rep}</b><small>Ruf</small></div><div><b>${teamN}/${cap}</b><small>Leute (Büro + 2 Homeoffice)</small></div><div><b>${eur(salary)}</b><small>Gehälter/Monat</small></div><div><b class="${F.lastRev >= 0 ? 'up' : 'down'}">${eur(F.lastRev || 0)}</b><small>Ergebnis letzter Monat</small></div><div><b>${F.done}</b><small>Aufträge fertig</small></div></div>
       <h4>Firmen-Skills <small>du + Team kombiniert: der oder die Beste zählt voll, alle anderen helfen mit</small></h4>
       <ul class="lx-sk">${Object.entries(fs).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `<li><span><b>${esc(k)}</b><small>${lvlName(Math.min(100, v))}</small></span>${sbar(Math.min(100, v), 'firm')}<em>${v}</em></li>`).join('')}</ul></div>
+      ${autoHTML(V, me, C, F, open)}
       ${ladderHTML(V, me, C, F, people)}
       ${F.jobs.length ? `<div class="lx-panel"><span class="lb-k">Laufende Aufträge</span>${F.jobs.map((j) => `<div class="lx-job"><b>${esc(j.title)}</b><small>${eur(j.pay)} · Deadline ${esc(L.MONTHS[j.deadline % 12])} ${Math.floor(j.deadline / 12)} · etwa ${CO.pace(C, j, V, me)} % pro Monat</small><div class="lx-prog"><i style="--v:${j.progress}%"></i><span>${j.progress} %</span></div></div>`).join('')}</div>` : ''}
       <div class="lx-panel"><span class="lb-k">Aufträge diesen Monat</span><p class="p-sub">Grün: euer Firmen-Skill reicht. Gleichzeitig schafft ihr ${1 + Math.floor(F.staff.length / 2)} Auftrag${F.staff.length >= 2 ? 'e' : ''}. Teamleitungen machen das ganze Team schneller.</p>${offers.map((j) => `<div class="lx-job"><b>${esc(j.title)}</b><small>${eur(j.pay)} · ${j.months} Monate geplant${j.minRep ? ` · braucht Ruf ${j.minRep}` : ''} · bei euch etwa ${CO.pace(C, j, V, me)} % pro Monat</small><div class="lx-req">${reqHTML(j.req)}</div><div class="btn-row"><button class="btn btn-small btn-primary" data-take="${esc(j.id)}" ${open ? '' : 'disabled'}>Annehmen</button></div></div>`).join('')}</div>
@@ -846,8 +847,19 @@
       <div class="lx-panel"><span class="lb-k">Bewerbungen</span><p class="p-sub">Arbeitgeberkosten sind etwa 21 % mehr als das Bruttogehalt. Mehr Plätze gibt es mit einem größeren Büro (Markt → Büros).</p>${apps.map((p) => `<div class="lx-staff"><div><b>${esc(p.name)}</b> <span class="lx-lv">${esc(CO.LADDER[CO.startLevel(p)].name)}</span><small>${esc(p.role)} · ${esc(p.trait[0])} · will ${eur(p.gross)} brutto</small><div class="lx-req">${Object.entries(p.skills).map(([k, v]) => `<span>${esc(k)} ${v}</span>`).join('')}</div></div><div class="btn-row"><button class="btn btn-small btn-primary" data-hire="${esc(p.id)}" ${open && teamN < cap ? '' : 'disabled'}>Einstellen</button></div></div>`).join('')}</div>`;
     if (put(body, html)) bindFirm(body, c);
   }
+  function autoHTML(V, me, C, F, open) {
+    const U = CO.autoUnlocks(C, V, me), A = F.auto || {};
+    const row = (key, name, what) => `<div class="lx-auto ${U[key].ok ? '' : 'locked'}"><div><b>${name}</b><small>${what}${U[key].ok ? '' : ` · Freischalten: ${esc(U[key].need)}`}</small></div><label class="lx-switch"><input type="checkbox" data-auto="${key}" ${A[key] ? 'checked' : ''} ${open && (U[key].ok || A[key]) ? '' : 'disabled'}><i></i></label></div>`;
+    return `<div class="lx-panel"><span class="lb-k">Automatisierung</span><p class="p-sub">Wenn die Firma wächst, machen deine Leute das selbst, jeden Monat. Du bekommst einen Bericht, was entschieden wurde.</p>
+      ${row('jobs', 'Vertrieb', 'nimmt passende Aufträge an, die das Team rechtzeitig schafft, die lukrativsten zuerst')}
+      ${row('hire', 'Personal', 'stellt Leute ein, die euch bei den gefragten Skills weiterbringen, bis alle Plätze voll sind')}
+      ${row('promo', 'Beförderungen', 'befördert alle, die die Anforderungen erfüllen (bis Abteilungsleitung; Spieler-Figuren entscheidest immer du)')}
+      ${A.hire ? `<div class="lb-inline"><span class="p-sub">Höchstes Gehalt für neue Leute</span><input id="au-max" type="number" min="1500" step="250" value="${A.maxGross || 4500}" style="max-width:120px"><button class="btn btn-small" id="au-set" ${open ? '' : 'disabled'}>Übernehmen</button></div>` : ''}</div>`;
+  }
   function bindFirm(body, c) {
     const on = (sel, fn) => body.querySelectorAll(sel).forEach((b) => { b.onclick = () => fn(b); });
+    body.querySelectorAll('[data-auto]').forEach((b) => { b.onchange = () => act({ type: 'kAuto', key: b.dataset.auto, on: b.checked }); });
+    if ($('#au-set')) $('#au-set').onclick = () => act({ type: 'kAuto', key: 'hire', on: true, maxGross: Number($('#au-max').value) });
     on('[data-take]', (b) => act({ type: 'kTake', id: b.dataset.take }));
     on('[data-hire]', (b) => act({ type: 'kHire', id: b.dataset.hire }));
     on('[data-raise]', (b) => act({ type: 'kRaise', staff: b.dataset.raise }));
