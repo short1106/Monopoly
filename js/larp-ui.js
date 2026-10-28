@@ -19,7 +19,8 @@
 
   // ---------- Daten laden (Hochschulen, Schulen, Straßen, Städte) ----------
   let dataReady = false;
-  Promise.all(['cities', 'unis', 'schools', 'streets'].map((k) => fetch(`assets/larp/${k}.json`).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) MK.DATA[k] = j; }).catch(() => null)))
+  Promise.all(['cities', 'unis', 'schools', 'streets'].map((k) => fetch(`assets/larp/${k}.json`).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) MK.DATA[k] = j; }).catch(() => null))
+    .concat(fetch('assets/larp/world.json').then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && window.DULI_LARP_WORLD) window.DULI_LARP_WORLD.addData(j.unis); }).catch(() => null)))
     .then(() => { dataReady = true; redraw(); });
 
   const store = {
@@ -748,13 +749,14 @@
   }
 
   // ----- Tab: Markt -----
-  const CATS = [['flat', 'Wohnung mieten'], ['wg', 'WG-Zimmer'], ['buyflat', 'Wohnung kaufen'], ['house', 'Haus kaufen'], ['car', 'Autos'], ['uni', 'Studium'], ['training', 'Ausbildung'], ['job', 'Jobs'], ['ad', 'Kleinanzeigen']];
+  const CATS = [['flat', 'Wohnung mieten'], ['wg', 'WG-Zimmer'], ['buyflat', 'Wohnung kaufen'], ['house', 'Haus kaufen'], ['car', 'Autos'], ['uni', 'Studium'], ['abroad', 'Studium weltweit'], ['training', 'Ausbildung'], ['job', 'Jobs'], ['travel', 'Reisen'], ['ad', 'Kleinanzeigen']];
   function renderMarket(body, V, me, api) {
     const c = V.chars[me];
     if (!c) { put(body, '<p class="p-sub">Du schaust zu.</p>'); return; }
     if (!mkt.city) mkt.city = c.home.city || 'Duisburg';
     if (!body.querySelector('#mk-top')) {
-      const names = MK.cities().slice(0, 1500).map((x) => x.name);
+      const W = window.DULI_LARP_WORLD;
+      const names = MK.cities().slice(0, 1500).map((x) => x.name).concat(W ? W.cities().map((x) => x.name) : []);
       body.innerHTML = `<div class="lx-mk"><div id="mk-top"></div><div class="lx-mk-bar"><div class="lb-inline"><input id="mk-city" list="mk-cities" value="${esc(mkt.city)}" placeholder="Stadt"><button class="btn btn-small" id="mk-go">Suchen</button><button class="btn btn-small btn-ghost" id="mk-home">Mein Ort</button></div><datalist id="mk-cities">${names.map((n) => `<option value="${esc(n)}">`).join('')}</datalist></div><div id="mk-list"></div></div>`;
       $('#mk-go').onclick = () => { mkt.city = $('#mk-city').value.trim() || mkt.city; $('#mk-list')._html = null; redraw(); };
       $('#mk-city').onkeydown = (e) => { if (e.key === 'Enter') $('#mk-go').click(); };
@@ -764,9 +766,12 @@
       $('#mk-top').querySelectorAll('[data-cat]').forEach((b) => { b.onclick = () => { mkt.cat = b.dataset.cat; redraw(); }; });
     }
     const open = V.phase === 'act' && !c.dead;
-    const items = MK.list(V, mkt.cat, mkt.city);
-    const pr = DB.cityPrice(mkt.city, (MK.city(mkt.city) || {}).st);
-    let html = `<p class="p-sub lx-mk-info">${esc(mkt.city)} · ${esc(L.dateText(V))} · Ø Kaltmiete ${String(pr.rent.toFixed(1)).replace('.', ',')} €/m², Kauf ${eur(pr.buy)}/m²${open ? '' : ' · Der Markt hat nur offen, während ihr plant.'}</p>`;
+    const items = MK.list(V, mkt.cat, mkt.cat === 'abroad' ? (mkt.world || '') : mkt.city);
+    const mc = MK.city(mkt.city), pr = MK.priceOf(mc), Wd = window.DULI_LARP_WORLD;
+    const where = mc.world && Wd ? `${esc(mkt.city)} (${esc(Wd.country(mc.cc).name)})` : esc(mkt.city);
+    let html = mkt.cat === 'abroad' ? `<div class="lb-inline lx-mk-world"><input id="mk-world" value="${esc(mkt.world || '')}" placeholder="Land, Stadt oder Uni (z. B. USA, Tokio, Oxford)"><button class="btn btn-small" id="mk-wgo">Suchen</button></div><p class="p-sub lx-mk-info">Die bekanntesten Hochschulen der Welt. Außerhalb von Deutschland, Österreich und der Schweiz brauchst du IELTS (Akademie), außerhalb der EU ein Visum. Gebühren sind Richtwerte für Studierende aus Deutschland.${open ? '' : ' · Der Markt hat nur offen, während ihr plant.'}</p>`
+      : mkt.cat === 'travel' ? `<p class="p-sub lx-mk-info">Reiseangebote im ${esc(L.dateText(V))}. Eine Reise pro Monat.${open ? '' : ' · Der Markt hat nur offen, während ihr plant.'}</p>`
+      : `<p class="p-sub lx-mk-info">${where} · ${esc(L.dateText(V))} · Ø Kaltmiete ${String(pr.rent.toFixed(1)).replace('.', ',')} €/m², Kauf ${eur(pr.buy)}/m²${mc.world ? ' · Ausland: Wer hier mietet, wandert aus.' : ''}${open ? '' : ' · Der Markt hat nur offen, während ihr plant.'}</p>`;
     if (!items.length) html += `<p class="p-sub">${mkt.cat === 'uni' ? 'Keine Hochschule in dieser Stadt gefunden.' : 'Nichts gefunden.'}</p>`;
     html += `<div class="lx-mk-grid">${items.map((x) => listingHTML(V, c, x, open)).join('')}</div>`;
     if (mkt.cat === 'ad') html += `<div class="lx-panel"><span class="lb-k">Selbst was verkaufen</span><div class="lb-inline"><input id="ad-name" placeholder="Was?" maxlength="60"><input id="ad-price" type="number" min="1" placeholder="Preis €" style="max-width:110px"><button class="btn btn-small" id="ad-go" ${open ? '' : 'disabled'}>Anzeige rein</button></div></div>`;
@@ -780,6 +785,7 @@
           act({ type: t, id, finance: !!b.dataset.fin, haggle: !!b.dataset.haggle });
         };
       });
+      if ($('#mk-wgo')) { $('#mk-wgo').onclick = () => { mkt.world = $('#mk-world').value.trim(); redraw(); }; $('#mk-world').onkeydown = (e) => { if (e.key === 'Enter') $('#mk-wgo').click(); }; }
       if ($('#ad-go')) $('#ad-go').onclick = () => act({ type: 'mSellAd', name: $('#ad-name').value, price: Number($('#ad-price').value) });
     }
   }
@@ -794,9 +800,9 @@
         <div class="btn-row"><button class="btn btn-small btn-primary" data-mk="mRent" data-id="${esc(x.id)}" data-dep="${eur(x.deposit)}" ${dis}>Mieten</button></div></div>`;
     }
     if (x.cat === 'buyflat' || x.cat === 'house') {
-      const grest = Math.round(x.price * DB.STATES[x.st].grest / 100), extra = grest + Math.round(x.price * 0.02) + Math.round(x.price * x.courtage / 100);
+      const grest = Math.round(x.price * MK.grestOf(x) / 100), extra = grest + Math.round(x.price * 0.02) + Math.round(x.price * x.courtage / 100);
       return `<div class="lx-ls">${tk}<b>${esc(x.title)}</b><small>${esc(x.street)}${x.quarter ? ` · ${esc(x.quarter)}` : ''}, ${esc(x.city)} · Baujahr ${x.year} · Energie ${esc(x.energy)}</small>
-        <div class="lx-price"><b>${eur(x.price)}</b> <span>+ ${eur(extra)} Nebenkosten (Grunderwerbsteuer ${DB.STATES[x.st].grest} %, Notar, Grundbuch${x.courtage ? ', Makler 3,57 %' : ''})</span></div>
+        <div class="lx-price"><b>${eur(x.price)}</b> <span>+ ${eur(extra)} Nebenkosten (Grunderwerbsteuer ${String(MK.grestOf(x)).replace('.', ',')} %, Notar, Grundbuch${x.courtage ? ', Makler 3,57 %' : ''})</span></div>
         <p>${x.extras.map(esc).join(' · ')}${x.flaw ? ` <em>· ${esc(x.flaw)}</em>` : ''}</p><small>${x.hausgeld ? `Hausgeld ${eur(x.hausgeld)}/M · ` : ''}vermietbar für etwa ${eur(x.rentEst)} kalt · Kreditzins für dich ${String(MK.loanRate(V, c)).replace('.', ',')} %</small>
         <div class="btn-row"><button class="btn btn-small" data-mk="mBuyHome" data-id="${esc(x.id)}" ${dis}>Bar kaufen</button><button class="btn btn-small btn-primary" data-mk="mBuyHome" data-fin="1" data-min="${extra}" data-id="${esc(x.id)}" ${dis}>Finanzieren</button></div></div>`;
     }
@@ -805,6 +811,18 @@
       return `<div class="lx-ls">${tk}<b>${esc(x.brand)} ${esc(x.model)}</b><small>${esc(x.cls)} · ${x.isNew ? 'Neuwagen' : `${x.year}, ${x.km.toLocaleString('de-DE')} km`} · ${x.ps} PS · ${({ B: 'Benzin', D: 'Diesel', E: 'Elektro', H: 'Hybrid' })[x.fuel]} · ${String(x.cons).replace('.', ',')} ${x.fuel === 'E' ? 'kWh' : 'l'}/100 km</small>
         <div class="lx-price"><b>${eur(x.price)}</b> <span>Unterhalt für dich etwa ${eur(k.total)}/Monat</span></div><p>${esc(x.seller)}${x.note ? ` · ${esc(x.note)}` : ''}${x.isNew ? '' : ` · TÜV noch ${x.tuv} Monate`}</p>
         <div class="btn-row"><button class="btn btn-small" data-mk="mCar" data-id="${esc(x.id)}" ${dis}>Kaufen</button><button class="btn btn-small btn-primary" data-mk="mCar" data-haggle="1" data-id="${esc(x.id)}" ${dis}>Handeln und kaufen</button><button class="btn btn-small btn-ghost" data-mk="mCar" data-fin="1" data-id="${esc(x.id)}" ${dis}>Finanzieren</button></div></div>`;
+    }
+    if (x.cat === 'uni' && x.abroad) {
+      const hasL = (c.certs || []).includes('ielts');
+      return `<div class="lx-ls"><b>${esc(x.name)}</b><small>${esc(x.uni)} · ${esc(x.city)}, ${esc(x.country)} · ${x.sem} Semester · Weltrang etwa ${x.rank}</small>
+        <div class="lx-price"><b>Schnitt ${String(x.nc.toFixed(1)).replace('.', ',')} oder besser</b> <span>${x.tuition ? `Studiengebühr ${eur(x.tuition)}/Jahr` : 'keine Studiengebühr'}${x.visa ? ` · Visum ${eur(x.visaFee)}` : ' · kein Visum nötig'}</span></div>
+        <small>${x.needLang ? (hasL ? 'IELTS hast du.' : 'Braucht IELTS (Akademie).') : 'Unterricht auf Deutsch.'}${x.rank <= 30 ? ' Spitzenuni: Interview entscheidet mit.' : ''} Bewerbung bis 15. Juli, Start 1. Oktober, Wohnheim vor Ort. Danach etwa ${eur(x.salary)} im Jahr.</small>
+        <div class="btn-row"><button class="btn btn-small btn-primary" data-mk="mApply" data-id="${esc(x.id)}" ${!open ? 'disabled' : ''}>Bewerben</button></div></div>`;
+    }
+    if (x.cat === 'travel') {
+      return `<div class="lx-ls lx-trip">${x.last ? '<span class="lx-taken lx-last">Last Minute</span>' : ''}<b>${esc(x.title)}</b><small>${x.days} Tage${x.visa ? ` · Visum ${eur(x.visa)}` : ''}</small>
+        <div class="lx-price"><b>${eur(x.price)}</b> <span>Happiness +${x.happy}</span></div>
+        <div class="btn-row"><button class="btn btn-small btn-primary" data-mk="mTravel" data-id="${esc(x.id)}" ${!open ? 'disabled' : ''}>Buchen</button></div></div>`;
     }
     if (x.cat === 'uni') {
       return `<div class="lx-ls"><b>${esc(x.name)}</b><small>${esc(x.uni)} · ${esc({ uni: 'Universität', fh: 'Hochschule (FH)', privat: 'Private Hochschule', kunst: 'Kunst- und Musikhochschule' }[x.kind] || x.kind)} · ${x.sem} Semester</small>

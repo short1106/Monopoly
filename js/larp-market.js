@@ -12,6 +12,8 @@
 
   // ---------- fester Zufall ----------
   function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  let wd = null;
+  const W = () => { if (root.DULI_LARP_WORLD) return root.DULI_LARP_WORLD; if (isNode && wd === null) { try { wd = require('./larp-world'); } catch (e) { wd = false; } } return wd || null; };
   function rngOf(...parts) {
     let a = hash(parts.join('|'));
     return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -31,12 +33,15 @@
   }
   function cities() { return DATA.cities.length ? DATA.cities : FALLBACK_CITIES; }
   function city(name) {
-    const c = cities().find((x) => x.name === name) || FALLBACK_CITIES.find((x) => x.name === name);
+    const c = cities().find((x) => x.name === name) || FALLBACK_CITIES.find((x) => x.name === name) || (W() && W().cityOf(name));
     if (c) return c;
     return { name, st: guessState(name), pop: 0, lat: 51.43, lng: 6.76 };
   }
   const GENERIC_STREETS = ['Hauptstraße', 'Bahnhofstraße', 'Schulstraße', 'Gartenstraße', 'Bergstraße', 'Lindenstraße', 'Kirchstraße', 'Ringstraße', 'Goethestraße', 'Schillerstraße', 'Am Markt', 'Mozartstraße', 'Friedhofstraße', 'Waldweg', 'Rosenweg', 'Amselweg', 'Feldstraße', 'Mühlenweg', 'Industriestraße', 'Parkstraße'];
+  const WORLD_STREETS = ['Main Street', 'Station Road', 'Park Avenue', 'Market Square', 'Harbour View', 'Old Town', 'University Quarter', 'Riverside', 'Hillside', 'Central Plaza', 'Garden Lane', 'Downtown'];
+  const priceOf = (c) => (c.world && W() ? W().price(c) : DB.cityPrice(c.name, c.st, c.pop));
   function streetsOf(c) {
+    if (c.world) return { s: WORLD_STREETS.map((n, i) => [n, c.lat + Math.sin(i) * 0.02, c.lng + Math.cos(i) * 0.03, 1]), q: [] };
     const s = DATA.streets[`${c.name}|${c.st}`] || DATA.streets[Object.keys(DATA.streets).find((k) => k.startsWith(`${c.name}|`)) || ''];
     if (s && s.s && s.s.length) return s;
     return { s: GENERIC_STREETS.map((n, i) => [n, (c.lat || 51.4) + Math.sin(i) * 0.02, (c.lng || 6.8) + Math.cos(i) * 0.03, 1]), q: [] };
@@ -58,7 +63,7 @@
   const FLAWS = ['Schimmel im Bad (laut Vormieter „nur ein bisschen“)', 'Nachbar übt Schlagzeug', 'Direkt an der Bahnstrecke', '5. Stock ohne Aufzug', 'Fenster von 1974', 'Heizung macht Geräusche', 'Vermieter wohnt im Haus und guckt', 'Kein Handyempfang im Schlafzimmer'];
   const ENERGY = ['A+', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
   function housing(S, cityName, mIdx, cat) {
-    const c = city(cityName), pr = DB.cityPrice(c.name, c.st, c.pop), st = streetsOf(c);
+    const c = city(cityName), pr = priceOf(c), st = streetsOf(c);
     const r = rngOf(S.market.seed, 'h', cat, c.name, mIdx);
     const n = cat === 'wg' ? 6 : cat === 'house' ? 5 : 8;
     const out = [];
@@ -68,7 +73,7 @@
       const extras = EXTRAS.filter(() => r() < 0.22).slice(0, 4), flaw = r() < 0.35 ? pickR(r, FLAWS) : '';
       const quality = 1 + (year > 2010 ? 0.18 : year < 1960 ? -0.08 : 0) + extras.length * 0.025 - (flaw ? 0.06 : 0) + between(r, -0.12, 0.14);
       const quarter = nearestQuarter(st, s[1], s[2]);
-      const base = { id: `${cat}:${c.name}:${mIdx}:${i}`, cat, city: c.name, st: c.st, street: s[0], quarter, lat: s[1] + between(r, -0.002, 0.002), lng: s[2] + between(r, -0.002, 0.002), year, energy: en, extras, flaw, landlord: `${pickR(r, ['Frau', 'Herr'])} ${pickR(r, SURNAMES)}` };
+      const base = { id: `${cat}:${c.name}:${mIdx}:${i}`, cat, city: c.name, st: c.st, cc: c.cc || null, street: s[0], quarter, lat: s[1] + between(r, -0.002, 0.002), lng: s[2] + between(r, -0.002, 0.002), year, energy: en, extras, flaw, landlord: `${pickR(r, ['Frau', 'Herr'])} ${pickR(r, SURNAMES)}` };
       if (cat === 'wg') {
         const m2 = Math.round(between(r, 11, 22)), cold = round(m2 * pr.rent * 1.35 * quality, 5);
         out.push(Object.assign(base, { title: `WG-Zimmer, ${m2} m², ${pickR(r, ['3er-WG', '4er-WG', 'Zweck-WG', 'Studi-WG', 'Berufstätigen-WG'])}`, rooms: 1, m2, cold, nk: round(between(r, 60, 120), 5), heat: 0, deposit: cold * 2, mates: Math.ceil(between(r, 1, 4)), vibe: pickR(r, ['Putzplan wird eingehalten', 'Kühlschrank ist Krieg', 'Jeden Freitag Party', 'Alle arbeiten, alle schlafen', 'Mitbewohnerin hat eine Schlange']) }));
@@ -115,11 +120,14 @@
 
   // ---------- Studium ----------
   function unisIn(cityName) {
+    const wc = W() && W().cityOf(cityName);
+    if (wc && !cities().some((x) => x.name === cityName)) return W().unisIn(cityName);
     if (DATA.unis.length) return DATA.unis.filter((u) => u.city === cityName && u.kind !== 'spezial');
     const c = city(cityName);
     return c && DB.CITY_PRICES[cityName] && (c.pop || 1) ? [{ id: `u-${cityName}`, name: `Universität ${cityName}`, kind: 'uni', city: cityName, st: c.st, students: 20000 }, { id: `h-${cityName}`, name: `Hochschule ${cityName}`, kind: 'fh', city: cityName, st: c.st, students: 8000 }] : [];
   }
   function programs(S, u, mIdx) {
+    if (u.cc && W()) return W().programs(S, u, rngOf);
     const r = rngOf('prog', u.id), yr = rngOf(S.market.seed, 'nc', u.id, Math.floor(mIdx / 12));
     const big = u.students > 25000 ? 1 : 0;
     return DB.STUDIES.filter(([, , , , kinds]) => kinds.split(' ').includes(u.kind)).filter(() => r() < (u.kind === 'uni' ? 0.45 + big * 0.25 : 0.55)).map(([name, field, nc, sem, , salary], i) => {
@@ -131,6 +139,7 @@
 
   // ---------- Ausbildung und Jobs ----------
   function training(S, cityName, mIdx) {
+    if (city(cityName).world) return [];
     const c = city(cityName), r = rngOf(S.market.seed, 'tr', c.name, mIdx), out = [];
     for (let i = 0; i < 9; i++) {
       const t = DB.TRAINING[Math.floor(r() * DB.TRAINING.length)];
@@ -140,11 +149,11 @@
     return out;
   }
   function jobs(S, cityName, mIdx) {
-    const c = city(cityName), r = rngOf(S.market.seed, 'job', c.name, mIdx), out = [];
+    const c = city(cityName), r = rngOf(S.market.seed, 'job', c.name, mIdx), out = [], sal = c.world && W() ? W().country(c.cc).sal : 1;
     for (let i = 0; i < 11; i++) {
       const j = DB.JOBS[Math.floor(r() * DB.JOBS.length)];
       const [name, req, gross, hours, area] = j;
-      out.push({ id: `job:${c.name}:${mIdx}:${i}`, cat: 'job', name, req, gross: round(gross * (gross > 700 ? between(r, 0.93, 1.12) : 1), 10), hours, area, firm: firm(r, c), city: c.name, st: c.st, kind: gross <= DB.TAX.minijob ? 'mini' : req === 'st' ? 'werk' : 'voll' });
+      out.push({ id: `job:${c.name}:${mIdx}:${i}`, cat: 'job', name, req, gross: round(gross * sal * (gross > 700 ? between(r, 0.93, 1.12) : 1), 10), hours, area, firm: firm(r, c), city: c.name, st: c.st, cc: c.cc || null, kind: gross <= DB.TAX.minijob ? 'mini' : req === 'st' ? 'werk' : 'voll' });
     }
     return out;
   }
@@ -165,12 +174,16 @@
     else if (cat === 'training') l = training(S, cityName, mIdx);
     else if (cat === 'job') l = jobs(S, cityName, mIdx);
     else if (cat === 'ad') l = ads(S, cityName, mIdx);
+    else if (cat === 'abroad') l = W() ? W().abroad(S, cityName, rngOf) : [];
+    else if (cat === 'travel') l = W() ? W().travel(S, mIdx, rngOf) : [];
     else l = [];
     return l.map((x) => Object.assign(x, { taken: !!S.market.taken[x.id] }));
   }
   function find(S, id) {
     const [cat, cityName, mIdx] = String(id).split(':');
     if (cat === 'uni') { const u = (DATA.unis.length ? DATA.unis : unisIn(String(id).split(':')[1].replace(/^[uh]-/, ''))).find((x) => x.id === cityName); return u ? programs(S, u, idx(S.date)).find((p) => p.id === id) : null; }
+    if (cat === 'wuni') return W() ? W().findProgram(S, id, rngOf) : null;
+    if (cat === 'trip') return W() ? W().travel(S, Number(cityName), rngOf).find((x) => x.id === id) || null : null;
     if (cat === 'pad') return (S.market.ads || []).find((a) => a.id === id) || null;
     const all = list(S, cat === 'flat' || cat === 'wg' || cat === 'buyflat' || cat === 'house' ? cat : cat === 'tr' ? 'training' : cat, cityName, Number(mIdx));
     return all.find((x) => x.id === id) || null;
@@ -211,6 +224,7 @@
       case 'mAd': return buyAd(S, pid, c, x, X);
       case 'mSellAd': return sellAd(S, pid, c, a, X);
       case 'mMoveHome': return moveHome(S, pid, c, X);
+      case 'mTravel': return W() ? W().act(S, pid, a, Object.assign({ rngOf }, X)) : 'Reisen gibt es gerade nicht.';
     }
     return 'Unbekannte Markt-Aktion.';
   }
@@ -245,11 +259,32 @@
     c.living = x.cat === 'wg' ? `wohnt in einer WG in ${x.city}` : `wohnt zur Miete in ${x.city}`;
     c.location = label; c.home = { label, city: x.city, lat: x.lat, lng: x.lng };
     if (!c.flags.living) { c.flags.living = 1; c.effects.push({ id: X.uid('e'), name: 'Lebenshaltung (Essen, Handy, Versicherung …)', pm: -950, health: 0, happy: 0, power: 0, until: 0, locked: true }); }
+    setAbroad(S, pid, c, x.cc, X);
     X.addAppt(S, c, { kind: 'keys', y: Math.floor((X.idx(S.date) + 1) / 12), m: (X.idx(S.date) + 1) % 12, d: 1, title: `Schlüsselübergabe ${x.street}`, where: x.city, soft: true });
     X.report(S, pid, '•', `Mietvertrag unterschrieben: ${x.title}, ${label}. ${X.eur(warm)} warm, Kaution ${X.eur(x.deposit)}. Einzug zum Ersten.`, 'good');
     c.chronicle.push({ d: X.dateText(S), t: `Mietet ${x.title} in ${label}.` });
     X.log(S, `${c.name} mietet in ${x.city} (${X.eur(warm)} warm).`);
     return null;
+  }
+  // Wohnort im Ausland: Lebenshaltung passt sich ans Land an, Flug einmalig
+  function setAbroad(S, pid, c, cc, X) {
+    const was = c.abroad || null;
+    if (was === (cc || null)) return;
+    c.effects = c.effects.filter((e) => !e.abroad);
+    c.abroad = cc || null;
+    if (!W()) return;
+    if (cc) {
+      const K = W().country(cc), d = W().livingAbroad(c);
+      c.stats.money -= K.flight;
+      if (d) c.effects.push({ id: X.uid('e'), name: `Lebenshaltung in ${K.name} (${d > 0 ? 'teurer' : 'günstiger'} als zu Hause)`, pm: -d, health: 0, happy: 0, power: 0, until: 0, locked: true, abroad: true });
+      c.effects.push({ id: X.uid('e'), name: 'Heimweh', pm: 0, health: 0, happy: -1, power: 0, until: S.round + 4, abroad: true });
+      X.report(S, pid, '•', `AUSGEWANDERT nach ${K.name}. Flug ${X.eur(K.flight)}.${K.eu ? ' Als EU-Bürger:in brauchst du kein Visum.' : ' Ohne Arbeitsvisum keine richtigen Jobs, aber Studium und Urlaub gehen.'}`, 'good');
+      c.chronicle.push({ d: X.dateText(S), t: `Wandert aus: ${K.name}.` });
+    } else if (was) {
+      c.stats.money -= W().country(was).flight;
+      X.report(S, pid, '•', 'Zurück in Deutschland. Döner hat dir gefehlt.', 'good');
+      c.chronicle.push({ d: X.dateText(S), t: 'Kommt zurück nach Deutschland.' });
+    }
   }
   function moveHome(S, pid, c, X) {
     endRent(c, 3, S);
@@ -258,11 +293,12 @@
     c.chronicle.push({ d: X.dateText(S), t: 'Zieht zurück zur Familie.' });
     return null;
   }
+  const grestOf = (x) => (DB.STATES[x.st] ? DB.STATES[x.st].grest : W() ? W().country(x.cc).grest : 5);
   function loanRate(S, c) { const s = c.bank.schufa; return Math.round((S.econ.zins + (s >= 95 ? 0 : s >= 90 ? 0.35 : s >= 80 ? 0.9 : s >= 70 ? 1.8 : 3.2)) * 100) / 100; }
   function buyHome(S, pid, c, x, a, X) {
     if (!/^(buyflat|house)$/.test(x.cat)) return 'Das kann man nicht kaufen.';
     const noMakler = (c.contacts || []).includes('mama-makler') || (c.perks || []).some((p) => p.kind === 'makler');
-    const grest = Math.round(x.price * DB.STATES[x.st].grest / 100), notar = Math.round(x.price * 0.015), gb = Math.round(x.price * 0.005), makler = noMakler ? 0 : Math.round(x.price * x.courtage / 100);
+    const grest = Math.round(x.price * grestOf(x) / 100), notar = Math.round(x.price * 0.015), gb = Math.round(x.price * 0.005), makler = noMakler ? 0 : Math.round(x.price * x.courtage / 100);
     const extra = grest + notar + gb + makler;
     const down = a.finance ? Math.max(extra, Math.round(Number(a.down) || 0)) : x.price + extra;
     if (!canPay(c, down)) return `Du brauchst ${X.eur(down)} (inklusive ${X.eur(extra)} Kaufnebenkosten).`;
@@ -376,6 +412,7 @@
     if (x.cat === 'uni') {
       if (!c.flags.abi && !(c.flags.fhr && x.kind !== 'uni')) return 'Für ein Studium brauchst du das Abitur (oder Fachhochschulreife für Fachhochschulen).';
       if (c.edu.kind === 'uni') return 'Du studierst schon. Erst exmatrikulieren.';
+      if (x.needLang && !(c.certs || []).includes('ielts')) return `${x.uni} verlangt einen Sprachnachweis. Mach erst IELTS in der Akademie.`;
       // Bewerbungsschluss 15. Juli fürs Wintersemester, Bescheid im August, Start im Oktober
       const y = S.date.m <= 6 ? S.date.y : S.date.y + 1;
       X.addAppt(S, c, { kind: 'uni-letter', y, m: 7, d: 10 + X.rnd(15), title: `Zulassungsbescheid: ${x.name}`, where: x.uni, data: { listing: x.id, prog: x }, soft: false });
@@ -391,6 +428,7 @@
     if (x.cat === 'job') {
       const need = x.req;
       if (need === 'st' && c.edu.kind !== 'uni') return 'Werkstudentenjobs gibt es nur für Studierende.';
+      if (x.cc && W() && !W().country(x.cc).eu && !c.flags['visa' + x.cc]) return `Für Jobs in ${W().country(x.cc).name} brauchst du ein Visum (zum Beispiel über ein Studium dort).`;
       if (/^cert:/.test(need || '')) { if (!(c.certs || []).includes(need.slice(5))) return 'Dafür brauchst du erst die passende Lizenz aus der Akademie.'; }
       else if (need !== '-' && need !== 'st' && !q.has(need)) return `Dafür fehlt dir die Qualifikation (${({ r: 'mittlere Reife', a: 'Abitur', z: 'abgeschlossene Ausbildung', b: 'Bachelor', m: 'Master oder Staatsexamen', fs: 'Führerschein' })[need]}).`;
       X.addAppt(S, c, { kind: 'interview', y: Math.floor(next / 12), m: next % 12, d: 3 + X.rnd(24), title: `Vorstellungsgespräch: ${x.name} bei ${x.firm}`, where: x.firm, data: { listing: x.id, offer: x } });
@@ -549,21 +587,43 @@
       case 'uni-letter': {
         const p = ap.data.prog, grade = Number(String(c.flags.grade || '4,0').replace(',', '.'));
         const wait = c.flags.wait || 0;
-        const ok = !p.nc || grade <= p.nc + wait * 0.1 + (p.medicine ? 0 : X.rnd(10) / 100);
+        let ok = !p.nc || grade <= p.nc + wait * 0.1 + (p.medicine ? 0 : X.rnd(10) / 100);
+        // Spitzenunis im Ausland: Motivationsschreiben, Interview, Glück
+        if (ok && p.abroad && p.rank <= 30 && X.d20() + Math.floor(c.stats.power / 20) + ((c.certs || []).length > 1 ? 2 : 0) < 12) { X.report(S, pid, '•', `Absage von ${p.uni}. „Many excellent applicants this year.“ Schnitt hätte gereicht, das Interview nicht.`, 'bad'); return; }
         if (!ok) { X.report(S, pid, '📭', `Absage für ${p.name} an der ${p.uni}. Dein Schnitt ${c.flags.grade || '?'}, der NC lag bei ${String(p.nc).replace('.', ',')}.`, 'bad'); c.flags.wait = wait + 1; return; }
         X.addAppt(S, c, { kind: 'start-uni', y: ap.y, m: 9, d: 1, title: `Semesterstart: ${p.name}`, where: p.uni, data: { prog: p } });
+        if (p.visa) X.addAppt(S, c, { kind: 'visa', y: ap.y, m: 8, d: 5 + X.rnd(15), title: `Visumtermin Botschaft ${p.country}`, where: `Botschaft ${p.country}`, fee: p.visaFee, data: { cc: p.abroad } });
         X.report(S, pid, '📬', `ZULASSUNG: ${p.name} an der ${p.uni} (${p.city}). Semesterstart 1. Oktober. Such dir eine Bleibe!`, 'good');
+        return;
+      }
+      case 'visa': {
+        if (skip) { X.report(S, pid, '•', `Visumtermin geschwänzt. Ohne Visum keine Einreise nach ${W() ? W().country(ap.data.cc).name : ap.data.cc}.`, 'bad'); return; }
+        if (ap.fee) c.stats.money -= ap.fee;
+        if (X.rnd(100) < 6) { X.report(S, pid, '•', 'Visum abgelehnt: Ein Formular fehlte. Die Botschaft gibt dir einen neuen Termin.', 'bad'); const t = X.idx(S.date) + 1; X.addAppt(S, c, { kind: 'visa', y: Math.floor(t / 12), m: t % 12, d: 10, title: ap.title, where: ap.where, fee: ap.fee, data: ap.data }); return; }
+        c.flags['visa' + ap.data.cc] = 1;
+        X.report(S, pid, '•', `Visum erteilt${ap.fee ? ` (${X.eur(ap.fee)})` : ''}. Stempel im Pass.`, 'good');
         return;
       }
       case 'start-uni': {
         const p = ap.data.prog;
         if (skip) { X.report(S, pid, '🚪', 'Nicht eingeschrieben. Der Platz ist weg.', 'bad'); return; }
+        if (p.abroad && p.visa && !c.flags['visa' + p.abroad]) { X.report(S, pid, '•', `Kein Visum für ${p.country}. Einreise verweigert, der Studienplatz ist weg.`, 'bad'); return; }
         c.edu = { kind: 'uni', prog: p, start: X.idx(S.date), sem: 1, ects: 0 };
         c.flags.path = 'uni'; c.flags.pathAt = X.idx(S.date);
         c.job = `Student:in ${p.name} (${p.uni})`; c.education = `${p.name} läuft`;
         c.effects.push({ id: X.uid('e'), name: `Semesterbeitrag ${p.uni}${p.fee ? ' plus Studiengebühr' : ''}`, pm: -Math.round(p.semFee / 6) - p.fee, health: 0, happy: 1, power: 0, until: 0, locked: true, uni: true });
-        // BAföG bei nicht so reichen Eltern
-        if (X.rnd(100) < 45 && c.key !== 'april') c.effects.push({ id: X.uid('e'), name: 'BAföG', pm: 450 + X.rnd(5) * 100, health: 0, happy: 0, power: 0, until: 0, uni: true });
+        // BAföG bei nicht so reichen Eltern (im Ausland: Auslands-BAföG mit Zuschuss zur Studiengebühr)
+        if (X.rnd(100) < 45 && c.key !== 'april') c.effects.push({ id: X.uid('e'), name: p.abroad ? 'Auslands-BAföG' : 'BAföG', pm: 450 + X.rnd(5) * 100 + (p.abroad ? Math.min(p.fee, 460) : 0), health: 0, happy: 0, power: 0, until: 0, uni: true });
+        if (p.abroad) {
+          endRent(c, 3, S);
+          const W0 = W(), dorm = W0 ? Math.round(W0.price({ cc: p.abroad, pop: 1 }).rent * 16 + 120) : 600;
+          c.effects.push({ id: X.uid('e'), name: `Wohnheim in ${p.city}`, pm: -dorm, health: 0, happy: 1, power: 0, until: 0, rent: true, locked: true, uni: true });
+          c.housing = { kind: 'wg', label: `Wohnheim, ${p.city}`, city: p.city, cold: dorm, warm: dorm, since: X.idx(S.date) };
+          c.living = `wohnt im Wohnheim in ${p.city} (${p.country})`;
+          c.location = `${p.city}, ${p.country}`; c.home = { label: `${p.uni}, ${p.city}`, city: p.city, lat: p.lat, lng: p.lng };
+          if (!c.flags.living) { c.flags.living = 1; c.effects.push({ id: X.uid('e'), name: 'Lebenshaltung (Essen, Handy, Versicherung …)', pm: -950, health: 0, happy: 0, power: 0, until: 0, locked: true }); }
+          setAbroad(S, pid, c, p.abroad, X);
+        }
         const g = p.sem * 6 - 1, t = X.idx(S.date) + g;
         X.addAppt(S, c, { kind: 'uni-exams', y: S.date.y + 1, m: 1, d: 10, title: `Klausurenphase (1. Semester)`, where: p.uni });
         X.addAppt(S, c, { kind: 'uni-end', y: Math.floor(t / 12), m: t % 12, d: 20, title: `Abschlussarbeit und Kolloquium: ${p.name}`, where: p.uni });
@@ -686,7 +746,7 @@
     return { inc, out };
   }
 
-  const MARKET = { DATA, hash, rngOf, list, find, cities, city, unisIn, programs, carCosts, carValue, quals, loanRate, act, appt, month, CATS: ['flat', 'wg', 'buyflat', 'house', 'car', 'uni', 'training', 'job', 'ad'] };
+  const MARKET = { DATA, hash, rngOf, list, find, cities, city, priceOf, grestOf, unisIn, programs, carCosts, carValue, quals, loanRate, act, appt, month, CATS: ['flat', 'wg', 'buyflat', 'house', 'car', 'uni', 'abroad', 'training', 'job', 'travel', 'ad'] };
   if (isNode) module.exports = MARKET;
   else root.DULI_LARP_MARKET = MARKET;
 })(typeof window !== 'undefined' ? window : globalThis);
