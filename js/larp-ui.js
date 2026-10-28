@@ -370,6 +370,7 @@
       <h4>Pro Monat <small>Saldo <b class="${sum >= 0 ? 'up' : 'down'}">${sum >= 0 ? '+' : ''}${eur(sum)}</b></small></h4><ul class="lb-list">${eff.join('') || '<li><span>nichts</span></li>'}${c.car ? `<li><span>Auto: Versicherung, Steuer, ${c.car.fuel === 'E' ? 'Strom' : 'Sprit'}</span><b class="down">−${eur(MK.carCosts(V, c, c.car).total)}/M</b></li>` : ''}</ul>
       ${loans ? `<h4>Kredite</h4><ul class="lb-list">${loans}</ul>` : ''}${car}
       ${props ? `<h4>Immobilien</h4><ul class="lb-list lb-props">${props}</ul>` : ''}
+      ${(c.offices || []).length ? `<h4>Firma <small>${esc(window.DULI_LARP_OFFICE ? window.DULI_LARP_OFFICE.firmName(c) : '')} · Größe ${String((c.flags.company || 0).toFixed(1)).replace('.', ',')}</small></h4><ul class="lb-list lb-props">${c.offices.map((o) => `<li><span><b>${esc(o.title)}</b><small>${esc(o.label)} · ${o.desks} ${o.desks === 1 ? "Platz" : "Plätze"} · ${o.own ? `Eigentum, Wert ${eur(o.value)}` : `Miete ${eur(o.rent)}/M`}</small></span><span class="btn-row"><button class="btn btn-small btn-ghost" data-ofend="${esc(o.id)}">${o.own ? 'Verkaufen' : 'Kündigen'}</button></span></li>`).join('')}</ul>` : ''}
       ${rel ? `<h4>Beziehungen</h4><ul class="lb-list">${rel}</ul>` : ''}</div>`;
   }
   function renderMain(root, V, me, api) {
@@ -382,6 +383,7 @@
       left.querySelectorAll('[data-mv]').forEach((b) => { b.onclick = () => act({ type: 'mMoveIn', prop: b.dataset.mv }); });
       left.querySelectorAll('[data-ls]').forEach((b) => { b.onclick = () => act({ type: 'mLease', prop: b.dataset.ls }); });
       left.querySelectorAll('[data-sl]').forEach((b) => { b.onclick = () => { if (confirm('Wirklich verkaufen? Makler und Vorfälligkeitsentschädigung gehen ab.')) act({ type: 'mSellHome', prop: b.dataset.sl }); }; });
+      left.querySelectorAll('[data-ofend]').forEach((b) => { b.onclick = () => { if (confirm('Büro wirklich aufgeben?')) act({ type: 'mOfficeEnd', office: b.dataset.ofend }); }; });
       if ($('#sh-sellcar')) $('#sh-sellcar').onclick = () => { if (confirm('Auto an einen Händler verkaufen?')) act({ type: 'mSellCar' }); };
     }
     put($('#lx-others'), V.players.filter((p) => p.id !== me && V.chars[p.id]).map((p) => sheet(V, p.id, false)).join(''));
@@ -436,7 +438,7 @@
       ${r && Object.keys(r).length ? `<div class="lb-deltas"><small>Bilanz der Runde:</small>${fx(r)}</div>` : ''}${c && c.dead ? `<p class="lb-dead">${esc(c.deathReason || '')}</p>` : ''}</div>
       ${live.length ? `<div class="lx-panel lx-live"><span class="lb-k">Gerade eben</span><ul class="lx-reps">${live.map((x) => `<li class="${esc(x.tone)}"><i></i><span>${esc(x.text)}</span></li>`).join('')}</ul></div>` : ''}`;
   }
-  const KIND = { real: 'Alltag', odd: 'Ungewöhnlich', absurd: 'Absurd' };
+  const KIND = { real: 'Alltag', odd: 'Ungewöhnlich', absurd: 'Absurd', trip: 'Unterwegs' };
   function renderMonth(body, V, me, api) {
     if (!body.querySelector('#mo-result')) body.innerHTML = '<div id="mo-result"></div><div id="mo-think"></div><div id="mo-offers"></div><div id="mo-appts"></div><div id="mo-vote"></div><div id="mo-scene"></div><div id="mo-card"></div><div id="mo-focus"></div><div id="mo-drive"></div><div id="mo-send"></div><div id="mo-who"></div><div id="mo-more"></div>';
     const c = V.chars[me];
@@ -462,6 +464,7 @@
     if (put($('#mo-scene'), sceneHTML(V, me))) $('#mo-scene').querySelectorAll('[data-scene]').forEach((b) => { b.onclick = () => { FX && FX.play('pop'); act({ type: 'oScene', choice: Number(b.dataset.scene) }); }; });
     // Ereigniskarte
     const card = V.cards && V.cards[me];
+    if (card && dr.cardId !== card.id + card.text.length) { dr.cardId = card.id + card.text.length; dr.choice = null; }
     let cardHtml = '';
     if (playing && !sent) {
       if (card) {
@@ -470,7 +473,7 @@
           const odds = o.dc ? `<span class="lb-odds"><i>${esc(D.SKILLS[o.stat] || o.stat)}</i> ${p} %</span>` : '<span class="lb-odds sure">sicher</span>';
           return `<button type="button" class="lb-opt ${dr.choice === i ? 'is-picked' : ''} ${poor ? 'is-poor' : ''}" data-choice="${i}" style="--odds:${o.dc ? p : 100}%" ${poor ? 'disabled' : ''}><b>${esc(o.t)}</b>${odds}${o.cost ? `<small>${poor ? 'zu teuer: ' : 'kostet '}${eur(o.cost)}</small>` : ''}</button>`;
         }).join('');
-        cardHtml = `<div class="lb-card kind-${esc(card.kind || 'real')}"><span class="lb-k">Ereignis · ${KIND[card.kind] || 'Alltag'}</span><p class="lb-card-t">${esc(card.text)}</p><div class="lb-opts">${opts}</div>
+        cardHtml = `<div class="lb-card kind-${esc(card.kind || 'real')}"><span class="lb-k">Ereignis · ${KIND[card.kind] || 'Alltag'}${card.t ? ` · ${esc(card.t)}` : ''}</span><p class="lb-card-t">${esc(card.text)}</p><div class="lb-opts">${opts}</div>
           <details class="lb-free" ${dr.text ? 'open' : ''}><summary>Oder etwas ganz anderes machen</summary><textarea id="mo-text" rows="3" maxlength="600" placeholder="Schreib, was ${esc(c.name)} tut, sagt oder plant."></textarea></details></div>`;
       } else cardHtml = `${V.events[me] ? `<div class="lb-card"><span class="lb-k">Ereignis</span>${para(V.events[me])}</div>` : ''}<div class="lb-form-do"><label class="field"><span>Was machst du? (frei schreiben)</span></label><textarea id="mo-text" rows="3" maxlength="600" placeholder="Schreib, was ${esc(c.name)} tut, sagt oder plant."></textarea></div>`;
     }
@@ -753,7 +756,7 @@
   }
 
   // ----- Tab: Markt -----
-  const CATS = [['flat', 'Wohnung mieten'], ['wg', 'WG-Zimmer'], ['buyflat', 'Wohnung kaufen'], ['house', 'Haus kaufen'], ['car', 'Autos'], ['uni', 'Studium'], ['abroad', 'Studium weltweit'], ['training', 'Ausbildung'], ['job', 'Jobs'], ['travel', 'Reisen'], ['ad', 'Kleinanzeigen']];
+  const CATS = [['flat', 'Wohnung mieten'], ['wg', 'WG-Zimmer'], ['buyflat', 'Wohnung kaufen'], ['house', 'Haus kaufen'], ['office', 'Büros'], ['car', 'Autos'], ['uni', 'Studium'], ['abroad', 'Studium weltweit'], ['training', 'Ausbildung'], ['job', 'Jobs'], ['travel', 'Reisen'], ['ad', 'Kleinanzeigen']];
   function renderMarket(body, V, me, api) {
     const c = V.chars[me];
     if (!c) { put(body, '<p class="p-sub">Du schaust zu.</p>'); return; }
@@ -786,7 +789,7 @@
           const t = b.dataset.mk, id = b.dataset.id;
           if (t === 'mBuyHome' && b.dataset.fin) { const down = prompt('Wie viel Eigenkapital bringst du ein? (mindestens die Kaufnebenkosten)', b.dataset.min); if (down == null) return; act({ type: t, id, finance: true, down: Number(down) }); return; }
           if (t === 'mRent' && !confirm(`Mietvertrag unterschreiben und ${b.dataset.dep} Kaution zahlen?`)) return;
-          act({ type: t, id, finance: !!b.dataset.fin, haggle: !!b.dataset.haggle });
+          act({ type: t, id, finance: !!b.dataset.fin, haggle: !!b.dataset.haggle, buy: !!b.dataset.buy });
         };
       });
       if ($('#mk-wgo')) { $('#mk-wgo').onclick = () => { mkt.world = $('#mk-world').value.trim(); redraw(); }; $('#mk-world').onkeydown = (e) => { if (e.key === 'Enter') $('#mk-wgo').click(); }; }
@@ -822,6 +825,13 @@
         <div class="lx-price"><b>Schnitt ${String(x.nc.toFixed(1)).replace('.', ',')} oder besser</b> <span>${x.tuition ? `Studiengebühr ${eur(x.tuition)}/Jahr` : 'keine Studiengebühr'}${x.visa ? ` · Visum ${eur(x.visaFee)}` : ' · kein Visum nötig'}</span></div>
         <small>${x.needLang ? (hasL ? 'IELTS hast du.' : 'Braucht IELTS (Akademie).') : 'Unterricht auf Deutsch.'}${x.rank <= 30 ? ' Spitzenuni: Interview entscheidet mit.' : ''} Bewerbung bis 15. Juli, Start 1. Oktober, Wohnheim vor Ort. Danach etwa ${eur(x.salary)} im Jahr.</small>
         <div class="btn-row"><button class="btn btn-small btn-primary" data-mk="mApply" data-id="${esc(x.id)}" ${!open ? 'disabled' : ''}>Bewerben</button></div></div>`;
+    }
+    if (x.cat === 'office') {
+      const OF = window.DULI_LARP_OFFICE, can = OF && OF.canHave(c), b = OF ? OF.boost(c, x) : 0;
+      return `<div class="lx-ls">${tk}<b>${esc(x.title)}</b><small>${esc(x.street)}, ${esc(x.city)} · ${x.desks} Arbeitsplatz${x.desks > 1 ? 'e' : ''} · ${esc(x.landlord)}</small>
+        <div class="lx-price">${x.sale ? `<b>${eur(x.price)}</b> <span>Kauf, plus Grunderwerbsteuer und Notar</span>` : `<b>${eur(x.cold + x.nk)}</b> <span>im Monat (${eur(x.cold)} kalt + ${eur(x.nk)} NK)</span>`}</div>
+        <p>${x.extras.map(esc).join(' · ')}</p><small>${can ? `Bringt deiner Firma etwa ${eur(b)} im Monat an Aufträgen (schwankt).` : 'Erst brauchst du eine Firma (Fokus „Eigenes Projekt“).'}</small>
+        <div class="btn-row">${x.sale ? `<button class="btn btn-small" data-mk="mOffice" data-buy="1" data-id="${esc(x.id)}" ${dis || !can ? 'disabled' : ''}>Bar kaufen</button><button class="btn btn-small btn-primary" data-mk="mOffice" data-buy="1" data-fin="1" data-id="${esc(x.id)}" ${dis || !can ? 'disabled' : ''}>Mit Kredit kaufen</button>` : `<button class="btn btn-small btn-primary" data-mk="mOffice" data-id="${esc(x.id)}" ${dis || !can ? 'disabled' : ''}>Mieten</button>`}</div></div>`;
     }
     if (x.cat === 'travel') {
       const Wd = window.DULI_LARP_WORLD, T = Wd ? Wd.tripStatus(V, JSON.parse(JSON.stringify(c)), x.days) : null;
@@ -964,7 +974,7 @@
   function drawMap(V, me) {
     const Lf = window.L, layer = skel.layer, Wd = window.DULI_LARP_WORLD;
     const awayOf = (c) => (c.away && V.round < c.away.until && Number.isFinite(c.away.lat) ? c.away : null);
-    const key = JSON.stringify([V.round, V.phase, V.players.map((p) => { const c = V.chars[p.id]; return c ? [c.home, awayOf(c), c.props.length, c.edu.school && c.edu.school.name, c.dead] : 0; })]);
+    const key = JSON.stringify([V.round, V.phase, V.players.map((p) => { const c = V.chars[p.id]; return c ? [c.home, awayOf(c), c.props.length, (c.offices || []).length, c.edu.school && c.edu.school.name, c.dead] : 0; })]);
     if (skel.mapKey === key) return;
     skel.mapKey = key;
     layer.clearLayers();
@@ -996,6 +1006,7 @@
       }
       if (c.edu.school && c.edu.school.lat) Lf.marker([c.edu.school.lat, c.edu.school.lng], { icon: Lf.divIcon({ className: 'lb-pin', html: `<span style="--pc:${esc(c.color)}">S</span>`, iconSize: [22, 22] }) }).bindTooltip(`${esc(c.name)}: ${esc(c.edu.school.name)}`).addTo(layer);
       c.props.forEach((q) => { Lf.marker([q.lat, q.lng], { icon: Lf.divIcon({ className: 'lb-pin', html: `<span style="--pc:${esc(c.color)}">${q.kind === 'house' ? '⌂' : '▤'}</span>`, iconSize: [22, 22] }) }).bindTooltip(`${esc(c.name)}: ${esc(q.title || q.label)}`).addTo(layer); });
+      (c.offices || []).forEach((o) => { Lf.marker([o.lat, o.lng], { icon: Lf.divIcon({ className: 'lb-pin', html: `<span style="--pc:${esc(c.color)}">B</span>`, iconSize: [22, 22] }) }).bindTooltip(`${esc(c.name)}: Büro ${esc(o.title)}, ${esc(o.label)}`).addTo(layer); });
     });
     if (!skel.fitted && pts.length > 1) { skel.map.fitBounds(pts, { padding: [30, 30], maxZoom: 10 }); skel.fitted = true; }
     // Klick auf die Karte: Ausflug dorthin

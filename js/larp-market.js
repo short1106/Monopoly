@@ -14,6 +14,8 @@
   function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
   let wd = null;
   const W = () => { if (root.DULI_LARP_WORLD) return root.DULI_LARP_WORLD; if (isNode && wd === null) { try { wd = require('./larp-world'); } catch (e) { wd = false; } } return wd || null; };
+  let ofc = null;
+  const OF = () => { if (root.DULI_LARP_OFFICE) return root.DULI_LARP_OFFICE; if (isNode && ofc === null) { try { ofc = require('./larp-office'); } catch (e) { ofc = false; } } return ofc || null; };
   function rngOf(...parts) {
     let a = hash(parts.join('|'));
     return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -176,6 +178,7 @@
     else if (cat === 'ad') l = ads(S, cityName, mIdx);
     else if (cat === 'abroad') l = W() ? W().abroad(S, cityName, rngOf) : [];
     else if (cat === 'travel') l = W() ? W().travel(S, mIdx, rngOf) : [];
+    else if (cat === 'office') l = OF() ? OF().list(S, cityName, mIdx) : [];
     else l = [];
     return l.map((x) => Object.assign(x, { taken: !!S.market.taken[x.id] }));
   }
@@ -225,6 +228,7 @@
       case 'mAd': return buyAd(S, pid, c, x, X);
       case 'mSellAd': return sellAd(S, pid, c, a, X);
       case 'mMoveHome': return moveHome(S, pid, c, X);
+      case 'mOffice': case 'mOfficeEnd': return OF() ? OF().act(S, pid, a, X) : 'Büros gibt es gerade nicht.';
       case 'mTravel': return W() ? W().act(S, pid, a, Object.assign({ rngOf }, X)) : 'Reisen gibt es gerade nicht.';
     }
     return 'Unbekannte Markt-Aktion.';
@@ -744,10 +748,11 @@
       const y = Math.min(c.edu.training.pay.length, 1 + Math.floor((X.idx(S.date) - c.edu.start) / 12));
       c.job2.gross = c.edu.training.pay[y - 1];
     }
+    if (OF()) { const r = OF().month(S, c, pid, X); inc += r.inc; }
     return { inc, out };
   }
 
-  const MARKET = { DATA, hash, rngOf, list, find, cities, city, priceOf, grestOf, unisIn, programs, carCosts, carValue, quals, loanRate, act, appt, month, CATS: ['flat', 'wg', 'buyflat', 'house', 'car', 'uni', 'abroad', 'training', 'job', 'travel', 'ad'] };
+  const MARKET = { DATA, hash, rngOf, list, find, cities, city, streetsOf, priceOf, grestOf, unisIn, programs, carCosts, carValue, quals, loanRate, act, appt, month, CATS: ['flat', 'wg', 'buyflat', 'house', 'office', 'car', 'uni', 'abroad', 'training', 'job', 'travel', 'ad'] };
   if (isNode) module.exports = MARKET;
   else root.DULI_LARP_MARKET = MARKET;
 })(typeof window !== 'undefined' ? window : globalThis);

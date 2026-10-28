@@ -199,6 +199,7 @@
         txt += ` ${inc[1]}`;
       }
       X.report(S, pid, '•', txt, inc && inc[2].happy < 0 ? 'bad' : 'good');
+      swapEvent(S, pid, t.city, t.country, 'trip');
       c.chronicle.push({ d: X.dateText(S), t: `Reise: ${t.title}.` });
       X.log(S, `${c.name} fliegt weg: ${t.city}.`);
       return null;
@@ -258,7 +259,16 @@
       X.report(S, oid, '•', `${c.name} kommt in ${label} vorbei. Ihr verbringt den Tag zusammen.`, 'good');
     });
     X.report(S, pid, '•', txt, 'good');
+    if (d > 40 && X.rnd(100) < 50) swapEvent(S, pid, label, '', 'go');
     return null;
+  }
+  // April erzählt ab jetzt vom Reiseort: das Ereignis dieser Runde wird getauscht (solange noch nicht entschieden)
+  function swapEvent(S, pid, place, country, kind) {
+    const D = root.DULI_LARP_DECK || (isNode ? require('./larp-deck') : null);
+    if (!D || !D.travelCard || S.actions[pid]) return;
+    const card = D.travelCard(S, pid, place, country, kind);
+    if (S.gm === 'builtin') { S.cards[pid] = card; if (S.picks) delete S.picks[pid]; S.events[pid] = card.text; }
+    else S.events[pid] = `Du bist gerade in ${place}${country ? ` (${country})` : ''}. ${card.text} Was machst du?`;
   }
   function nearestName(p) {
     let best = null, bd = 1e9;

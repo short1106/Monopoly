@@ -514,6 +514,83 @@
       { t: 'Lieber weiterarbeiten', dc: 0, ok: R('Die Kolleginnen kommen braun gebrannt zurück. Du hast Überstunden.', { happy: -3, money: 500 }) },
     ] });
 
+  // ----- Unterwegs: Ereignisse am Reiseort ({t} = Ort, {l} = Land) -----
+  const tr = (o) => ev(Object.assign({ stage: ['trip'] }, o));
+  tr({ id: 'trip-ankunft', text: 'Ankunft in {t}. Dein Hotel sieht ganz anders aus als auf den Fotos. Ganz anders.',
+    opts: [
+      { t: 'An der Rezeption Upgrade verhandeln', stat: 'social', dc: 11, ok: R('Suite mit Meerblick. Für denselben Preis. Du bist ein Genie.', { happy: 10 }), bad: R('„Wir sind ausgebucht.“ Du schläfst neben dem Aufzug.', { happy: -5 }) },
+      { t: 'Spontan umbuchen', dc: 0, ok: R('Neue Unterkunft, 180 € extra, aber kein Schimmel.', { money: -180, happy: 4 }) },
+      { t: 'Egal, man ist eh nur zum Schlafen da', dc: 0, ok: R('Du bist kaum im Zimmer. Gute Einstellung.', { happy: 2 }) },
+    ] });
+  tr({ id: 'trip-local', text: 'Ein Einheimischer in {t} bietet dir eine Tour zu einem Ort an, „den keine Touristen kennen“.',
+    opts: [
+      { t: 'Mitgehen', stat: 'luck', dc: 11, ok: R('Der schönste Ort der ganzen Reise. Du wirst davon noch Jahre erzählen.', { happy: 14 }, { chron: 'Ein geheimer Ort in {t}.' }), bad: R('Der Ort ist der Laden seines Cousins. Du kaufst einen Teppich. Du wolltest keinen Teppich.', { money: -240, happy: -4 }) },
+      { t: 'Höflich ablehnen', dc: 0, ok: R('Du bleibst bei der Touri-Route. Sicher, langweilig, okay.', { happy: 1 }) },
+    ] });
+  tr({ id: 'trip-essen', kind: 'odd', text: 'In {t} gibt es ein lokales Gericht, das alle empfehlen. Du weißt nicht genau, was es ist.',
+    opts: [
+      { t: 'Probieren', stat: 'body', dc: 9, ok: R('Unglaublich lecker. Du suchst zu Hause monatelang ein Restaurant, das es auch hat.', { happy: 8 }), bad: R('Dein Magen hat eine andere Meinung. Zwei Tage im Hotelzimmer.', { health: -8, happy: -5 }) },
+      { t: 'Lieber Burger', dc: 0, ok: R('Ein Burger ist überall ein Burger. Sicher ist sicher.', { happy: 1 }) },
+    ] });
+  tr({ id: 'trip-pass', text: 'Dein Reisepass ist weg. Irgendwo zwischen Hotel, Strand und Bar in {t}.',
+    opts: [
+      { t: 'Alles absuchen', stat: 'luck', dc: 12, ok: R('Er steckt in der Badehose. Natürlich.', { happy: 6 }), bad: R('Weg. Ab zur deutschen Botschaft. Notreisepass, zwei Tage länger, 300 € Umbuchung.', { money: -360, happy: -8 }) },
+      { t: 'Direkt zur Botschaft', stat: 'smart', dc: 8, ok: R('Notreisepass in einem Tag. Deutsche Bürokratie kann auch schnell.', { money: -60, happy: -2 }), bad: R('Die Botschaft hat Mittagspause. Bis Montag.', { money: -300, happy: -6 }) },
+    ] });
+  tr({ id: 'trip-strand', text: 'Perfekter Tag am Strand bei {t}. Dann siehst du, dass dein Handy nur noch 3 Prozent hat und die Fotos noch nicht gesichert sind.',
+    opts: [
+      { t: 'Handy weg, Moment genießen', dc: 0, ok: R('Keine Fotos, aber der beste Sonnenuntergang deines Lebens. Im Kopf gespeichert.', { happy: 10, health: 2 }) },
+      { t: 'Schnell noch alles posten', stat: 'social', dc: 10, ok: R('Der Post geht ab. 300 Likes. Alle sind neidisch.', { happy: 6, power: 2 }), bad: R('Akku leer mitten im Upload. Die Fotos sind halb hochgeladen und halb weg.', { happy: -4 }) },
+    ] });
+  tr({ id: 'trip-party', kind: 'odd', text: 'Eine Gruppe aus dem Hostel lädt dich zu einer Party in {t} ein. Startet um Mitternacht, endet „irgendwann“.',
+    opts: [
+      { t: 'Voll dabei', stat: 'body', dc: 10, ok: R('Du tanzt bis zum Sonnenaufgang mit Leuten aus acht Ländern. Ihr habt jetzt eine WhatsApp-Gruppe.', { happy: 14, health: -4 }, { rel: [{ name: 'Reisefreunde aus {t}', kind: 'Reisebekanntschaft', change: 30 }] }), bad: R('Du verpasst den Rückflug fast. Fast.', { happy: 2, health: -8, money: -120 }) },
+      { t: 'Früh schlafen', dc: 0, ok: R('Am nächsten Morgen bist du der einzige Mensch im Hostel, der nicht leidet.', { health: 3 }) },
+    ] });
+  tr({ id: 'trip-flirt', text: 'In einem Café in {t} lächelt dich jemand an. Wirklich dich.',
+    opts: [
+      { t: 'Ansprechen', stat: 'social', dc: 11, ok: R('Ihr verbringt drei Tage zusammen. Ob daraus mehr wird? Wer weiß.', { happy: 14 }, { rel: [{ name: 'Urlaubsliebe aus {t}', kind: 'Fernbeziehung?', change: 45 }], chron: 'Urlaubsliebe in {t}.' }), bad: R('Die Person wartet auf jemanden. Auf ihren Verlobten.', { happy: -5 }) },
+      { t: 'Zurücklächeln, sonst nichts', dc: 0, ok: R('Ein kleiner perfekter Moment. Mehr braucht es nicht.', { happy: 4 }) },
+    ] });
+  tr({ id: 'trip-abzocke', kind: 'odd', text: 'Das Taxi in {t} hat kein Taxameter. Der Fahrer nennt einen Preis, der sehr nach Touri klingt.',
+    opts: [
+      { t: 'Hart verhandeln', stat: 'social', dc: 11, ok: R('Du zahlst die Hälfte. Er respektiert dich jetzt.', { money: 20, happy: 5 }), bad: R('Er lässt dich mitten im Nirgendwo raus.', { happy: -6, money: -40 }) },
+      { t: 'App-Taxi bestellen', stat: 'smart', dc: 7, ok: R('Festpreis, Klimaanlage, alles gut.', { happy: 2 }), bad: R('Kein Netz. Du zahlst den Touri-Preis.', { money: -60, happy: -3 }) },
+    ] });
+  tr({ id: 'trip-sight', text: 'Die berühmteste Sehenswürdigkeit von {t}: zwei Stunden Schlange oder ein „Skip-the-line“-Ticket für 80 €.',
+    opts: [
+      { t: 'Anstellen', stat: 'body', dc: 7, ok: R('Zwei Stunden, aber es hat sich gelohnt. Gänsehaut.', { happy: 8 }), bad: R('Sonnenstich in der Schlange. Drinnen merkst du nichts mehr.', { health: -5, happy: -2 }) },
+      { t: 'Ticket kaufen', dc: 0, ok: R('Du gehst an allen vorbei. Fühlt sich teuer an. Und gut.', { money: -80, happy: 9 }) },
+      { t: 'Auslassen, lieber Café', dc: 0, ok: R('Kein Foto vom Wahrzeichen. Dafür der beste Espresso deines Lebens.', { happy: 5 }) },
+    ] });
+  tr({ id: 'trip-heimweh', text: 'Tag fünf in {t}. Du vermisst plötzlich dein Bett, Brötchen und sogar den Regen.',
+    opts: [
+      { t: 'Nach Hause telefonieren', dc: 0, ok: R('Eine Stunde mit der Familie. Danach geht es dir viel besser.', { happy: 6 }) },
+      { t: 'Deutsche Bäckerei suchen', stat: 'luck', dc: 12, ok: R('Es gibt eine. Mit Laugenbrezeln. Du weinst fast.', { happy: 10 }), bad: R('Die „deutsche Bäckerei“ verkauft Croissants mit Ketchup.', { happy: -3 }) },
+    ] });
+  tr({ id: 'trip-job', kind: 'odd', text: 'Ein Startup in {t} sucht Leute. Der Gründer findet dich nach fünf Minuten Gespräch „perfect“.',
+    opts: [
+      { t: 'Kontakt austauschen', stat: 'smart', dc: 11, ok: R('Er meldet sich wirklich. Ein Angebot, falls du je auswandern willst (Markt → Wohnung in {t}).', { power: 4, happy: 6 }, { chron: 'Jobangebot aus {t}.' }), bad: R('Er hat auch dem Kellner und der Taube „perfect“ gesagt.', { happy: -2 }) },
+      { t: 'Urlaub ist Urlaub', dc: 0, ok: R('Keine Arbeit, nur Sonne. Richtig so.', { happy: 3 }) },
+    ] });
+  tr({ id: 'trip-wetter', text: 'Unwetterwarnung in {t}. Alle Ausflüge für morgen abgesagt.',
+    opts: [
+      { t: 'Spieleabend im Hotel', stat: 'social', dc: 8, ok: R('Du lernst alle Gäste kennen. Uno auf vier Sprachen.', { happy: 8 }), bad: R('Du sitzt allein mit einem Puzzle, dem 40 Teile fehlen.', { happy: -3 }) },
+      { t: 'Trotzdem raus', stat: 'body', dc: 13, ok: R('Du hast den ganzen Ort für dich. Dramatische Fotos.', { happy: 10, power: 2 }), bad: R('Durchnässt, erkältet, im Bett.', { health: -8, happy: -4 }) },
+    ] });
+  // Ausflüge (kurz, in der Nähe)
+  tr({ id: 'go-zug', text: 'Auf dem Weg nach {t}: Zugausfall, Schienenersatzverkehr, ein Bus voller Rentner.',
+    opts: [
+      { t: 'Mit den Rentnern quatschen', stat: 'social', dc: 7, ok: R('Du kennst jetzt die halbe Kegelgruppe. Sie laden dich ein.', { happy: 6 }), bad: R('Es geht nur um Hüften. Zwei Stunden lang.', { happy: -3 }) },
+      { t: 'Kopfhörer rein', dc: 0, ok: R('Ein Hörbuch und drei Stunden Verspätung. Du kommst an.', { happy: 1 }) },
+    ] });
+  tr({ id: 'go-ort', text: 'Du bist in {t}. Eigentlich wolltest du nur kurz gucken. Dann entdeckst du einen Flohmarkt.',
+    opts: [
+      { t: 'Stöbern', stat: 'luck', dc: 12, ok: R('Eine alte Kamera für 15 €. Sie ist 400 € wert.', { money: 385, happy: 8 }), bad: R('Du kaufst eine Lampe in Form eines Flamingos. Warum?', { money: -35, happy: 2 }) },
+      { t: 'Weiter, zum Essen', dc: 0, ok: R('Das beste Schnitzel der Gegend. Ein guter Tag.', { money: -18, happy: 5 }) },
+    ] });
+  const TRIP_IDS = E.filter((e) => e.stage.includes('trip')).map((e) => e.id);
+
   // ---------- Weltgeschehen ----------
   const WORLD = [
     { t: 'Die Inflation zieht wieder an. Alles wird teurer, Löhne nicht.', d: { happy: -2 }, money: -0.03 },
@@ -643,7 +720,7 @@
     const choice = S.picks ? S.picks[pid] : undefined;
     const text = S.actions[pid];
     const roll = S.rolls[pid] || 1 + rnd(20);
-    const x = card ? Object.assign(ctxOf(S, pid), { f: card.f || ctxOf(S, pid).f, fid: card.fid }) : ctxOf(S, pid);
+    const x = card ? Object.assign(ctxOf(S, pid), { f: card.f || ctxOf(S, pid).f, fid: card.fid }, card.t ? { t: card.t, l: card.l } : {}) : ctxOf(S, pid);
     if (card && Number.isInteger(choice) && card.opts[choice]) {
       const e = byId(card.id), o = e && e.opts[choice];
       if (!o) return;
@@ -827,7 +904,18 @@
 
   // Karte für eine Person, die mitten im Spiel (neues Leben) einsteigt
   function cardFor(S, pid) { S.chars[pid].flags = S.chars[pid].flags || {}; return makeCard(S, pid, chooseEvent(S, pid)); }
-  const DECK = { SKILLS, GOALS, mod, chance, run, cardFor, score, netWorth, stageOf, events: E, WORLD };
+  // Reise-Ereignis statt des normalen Ereignisses (wird beim Buchen einer Reise oder eines Ausflugs getauscht)
+  function travelCard(S, pid, place, country, kind) {
+    const c = S.chars[pid], seenN = c.flags.seenN || {};
+    const pool = E.filter((e) => TRIP_IDS.includes(e.id) && (kind === 'go' ? /^go-/.test(e.id) : !/^go-/.test(e.id)));
+    const w = pool.map((e) => 1 / (1 + 2 * (seenN[e.id] || 0)));
+    let r = Math.random() * w.reduce((a, b) => a + b, 0), e = pool[0];
+    for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) { e = pool[i]; break; } }
+    const x = Object.assign(ctxOf(S, pid), { t: place, l: country || '' });
+    c.flags.seenN = Object.assign({}, seenN, { [e.id]: (seenN[e.id] || 0) + 1 });
+    return { id: e.id, text: fill(e.text, x), f: x.f, fid: x.fid || null, t: place, l: country || '', kind: 'trip', opts: e.opts.map((o) => ({ t: fill(o.t, x), stat: o.stat || '', dc: o.dc || 0, cost: o.cost || 0 })) };
+  }
+  const DECK = { travelCard, SKILLS, GOALS, mod, chance, run, cardFor, score, netWorth, stageOf, events: E, WORLD };
   if (typeof module !== 'undefined' && module.exports) module.exports = DECK;
   else root.DULI_LARP_DECK = DECK;
 })(typeof window !== 'undefined' ? window : globalThis);
