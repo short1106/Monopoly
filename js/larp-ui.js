@@ -2,7 +2,7 @@
 // Prüfungs-Quiz, Fahrschule, Markt, Kalender, Leute und Chat. Der Host ruft hier April (KI) auf.
 (function () {
   const L = window.DULI_LARP, DB = window.DULI_LARP_DB, MK = window.DULI_LARP_MARKET, Q = window.DULI_LARP_QUIZ, D = window.DULI_LARP_DECK;
-  const AI = window.DULI_LARP_AI, FX = window.DULI_FX, esc = window.DULI_PARTY.esc;
+  const AC = window.DULI_LARP_ACADEMY, AI = window.DULI_LARP_AI, FX = window.DULI_FX, esc = window.DULI_PARTY.esc;
   const $ = (s, r = document) => r.querySelector(s);
   const eur = L.eur;
   const CHAR_STORE = 'duli-leben-chars';
@@ -74,7 +74,7 @@
   // Welche Zeile passt zu welchem Bericht (erste passende gewinnt)
   const VOICE_RULES = [
     [/gestorben/, 'larp-death'], [/Abi bestanden|Abitur bestanden|Gerettet\. Abi/, 'larp-abi-pass'], [/Abi nicht bestanden|Kein Abitur|nicht gereicht\. Abi/, 'larp-abi-fail'],
-    [/FÜHRERSCHEIN BESTANDEN/, 'larp-license'], [/Fahrprüfung nicht bestanden|Theorie durchgefallen/, 'larp-license-fail'],
+    [/FÜHRERSCHEIN BESTANDEN/, 'larp-license'], [/ZERTIFIKAT:/, 'larp-cert'], [/Theorie nicht bestanden|: nicht bestanden \(Wurf/, 'larp-cert-fail'], [/Fahrprüfung nicht bestanden|Theorie durchgefallen/, 'larp-license-fail'],
     [/verpfeift|nimmt alles|Aufgeflogen|verraten/, 'larp-betray'], [/nie existiert|Paket kommt nie/, 'larp-scam'], [/Hochzeit/, 'larp-wedding'],
     [/ZULASSUNG/, 'larp-uni'], [/Absage/, 'larp-reject'], [/Erster Tag bei|Zusage/, 'larp-job'], [/Mietvertrag unterschrieben/, 'larp-move'],
     [/gekauft\. Laufende Kosten/, 'larp-car'], [/nicht erschienen|geschwänzt|Geschwänzt/, 'larp-skip'],
@@ -301,7 +301,7 @@
   }
 
   // ----- Hauptbildschirm -----
-  const TABS = [['month', 'Dieser Monat'], ['market', 'Markt'], ['cal', 'Kalender'], ['people', 'Leute'], ['life', 'Lebenslauf']];
+  const TABS = [['month', 'Dieser Monat'], ['market', 'Markt'], ['acad', 'Akademie'], ['cal', 'Kalender'], ['people', 'Leute'], ['life', 'Lebenslauf']];
   function ensureSkel(root, V, me) {
     if (skel && root.contains(skel.el)) return;
     killSkel();
@@ -365,7 +365,7 @@
     const rel = c.relations.map((r) => `<li><span>${esc(r.name)} <small>${esc(r.kind || '')}</small></span><i class="lb-rel" style="--v:${r.val}%"></i></li>`).join('');
     return `<div class="lb-sheet lb-mine ${c.dead ? 'is-dead' : ''}" style="--pc:${esc(c.color)}">${head}${money}<div class="lx-schufa"><span>SCHUFA</span><b>${c.bank.schufa}</b><small>Dispo ${eur(c.bank.dispo)}</small></div>${bars}${goalLine(c)}
       <dl class="lb-facts"><dt>Job</dt><dd>${esc(c.job)}</dd><dt>Bildung</dt><dd>${esc(c.education)}${c.edu.school ? ` · ${esc(c.edu.school.name)}` : ''}</dd><dt>Wohnen</dt><dd>${esc(c.living)}</dd><dt>Ort</dt><dd>${esc(c.location || '')} (${esc(c.st)})</dd>${c.items && c.items.length ? `<dt>Zeug</dt><dd>${esc(c.items.slice(-6).join(', '))}</dd>` : ''}</dl>
-      ${abiBox(V, c)}${licBox(c)}
+      ${abiBox(V, c)}${licBox(c)}${certBox(c)}
       <h4>Pro Monat <small>Saldo <b class="${sum >= 0 ? 'up' : 'down'}">${sum >= 0 ? '+' : ''}${eur(sum)}</b></small></h4><ul class="lb-list">${eff.join('') || '<li><span>nichts</span></li>'}${c.car ? `<li><span>Auto: Versicherung, Steuer, ${c.car.fuel === 'E' ? 'Strom' : 'Sprit'}</span><b class="down">−${eur(MK.carCosts(V, c, c.car).total)}/M</b></li>` : ''}</ul>
       ${loans ? `<h4>Kredite</h4><ul class="lb-list">${loans}</ul>` : ''}${car}
       ${props ? `<h4>Immobilien</h4><ul class="lb-list lb-props">${props}</ul>` : ''}
@@ -375,6 +375,7 @@
     ensureSkel(root, V, me);
     const mine = V.chars[me];
     notifyOffers(V, me);
+    notifyDocs(V, me);
     if (put($('#lx-left'), mine ? sheet(V, me, true) : '<p class="p-sub">Du schaust zu.</p>')) {
       const left = $('#lx-left');
       left.querySelectorAll('[data-mv]').forEach((b) => { b.onclick = () => act({ type: 'mMoveIn', prop: b.dataset.mv }); });
@@ -408,6 +409,7 @@
     if (skel.tab !== tab) { skel.tab = tab; body.innerHTML = ''; body._html = null; }
     if (tab === 'month') renderMonth(body, V, me, api);
     else if (tab === 'market') renderMarket(body, V, me, api);
+    else if (tab === 'acad') renderAcad(body, V, me);
     else if (tab === 'cal') renderCal(body, V, me);
     else if (tab === 'people') renderPeople(body, V, me, api);
     else renderLife(body, V, me);
@@ -415,7 +417,7 @@
 
   // ----- Tab: Dieser Monat -----
   function ensureDraft(V, me) {
-    if (!draft || draft.key !== `${V.aiSeq}|${me}`) draft = { key: `${V.aiSeq}|${me}`, choice: null, text: '', focus: [], subj: [], appts: {}, drive: { theory: 0, lessons: 0, special: 0 } };
+    if (!draft || draft.key !== `${V.aiSeq}|${me}`) draft = { key: `${V.aiSeq}|${me}`, choice: null, text: '', focus: [], subj: [], appts: {}, drive: { theory: 0, lessons: 0, special: 0 }, courses: [] };
     return draft;
   }
   function resultHTML(V, me) {
@@ -445,6 +447,7 @@
     const appts = playing ? L.dueAppts(V, c).concat(L.overdue(V, c)) : [];
     if (put($('#mo-appts'), playing && appts.length ? `<div class="lx-appts"><span class="lb-k">Termine ${V.stepM > 1 ? `in den nächsten ${V.stepM} Monaten` : 'diesen Monat'}</span>${appts.map((a) => apptCard(V, c, a, dr, !!sent)).join('')}</div>` : '')) {
       $('#mo-appts').querySelectorAll('[data-ad]').forEach((b) => { b.onclick = () => { dr.appts[b.dataset.ap] = Object.assign(dr.appts[b.dataset.ap] || {}, { d: b.dataset.ad }); redraw(); }; });
+      $('#mo-appts').querySelectorAll('[data-doc]').forEach((b) => { b.onclick = () => openDoc(b.dataset.doc, c); });
       $('#mo-appts').querySelectorAll('[data-quiz]').forEach((b) => { b.onclick = () => startQuiz(V, c, appts.find((a) => a.id === b.dataset.quiz), dr); });
     }
     // Angebote, gemeinsame Szene
@@ -479,10 +482,12 @@
       const fs = Object.entries(L.FOCUS).filter(([f]) => f !== 'hustle' || (c.flags.company || c.key === 'shaquille'));
       const subs = c.abi && c.edu.kind === 'school' ? Object.keys(c.abi.exams) : [];
       focusHtml = `<div class="lx-panel"><span class="lb-k">Fokus ${V.stepM > 1 ? `für ${V.stepM} Monate` : 'des Monats'} <small>bis zu 2</small></span><div class="lx-chips">${fs.map(([f, n]) => `<button type="button" class="lx-chip ${dr.focus.includes(f) ? 'on' : ''}" data-focus="${f}">${esc(n)}</button>`).join('')}</div>
+        ${dr.focus.includes('learn') && learning(c).length ? `<p class="lx-lbl">Für welche Akademie-Prüfung? <small>bis zu 2</small></p><div class="lx-chips">${learning(c).map((K) => `<button type="button" class="lx-chip sm ${dr.courses.includes(K.id) ? 'on' : ''}" data-crs="${K.id}">${esc(K.name)} <small>${c.courses[K.id].prep}</small></button>`).join('')}</div>` : ''}
         ${dr.focus.includes('learn') && subs.length ? `<p class="lx-lbl">Welche Fächer? <small>bis zu 3</small></p><div class="lx-chips">${subs.map((s) => `<button type="button" class="lx-chip sm ${dr.subj.includes(s) ? 'on' : ''}" data-subj="${s}">${esc(DB.SUBJECTS[s].name)} <small>${c.abi.prep[s] || 0}</small></button>`).join('')}</div>` : ''}</div>`;
     }
     if (put($('#mo-focus'), focusHtml)) {
       $('#mo-focus').querySelectorAll('[data-focus]').forEach((b) => { b.onclick = () => { const f = b.dataset.focus; if (dr.focus.includes(f)) dr.focus = dr.focus.filter((x) => x !== f); else { dr.focus.push(f); if (dr.focus.length > 2) dr.focus.shift(); } redraw(); }; });
+      $('#mo-focus').querySelectorAll('[data-crs]').forEach((b) => { const s = b.dataset.crs; b.onclick = () => { if (dr.courses.includes(s)) dr.courses = dr.courses.filter((x) => x !== s); else { dr.courses.push(s); if (dr.courses.length > 2) dr.courses.shift(); } redraw(); }; });
       $('#mo-focus').querySelectorAll('[data-subj]').forEach((b) => { const s = b.dataset.subj; b.onclick = () => { if (dr.subj.includes(s)) dr.subj = dr.subj.filter((x) => x !== s); else { dr.subj.push(s); if (dr.subj.length > 3) dr.subj.shift(); } redraw(); }; });
     }
     // Fahrschule
@@ -495,7 +500,7 @@
     if (put($('#mo-send'), sendHtml)) {
       if ($('#mo-undo')) $('#mo-undo').onclick = () => act({ type: 'undo' });
       if ($('#mo-go')) $('#mo-go').onclick = () => {
-        const plan = { focus: dr.focus, subj: dr.subj, appts: dr.appts, drive: dr.drive };
+        const plan = { focus: dr.focus, subj: dr.subj, appts: dr.appts, drive: dr.drive, courses: dr.courses };
         const a = dr.choice != null ? { type: 'do', choice: dr.choice, plan } : dr.text.trim() ? { type: 'do', text: dr.text.trim(), plan } : { type: 'do', plan };
         act(a);
       };
@@ -515,15 +520,15 @@
     const otherStories = V.players.filter((p) => p.id !== me && V.chars[p.id] && (V.stories[p.id] || (V.reports[p.id] || []).length)).map((p) => `<div class="lb-os" style="--pc:${p.color}"><b>${esc(V.chars[p.id].name)}</b>${V.lastAction && V.lastAction[p.id] && V.lastAction[p.id] !== '•' && V.round > 0 ? `<small>„${esc(V.lastAction[p.id])}“</small>` : ''}${para(V.stories[p.id])}${(V.reports[p.id] || []).filter((r) => r.tone).slice(0, 4).map((r) => `<p class="lx-orep ${esc(r.tone)}">${esc(r.text)}</p>`).join('')}</div>`).join('');
     put($('#mo-more'), otherStories ? `<details open class="lx-more"><summary>Was bei den anderen los ist</summary>${otherStories}</details>` : '');
   }
-  const needsQuiz = (V, a) => a.kind === 'tax' || (V.settings.exam === 'quiz' && /^(abi-w|abi-o|abi-retake|abi-extra|lic-theory)$/.test(a.kind));
+  const needsQuiz = (V, a) => a.kind === 'tax' || a.kind === 'ac-theory' || (V.settings.exam === 'quiz' && /^(abi-w|abi-o|abi-retake|abi-extra|lic-theory)$/.test(a.kind));
   function apptCard(V, c, a, dr, locked) {
     const d = (dr.appts[a.id] && dr.appts[a.id].d) || 'go', q = dr.appts[a.id] && dr.appts[a.id].quiz;
     const late = idx(a) < idx(V.date);
-    const exam = /^(abi|lic)/.test(a.kind);
+    const exam = /^(abi|lic|ac-)/.test(a.kind);
     const opts = a.kind === 'tax' ? [['go', 'Selbst machen (STEUER-RUSH)'], ['sick', 'Steuerberaterin'], ['skip', 'Ignorieren']] : [['go', 'Hingehen'], ['sick', exam ? 'Krankmelden (Attest)' : 'Absagen'], ['skip', 'Schwänzen']];
     return `<div class="lx-ap ${late ? 'late' : ''}"><div class="lx-ap-h"><b>${esc(L.dayText(a))}</b><span>${esc(a.title)}</span>${a.fee ? `<small>Gebühr ${eur(a.fee)}</small>` : ''}</div>
       ${late ? '<p class="lx-warn">Verpasst – das wird jetzt abgerechnet.</p>' : `<div class="lx-ap-opts">${opts.map(([k, n]) => `<button type="button" class="lx-chip sm ${d === k ? 'on' : ''} ${k === 'skip' ? 'bad' : ''}" data-ap="${a.id}" data-ad="${k}" ${locked ? 'disabled' : ''}>${n}</button>`).join('')}</div>
-      ${needsQuiz(V, a) && d === 'go' ? (q ? `<p class="lx-quizres">${a.kind === 'tax' ? `STEUER-RUSH: ${q.ok}/${q.total} Belege richtig` : `Prüfung geschrieben: ${a.kind === 'lic-theory' ? `${q.err} Fehlerpunkte` : `${q.ok}/${q.total} richtig`}`}</p>` : `<button class="btn btn-small btn-primary" data-quiz="${a.id}" ${locked ? 'disabled' : ''}>${a.kind === 'tax' ? 'STEUER-RUSH starten' : 'Prüfung jetzt schreiben'}</button>`) : ''}`}</div>`;
+      ${needsQuiz(V, a) && d === 'go' ? (q ? `<p class="lx-quizres">${a.kind === 'tax' ? `STEUER-RUSH: ${q.ok}/${q.total} Belege richtig` : `Prüfung geschrieben: ${a.kind === 'lic-theory' ? `${q.err} Fehlerpunkte` : `${q.ok}/${q.total} richtig`}`}</p>` : `<button class="btn btn-small btn-primary" data-quiz="${a.id}" ${locked ? 'disabled' : ''}>${a.kind === 'tax' ? 'STEUER-RUSH starten' : 'Prüfung jetzt schreiben'}</button>`) : ''}${a.kind === 'ac-theory' ? `<button class="btn btn-small btn-ghost" data-doc="${esc(a.data.course)}">Lernzettel</button>` : ''}`}</div>`;
   }
   function driveHTML(V, c, dr, locked) {
     const Lc = c.license;
@@ -564,7 +569,9 @@
     if (!a) return;
     if (a.kind === 'tax') return taxRush(V, c, a, dr);
     let qs, drive = a.kind === 'lic-theory';
-    if (drive) qs = shuffle(Q.DRIVE).slice(0, 10).map((q) => ({ q: q[0], right: q[1], opts: shuffle(q.slice(1, 5)), pts: q[5] }));
+    const K = a.kind === 'ac-theory' && AC ? AC.byId(a.data.course) : null;
+    if (K) qs = shuffle(K.quiz).slice(0, 8).map((q) => ({ q: q[0], right: q[1], opts: shuffle(q.slice(1)) }));
+    else if (drive) qs = shuffle(Q.DRIVE).slice(0, 10).map((q) => ({ q: q[0], right: q[1], opts: shuffle(q.slice(1, 5)), pts: q[5] }));
     else { const bank = Q.ABI[a.data.subj] || Q.ABI.de; qs = shuffle(bank).slice(0, a.kind === 'abi-o' || a.kind === 'abi-extra' ? 4 : 6).map((q) => ({ q: q[0], right: q[1], opts: shuffle(q.slice(1)) })); }
     let i = 0, ok = 0, err = 0, t0 = Date.now();
     const back = document.createElement('div');
@@ -574,7 +581,7 @@
       if (i >= qs.length) {
         const res = drive ? { ok, total: qs.length, err } : { ok, total: qs.length };
         dr.appts[a.id] = Object.assign(dr.appts[a.id] || {}, { d: 'go', quiz: res });
-        back.innerHTML = `<div class="modal lx-quiz"><h2>${esc(a.title)}</h2><p class="lx-qbig">${drive ? `${err} Fehlerpunkte` : `${ok} von ${qs.length} richtig`}</p><p class="p-sub">${drive ? (err <= 10 ? 'Das würde reichen. Das Ergebnis zählt, wenn der Monat abgerechnet wird.' : 'Mehr als 10 Fehlerpunkte. Das wird eng.') : 'Das Ergebnis fließt mit deiner Vorbereitung in die Punkte ein.'}</p><button class="btn btn-primary" id="qz-close">Fertig</button></div>`;
+        back.innerHTML = `<div class="modal lx-quiz"><h2>${esc(a.title)}</h2><p class="lx-qbig">${drive ? `${err} Fehlerpunkte` : `${ok} von ${qs.length} richtig`}</p><p class="p-sub">${drive ? (err <= 10 ? 'Das würde reichen. Das Ergebnis zählt, wenn der Monat abgerechnet wird.' : 'Mehr als 10 Fehlerpunkte. Das wird eng.') : K ? (ok / qs.length >= 0.6 ? 'Bestanden, wenn der Monat abgerechnet wird. Ab 60 % reicht es.' : 'Unter 60 %. Das reicht nicht. Nochmal lernen und neu buchen.') : 'Das Ergebnis fließt mit deiner Vorbereitung in die Punkte ein.'}</p><button class="btn btn-primary" id="qz-close">Fertig</button></div>`;
         $('#qz-close', back).onclick = () => { back.remove(); redraw(); };
         FX && FX.play(drive ? (err <= 10 ? 'coinUp' : 'coinDown') : ok >= qs.length / 2 ? 'coinUp' : 'coinDown');
         return;
@@ -677,6 +684,69 @@
     q('#tg-go').onclick = () => { q('.tg-keys').hidden = false; q('.tg-display').hidden = false; show(); };
   }
 
+  // ----- Akademie: Lizenzen, Lernzettel von April, Prüfungen -----
+  const learning = (c) => (AC && c.courses ? Object.keys(c.courses).filter((k) => c.courses[k].status === 'learning').map((k) => AC.byId(k)).filter(Boolean) : []);
+  function certBox(c) {
+    if (!AC) return '';
+    const certs = (c.certs || []).map((k) => AC.byId(k)).filter(Boolean), lr = learning(c);
+    if (!certs.length && !lr.length) return '';
+    return `<h4>Lizenzen</h4><div class="lx-certs">${certs.map((K) => `<span class="ok">${esc(K.name)}</span>`).join('')}${lr.map((K) => `<span>${esc(K.name)} <small>${c.courses[K.id].theory ? 'Theorie bestanden' : `lernt ${c.courses[K.id].prep}/100`}</small></span>`).join('')}</div>`;
+  }
+  const acad = { cat: '' };
+  function renderAcad(body, V, me) {
+    const c = V.chars[me];
+    if (!c || !AC) { put(body, '<p class="p-sub">Du schaust zu.</p>'); return; }
+    const cats = [...new Set(AC.COURSES.map((K) => K.cat))];
+    if (!acad.cat) acad.cat = cats[0];
+    const open = V.phase === 'act' && !c.dead && !V.actions[me];
+    const card = (K) => {
+      const st = c.courses && c.courses[K.id], done = (c.certs || []).includes(K.id);
+      const err = !st && !done ? AC.reqError(V, c, K) || (K.cost && !K.loan && c.stats.money + c.bank.dispo < K.cost ? `Zu teuer: Dir fehlen ${eur(K.cost - c.stats.money - c.bank.dispo)}.` : null) : null;
+      const booked = c.appts.some((a) => a.status === 'open' && a.data && a.data.course === K.id);
+      const minIdx = st ? st.since + Math.max(1, Math.ceil(K.months / 2)) : 0;
+      const status = done ? '<b class="up">Bestanden</b>' : st ? `${st.theory ? 'Theorie bestanden' : `Vorbereitung ${st.prep}/100`}${booked ? ' · Termin steht' : ''}` : err ? `<span class="down">${esc(err)}</span>` : '';
+      let btn = '';
+      if (!done && !st) btn = `<button class="btn btn-small btn-primary" data-en="${K.id}" ${err || !open ? 'disabled' : ''}>Anmelden${K.cost ? ` · ${eur(K.cost)}` : ''}</button>`;
+      else if (st && !done) btn = `<button class="btn btn-small btn-ghost" data-doc="${K.id}">Lernzettel</button><button class="btn btn-small ${st.theory || idx(V.date) + 1 >= minIdx ? 'btn-primary' : ''}" data-bk="${K.id}" ${booked || !open ? 'disabled' : ''}>${st.theory ? `${esc((K.practical || {}).name || 'Praxis')} buchen` : 'Theorieprüfung buchen'}</button>`;
+      else btn = `<button class="btn btn-small btn-ghost" data-doc="${K.id}">Lernzettel</button>`;
+      return `<div class="lx-course ${done ? 'done' : ''}"><div><b>${esc(K.name)}</b><p>${esc(K.text)}</p><small>${K.cost ? `Kurs ${eur(K.cost)}` : 'Kurs kostenlos'}${K.examFee ? ` · Prüfung ${eur(K.examFee)}` : ''} · ca. ${K.months} Monate${K.practical ? ` · Praxis: ${esc(K.practical.name)}` : ''}${K.loan ? ' · Bildungskredit möglich' : ''}</small><small>${status}</small></div><div class="btn-row">${btn}</div></div>`;
+    };
+    if (!body.querySelector('#ac-top')) body.innerHTML = '<div class="lx-panel lx-acad"><span class="lb-k">Akademie · Prüfungen für fast alles</span><p class="p-sub">Anmelden → April schickt dir einen Lernzettel in den Chat → im Monatsfokus „Lernen“ vorbereiten → Theorieprüfung als Quiz → Praxis per Würfel → Lizenz. Manche Lizenzen bringen direkt ein Jobangebot oder eine Ausbildung.</p><div id="ac-top"></div><div id="ac-list"></div></div>';
+    if (put($('#ac-top'), `<div class="lx-cats">${cats.map((k) => `<button class="${acad.cat === k ? 'on' : ''}" data-acat="${esc(k)}">${esc(k)}</button>`).join('')}</div>`)) $('#ac-top').querySelectorAll('[data-acat]').forEach((b) => { b.onclick = () => { acad.cat = b.dataset.acat; redraw(); }; });
+    if (put($('#ac-list'), AC.COURSES.filter((K) => K.cat === acad.cat).map(card).join('') + (open ? '' : '<p class="p-sub">Anmelden und buchen geht nur, während ihr plant.</p>'))) {
+      const el = $('#ac-list');
+      el.querySelectorAll('[data-en]').forEach((b) => { b.onclick = () => { const K = AC.byId(b.dataset.en); if (!K.cost || confirm(`${K.name} für ${eur(K.cost)} buchen?`)) { FX && FX.play('card'); act({ type: 'aEnroll', id: K.id }); } }; });
+      el.querySelectorAll('[data-bk]').forEach((b) => { b.onclick = () => act({ type: 'aBook', id: b.dataset.bk }); });
+      el.querySelectorAll('[data-doc]').forEach((b) => { b.onclick = () => openDoc(b.dataset.doc, c); });
+    }
+  }
+  // Lernzettel als süße Karte
+  function openDoc(id, c) {
+    const K = AC && AC.byId(id);
+    if (!K) return;
+    const d = K.doc;
+    const back = document.createElement('div');
+    back.className = 'modal-back lx-doc-back';
+    back.innerHTML = `<div class="lx-doc" role="dialog" aria-label="${esc(d.title)}"><div class="lx-doc-tape"></div><button class="lx-doc-x" aria-label="Schließen">×</button>
+      <div class="lx-doc-head"><svg viewBox="0 0 100 100"><use href="#april"/></svg><div><small>Von April${c ? ` für ${esc(c.name)}` : ''}</small><h2>${esc(d.title)}</h2></div></div>
+      <p class="lx-doc-intro">${esc(d.intro)}</p>
+      ${d.sections.map((sec) => `<section><h3>${esc(sec.h)}</h3>${sec.items.map((it) => (it === AC.NATO ? `<div class="lx-nato">${AC.NATO.split(', ').map((w) => `<span><b>${esc(w[0])}</b>${esc(w)}</span>`).join('')}</div>` : `<p>${esc(it)}</p>`)).join('')}</section>`).join('')}
+      <p class="lx-doc-outro">${esc(d.outro || '')}</p><p class="lx-doc-sig">April</p>
+      <div class="btn-row"><button class="btn btn-primary lx-doc-ok">Verstanden</button></div></div>`;
+    document.body.appendChild(back);
+    const close = () => back.remove();
+    back.querySelector('.lx-doc-x').onclick = close;
+    back.querySelector('.lx-doc-ok').onclick = close;
+    back.onclick = (e) => { if (e.target === back) close(); };
+    FX && FX.play('card');
+  }
+  let seenDocs = null;
+  function notifyDocs(V, me) {
+    const mine = (V.chat || []).filter((m) => m.doc && m.to === me);
+    if (seenDocs === null) { seenDocs = new Set(mine.map((m) => m.id)); return; }
+    mine.forEach((m) => { if (!seenDocs.has(m.id)) { seenDocs.add(m.id); toast('April hat dir einen Lernzettel geschickt.'); say('larp-doc', true); setTimeout(() => openDoc(m.doc, V.chars[me]), 400); } });
+  }
+
   // ----- Tab: Markt -----
   const CATS = [['flat', 'Wohnung mieten'], ['wg', 'WG-Zimmer'], ['buyflat', 'Wohnung kaufen'], ['house', 'Haus kaufen'], ['car', 'Autos'], ['uni', 'Studium'], ['training', 'Ausbildung'], ['job', 'Jobs'], ['ad', 'Kleinanzeigen']];
   function renderMarket(body, V, me, api) {
@@ -777,7 +847,7 @@
     }
     renderOffers($('#pe-offers'), V, me);
     const ch = $('#pe-chat');
-    if (put(ch, V.chat.slice(-60).map((m) => `<p class="${m.ooc ? 'ooc' : ''}" style="--pc:${esc(m.color)}"><b>${esc(m.name)}</b>${m.ooc ? ' <small>(OOC)</small>' : ''}: ${esc(m.t)} <small>${esc(m.d)}</small></p>`).join('') || '<p class="p-sub">Noch still hier.</p>')) ch.scrollTop = ch.scrollHeight;
+    if (put(ch, V.chat.slice(-60).map((m) => `<p class="${m.ooc ? 'ooc' : ''}" style="--pc:${esc(m.color)}"><b>${esc(m.name)}</b>${m.ooc ? ' <small>(OOC)</small>' : ''}: ${esc(m.t)}${m.doc && AC && AC.byId(m.doc) ? ` <button class="lx-docbtn" data-doc="${esc(m.doc)}">Lernzettel öffnen</button>` : ''} <small>${esc(m.d)}</small></p>`).join('') || '<p class="p-sub">Noch still hier.</p>')) { ch.scrollTop = ch.scrollHeight; ch.querySelectorAll('[data-doc]').forEach((b) => { b.onclick = () => openDoc(b.dataset.doc, V.chars[me]); }); }
     put($('#pe-list'), `<div class="lx-others-full">${V.players.filter((p) => V.chars[p.id]).map((p) => sheet(V, p.id, p.id === me && false)).join('')}</div>`);
   }
 

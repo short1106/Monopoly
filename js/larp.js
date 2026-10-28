@@ -9,6 +9,8 @@
   const SOC = () => { if (root.DULI_LARP_SOCIAL) return root.DULI_LARP_SOCIAL; if (isNode && soc === null) { try { soc = require('./larp-social'); } catch (e) { soc = false; } } return soc || null; };
   let mk = null;
   const MK = () => { if (root.DULI_LARP_MARKET) return root.DULI_LARP_MARKET; if (isNode && mk === null) { try { mk = require('./larp-market'); } catch (e) { mk = false; } } return mk || null; };
+  let ac = null;
+  const ACAD = () => { if (root.DULI_LARP_ACADEMY) return root.DULI_LARP_ACADEMY; if (isNode && ac === null) { try { ac = require('./larp-courses'); } catch (e) { ac = false; } } return ac || null; };
   const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const STATS = ['health', 'happy', 'power'];
   const PACE = { auto: 0, m: 1, q: 3, y: 12 };
@@ -374,6 +376,8 @@
         if (So && /^o[A-Z]/.test(a.type)) return So.act(S, pid, a, API);
         const M = MK();
         if (M && M.act && /^m[A-Z]/.test(a.type)) return M.act(S, pid, a, API);
+        const Ac = ACAD();
+        if (Ac && /^a[A-Z]/.test(a.type)) return Ac.act(S, pid, a, API);
       }
     }
     return 'Unbekannte Aktion.';
@@ -406,7 +410,8 @@
       appts[id] = { d: ['go', 'sick', 'skip'].includes(v.d) ? v.d : 'go', quiz: v.quiz && Number.isFinite(v.quiz.ok) ? { ok: num(v.quiz.ok, 0, 30), total: num(v.quiz.total, 1, 30), err: num(v.quiz.err, 0, 99) } : null };
     });
     const drive = { theory: num(p.drive && p.drive.theory, 0, 14), lessons: num(p.drive && p.drive.lessons, 0, 16), special: num(p.drive && p.drive.special, 0, 12) };
-    return { focus, subj, appts, drive };
+    const courses = (Array.isArray(p.courses) ? p.courses : []).filter((k) => c.courses && c.courses[k] && c.courses[k].status === 'learning').slice(0, 2);
+    return { focus, subj, appts, drive, courses };
   }
 
   function toThink(S) {
@@ -437,7 +442,9 @@
           subs.forEach((k) => { c.abi.prep[k] = clamp((c.abi.prep[k] || 0) + gain, 0, 100); });
           c.abi.blockI = clamp(c.abi.blockI + 3 * M, 200, 600);
           report(S, pid, '📚', `Gelernt: ${subs.map((k) => DB.SUBJECTS[k].name).join(', ')} (+${gain} Vorbereitung)`);
-        } else { c.flags.study = (c.flags.study || 0) + 1; report(S, pid, '📚', 'Gelernt und weitergebildet.'); }
+        } else if (!(plan.courses || []).length) { c.flags.study = (c.flags.study || 0) + 1; report(S, pid, '📚', 'Gelernt und weitergebildet.'); }
+        const Ac = ACAD();
+        if (Ac) Ac.study(S, pid, c, plan.courses, M, API);
         c.stats.happy = clampStat(c.stats.happy - 2);
       } else if (f === 'work') {
         if (c.job2) { const extra = Math.round(c.job2.gross * 0.15 * M); c.stats.money += extra; c.stats.health = clampStat(c.stats.health - 2); report(S, pid, '💼', `Extra-Schichten: +${eur(extra)}`); }
@@ -594,6 +601,8 @@
         return;
       }
       default: {
+        const Ac = ACAD();
+        if (Ac && Ac.appt(S, pid, ap, dec, late, API)) return;
         const M = MK();
         if (M && M.appt) M.appt(S, pid, ap, dec, late, API);
       }

@@ -391,7 +391,8 @@
     if (x.cat === 'job') {
       const need = x.req;
       if (need === 'st' && c.edu.kind !== 'uni') return 'Werkstudentenjobs gibt es nur für Studierende.';
-      if (need !== '-' && need !== 'st' && !q.has(need)) return `Dafür fehlt dir die Qualifikation (${({ r: 'mittlere Reife', a: 'Abitur', z: 'abgeschlossene Ausbildung', b: 'Bachelor', m: 'Master oder Staatsexamen', fs: 'Führerschein' })[need]}).`;
+      if (/^cert:/.test(need || '')) { if (!(c.certs || []).includes(need.slice(5))) return 'Dafür brauchst du erst die passende Lizenz aus der Akademie.'; }
+      else if (need !== '-' && need !== 'st' && !q.has(need)) return `Dafür fehlt dir die Qualifikation (${({ r: 'mittlere Reife', a: 'Abitur', z: 'abgeschlossene Ausbildung', b: 'Bachelor', m: 'Master oder Staatsexamen', fs: 'Führerschein' })[need]}).`;
       X.addAppt(S, c, { kind: 'interview', y: Math.floor(next / 12), m: next % 12, d: 3 + X.rnd(24), title: `Vorstellungsgespräch: ${x.name} bei ${x.firm}`, where: x.firm, data: { listing: x.id, offer: x } });
       X.report(S, pid, '📨', `Bewerbung als ${x.name} bei ${x.firm} raus.`);
       return null;
@@ -492,7 +493,7 @@
         const o = ap.data.offer;
         if (skip) { X.report(S, pid, '🚪', `Zum Vorstellungsgespräch bei ${o.firm} nicht erschienen. Die melden sich nie wieder.`, 'bad'); return; }
         const soc = c.key === 'justin' ? 5 : c.key === 'kimberly' ? 3 : 0, roll = X.d20();
-        let score = roll + soc + Math.floor(c.stats.power / 25) + (c.flags.grade ? (3 - Number(String(c.flags.grade).replace(',', '.'))) * 2 : 0) + (c.flags.trained ? 2 : 0);
+        let score = roll + soc + Math.floor(c.stats.power / 25) + (c.flags.grade ? (3 - Number(String(c.flags.grade).replace(',', '.'))) * 2 : 0) + (c.flags.trained ? 2 : 0) + (/^cert:/.test(o.req || '') ? 4 : 0);
         if (c.key === 'justin' && roll <= 3) score = 0;
         const ok = roll === 20 || (roll !== 1 && score >= (o.cat === 'training' ? 9 : o.req === 'b' || o.req === 'm' ? 12 : 10));
         if (!ok) { X.report(S, pid, '❌', `Absage von ${o.firm} (${o.name}). ${['„Wir haben uns für jemand anderen entschieden.“', '„Leider passt das Profil nicht ganz.“', 'Du hast auf die Frage nach Schwächen „Ich bin zu perfekt“ gesagt.', 'Dein Handy hat im Gespräch geklingelt. Klingelton: Tung Tung Sahur.'][X.rnd(4)]}`, 'bad'); return; }
