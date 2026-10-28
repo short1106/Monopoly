@@ -1235,8 +1235,23 @@
         <div class="lb-money"><span>Konto</span><b>${eur(c.stats.money)}</b></div>${bar('health', c.stats.health)}${bar('happy', c.stats.happy)}${bar('power', c.stats.power)}
         <p class="lb-line">${esc(c.education)} · ${esc(c.job)}</p>${para(f.story)}${c.chronicle.length ? `<details><summary>Lebenslauf</summary><ul class="lb-log">${c.chronicle.map((x) => `<li><small>${esc(x.d)}</small> ${esc(x.t)}</li>`).join('')}</ul></details>` : ''}</div>`;
     }).join('');
+    // Awards: wer war in was die oder der Beste?
+    const pcs = V.players.filter((p) => V.chars[p.id]).map((p) => V.chars[p.id]);
+    const award = (title, fn, fmt) => { const best = pcs.map((c) => [c, fn(c)]).filter(([, v]) => v > 0).sort((x, y) => y[1] - x[1])[0]; return best ? `<li style="--pc:${esc(best[0].color)}"><span>${esc(title)}</span><b>${esc(best[0].name)}</b><small>${esc(fmt(best[1], best[0]))}</small></li>` : ''; };
+    const topSkill = (c) => Object.entries(c.skills || {}).filter(([k]) => k !== 'Bekanntheit').sort((x, y) => y[1] - x[1])[0];
+    const awards = [
+      award('Reichste Person', (c) => c.stats.money, (v) => eur(v)),
+      award('Größte Firma', (c) => (c.firm ? c.firm.staff.length + 1 : 0), (v, c) => `${c.firm.name}, ${v} Leute`),
+      award('Bekannteste Person', (c) => (c.skills || {}).Bekanntheit || 0, (v) => `Bekanntheit ${Math.round(v)}`),
+      award('Größtes Talent', (c) => (topSkill(c) || [0, 0])[1], (v, c) => `${topSkill(c)[0]} ${Math.round(v)}`),
+      award('Meiste Skills', (c) => Object.keys(c.skills || {}).length, (v) => `${v} Skills`),
+      award('Meiste Lizenzen', (c) => (c.certs || []).length, (v) => `${v} Lizenzen`),
+      award('Weltenbummler:in', (c) => c.flags.trips || 0, (v) => `${v} Reisen`),
+      award('Glücklichste Person', (c) => c.stats.happy, (v) => `Happiness ${v}`),
+      award('Längstes Vorstrafenregister', (c) => c.flags.crime || 0, (v) => `${v} Verurteilung${v > 1 ? 'en' : ''}`),
+    ].join('');
     root.innerHTML = `<div class="lb-over"><div class="p-hero"><p class="sec-label"><span class="n">ENDE</span>${esc(L.dateText(V))}</p><h1 class="p-title">Lebens<span class="outline">bilanz</span></h1>
-      ${ranked.length > 1 && V.chars[ranked[0].id] ? `<p class="p-lead">Bestes Leben: <b>${esc(V.chars[ranked[0].id].name)}</b> (${esc(ranked[0].name)})</p>` : ''}</div><div class="lb-finals">${cards}</div>
+      ${ranked.length > 1 && V.chars[ranked[0].id] ? `<p class="p-lead">Bestes Leben: <b>${esc(V.chars[ranked[0].id].name)}</b> (${esc(ranked[0].name)})</p>` : ''}</div>${awards ? `<ul class="lx-awards">${awards}</ul>` : ''}<div class="lb-finals">${cards}</div>
       ${api.isHost ? '<div class="btn-row lb-over-btns"><button class="btn btn-primary" id="lb-again">Neues Leben</button><button class="btn" id="lb-lobby">Zur Lobby</button></div>' : '<p class="p-wait">Der Host entscheidet, wie es weitergeht.</p>'}</div>`;
     if (api.isHost) { $('#lb-again').onclick = api.again; $('#lb-lobby').onclick = api.lobby; }
   }

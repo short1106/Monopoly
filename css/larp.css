@@ -351,3 +351,8 @@
 .lx-st-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
 .lx-st-colors div { height: 110px; border-radius: 16px; }
 #st-type { width: 100%; padding: 10px; border-radius: 12px; background: #1a1426; color: #fff; border: 1px solid #333; font: 15px var(--font); margin-bottom: 10px; }
+.lx-awards { list-style: none; padding: 0; margin: 0 0 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.lx-awards li { padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, .05); border-top: 3px solid var(--pc); display: flex; flex-direction: column; gap: 2px; }
+.lx-awards span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+.lx-awards b { font-size: 18px; }
+.lx-awards small { opacity: .75; }
