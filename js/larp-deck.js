@@ -43,6 +43,12 @@
     if (stat === 'social') m += Math.floor(s.power / 30) + (s.happy > 75 ? 1 : s.happy < 25 ? -2 : 0);
     if (stat === 'work') m += s.happy < 25 ? -2 : 0;
     if (stat === 'smart') m += (c.flags && c.flags.study ? Math.min(4, c.flags.study) : 0);
+    // Skills zählen mit: der beste passende Skill gibt bis zu +3
+    if (c.skills) {
+      const best = (names) => Math.max(0, ...names.map((n) => c.skills[n] || 0));
+      const sk = { social: ['Verhandeln', 'Charisma', 'Verkauf', 'Bekanntheit', 'Schauspiel'], body: ['Fitness', 'Kampfsport', 'Fußball', 'Schwimmen', 'Tanzen'], smart: ['Programmieren', 'KI und Daten', 'Buchhaltung', 'Englisch', 'Schreiben'], work: ['Projektmanagement', 'Führung', 'Buchhaltung', 'Handwerk'], luck: [] }[stat] || [];
+      m += Math.floor(best(sk) / 30);
+    }
     return clamp(m, -8, 10);
   }
   function chance(c, o) {

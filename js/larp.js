@@ -1040,6 +1040,9 @@
         return { pid: p.id, action: { type: 'oOffer', to: h.id, kind, terms }, delay: 700 };
       }
     }
+    // ab und zu ein Gig mit den eigenen Skills
+    const Cg = CO();
+    if (Cg && c._bot.gig !== idx(S.date) && rnd(3) === 0) { c._bot.gig = idx(S.date); const g = Cg.gigs(S, c, idx(S.date))[0]; if (g) return { pid: p.id, action: { type: 'kGig', id: g.id }, delay: 600 }; }
     // Führerschein, wenn genug Geld da ist
     if (c._bot.lic !== idx(S.date) && c.license.status === 'none' && c.key !== 'april' && c.stats.money > 1600) { c._bot.lic = idx(S.date); return { pid: p.id, action: { type: 'licEnroll', school: (c.contacts || []).includes('opa-fahrschule') ? 'opa' : DB.LICENSE.schools[0].id }, delay: 600 }; }
     if (c._bot.book !== idx(S.date) && c.license.status !== 'none' && !c.license.has) { c._bot.book = idx(S.date); if (!c.appts.some((t) => t.status === 'open' && /^lic-/.test(t.kind))) return { pid: p.id, action: { type: 'licBook', kind: c.license.theoryPass ? 'practical' : 'theory' }, delay: 600 }; }

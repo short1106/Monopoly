@@ -298,6 +298,14 @@
     c.chronicle.push({ d: X.dateText(S), t: 'Zieht zurück zur Familie.' });
     return null;
   }
+  // Passende Skills machen Vorstellungsgespräche leichter (bis +4)
+  const AREA_SKILLS = { IT: ['Programmieren', 'Webdesign', 'KI und Daten', 'IT-Sicherheit'], Medien: ['Videoschnitt', 'Grafikdesign', 'Social Media', 'Fotografie'], Handwerk: ['Elektrik', 'Schreinern'], Kfz: ['Autos schrauben'], Gastro: ['Kochen', 'Kundenservice'], Verwaltung: ['Buchhaltung', 'Projektmanagement'], Handel: ['Verkauf', 'Kundenservice', 'Verhandeln'], Gesundheit: ['Erste Hilfe'], Logistik: ['Projektmanagement'], Kunst: ['Zeichnen', 'Musikproduktion', 'Singen'], Wirtschaft: ['Buchhaltung', 'Marketing', 'Verhandeln'] };
+  function skillFit(c, o) {
+    if (!c.skills) return 0;
+    const names = (AREA_SKILLS[o.area] || []).concat(['Englisch']);
+    const best = Math.max(0, ...names.map((n) => c.skills[n] || 0));
+    return Math.min(4, Math.floor(best / 22));
+  }
   const grestOf = (x) => (DB.STATES[x.st] ? DB.STATES[x.st].grest : W() ? W().country(x.cc).grest : 5);
   function loanRate(S, c) { const s = c.bank.schufa; return Math.round((S.econ.zins + (s >= 95 ? 0 : s >= 90 ? 0.35 : s >= 80 ? 0.9 : s >= 70 ? 1.8 : 3.2)) * 100) / 100; }
   function buyHome(S, pid, c, x, a, X) {
@@ -536,7 +544,7 @@
         const o = ap.data.offer;
         if (skip) { X.report(S, pid, '🚪', `Zum Vorstellungsgespräch bei ${o.firm} nicht erschienen. Die melden sich nie wieder.`, 'bad'); return; }
         const soc = c.key === 'justin' ? 5 : c.key === 'kimberly' ? 3 : 0, roll = X.d20();
-        let score = roll + soc + Math.floor(c.stats.power / 25) + (c.flags.grade ? (3 - Number(String(c.flags.grade).replace(',', '.'))) * 2 : 0) + (c.flags.trained ? 2 : 0) + (/^cert:/.test(o.req || '') ? 4 : 0);
+        let score = roll + soc + Math.floor(c.stats.power / 25) + (c.flags.grade ? (3 - Number(String(c.flags.grade).replace(',', '.'))) * 2 : 0) + (c.flags.trained ? 2 : 0) + (/^cert:/.test(o.req || '') ? 4 : 0) + skillFit(c, o);
         if (c.key === 'justin' && roll <= 3) score = 0;
         const ok = roll === 20 || (roll !== 1 && score >= (o.cat === 'training' ? 9 : o.req === 'b' || o.req === 'm' ? 12 : 10));
         if (!ok) { X.report(S, pid, '❌', `Absage von ${o.firm} (${o.name}). ${['„Wir haben uns für jemand anderen entschieden.“', '„Leider passt das Profil nicht ganz.“', 'Du hast auf die Frage nach Schwächen „Ich bin zu perfekt“ gesagt.', 'Dein Handy hat im Gespräch geklingelt. Klingelton: Tung Tung Sahur.'][X.rnd(4)]}`, 'bad'); return; }

@@ -71,6 +71,53 @@
     if (c.abroad && root.DULI_LARP_WORLD) { const L = LANG[root.DULI_LARP_WORLD.country(c.abroad).lang]; if (L) change(c, L, 1.2 * (1 - level(c, L) / 110)); }
   }
 
+  // ---------- Gigs: mit eigenen Skills nebenbei Geld verdienen (ohne Firma) ----------
+  const GIGS = {
+    Singen: ['Auftritt auf einer Hochzeit', 'Background-Gesang im Tonstudio', 'Karaoke-Abend moderieren'], Gitarre: ['Straßenmusik in der Innenstadt', 'Bar-Auftritt am Freitag'], Klavier: ['Klavier auf einer Firmenfeier', 'Klavierunterricht für ein Kind'],
+    Tanzen: ['Tanzkurs im Jugendzentrum geben', 'Tänzer:in in einem Musikvideo'], Musikproduktion: ['Beat für einen Rapper bauen', 'Jingle für einen Podcast'], Schauspiel: ['Komparse im Fernsehdreh', 'Rolle im Werbespot'],
+    Programmieren: ['Bugfix für ein Startup', 'Kleines Tool für eine Arztpraxis'], Webdesign: ['Website für den Friseur um die Ecke', 'Online-Shop für ein Café'], 'KI und Daten': ['Daten-Auswertung für einen Verein', 'Chatbot für einen Onlineshop'],
+    'IT-Sicherheit': ['WLAN einer Kanzlei absichern'], 'Game Design': ['Level für ein Indie-Spiel bauen'], '3D-Modellierung': ['3D-Modell für einen Architekten', 'Figur für ein Spiel modellieren'],
+    Grafikdesign: ['Logo für einen Sportverein', 'Flyer für ein Festival'], Zeichnen: ['Porträt auf Bestellung', 'Illustration für ein Kinderbuch'], Fotografie: ['Hochzeitsfotos', 'Produktfotos für einen Onlineshop'],
+    Videoschnitt: ['Hochzeitsvideo schneiden', 'YouTube-Videos für einen Creator schneiden'], 'Social Media': ['Instagram-Account einer Bäckerei betreuen', 'TikTok-Kampagne für einen Laden'], Marketing: ['Werbekonzept für ein Restaurant'],
+    Verkauf: ['Messe-Aushilfe am Stand'], Buchhaltung: ['Belege für einen Handwerker sortieren'], Kochen: ['Catering für eine Geburtstagsfeier', 'Aushilfe in einer Restaurantküche'],
+    Elektrik: ['Lampen in einer Wohnung anschließen'], Schreinern: ['Regal nach Maß bauen'], 'Autos schrauben': ['Bremsen beim Nachbarn wechseln', 'Oldtimer aufbereiten'], Nähen: ['Kostüme für ein Theater nähen'], Gärtnern: ['Garten eines Rentnerpaars pflegen'],
+    Schreiben: ['Blogartikel für eine Agentur', 'Rede für eine Hochzeit schreiben'], Englisch: ['Übersetzung einer Website', 'Englisch-Nachhilfe'], Spanisch: ['Übersetzung für ein Reisebüro'], Türkisch: ['Dolmetschen beim Amt'], Arabisch: ['Dolmetschen beim Amt'],
+    Fitness: ['Personal Training für eine Managerin'], Fußball: ['Jugendtraining im Verein'], Kampfsport: ['Selbstverteidigungskurs geben'], Schwimmen: ['Schwimmkurs für Kinder'], 'Erste Hilfe': ['Sanitätsdienst auf einem Konzert'], Fliegen: ['Rundflug für Touristen'],
+  };
+  const VISIBLE = ['Singen', 'Gitarre', 'Klavier', 'Tanzen', 'Schauspiel', 'Musikproduktion', 'Social Media', 'Fotografie', 'Videoschnitt', 'Zeichnen'];
+  function gigs(S, c, mIdx) {
+    ensure(c);
+    const M = MK(), r = M.rngOf(S.market.seed, 'gig', c.name, mIdx), out = [];
+    Object.entries(c.skills).filter(([k, v]) => v >= 12 && GIGS[k]).sort((a, b) => b[1] - a[1]).slice(0, 5).forEach(([k, v], i) => {
+      const list = GIGS[k], title = list[Math.floor(r() * list.length)];
+      const req = Math.max(10, Math.round(v * (0.6 + r() * 0.6))), pay = Math.round((50 + req * 7 + req * req * 0.07 + r() * 120) / 10) * 10;
+      out.push({ id: `gig:${mIdx}:${i}`, skill: k, title, req, pay, fame: VISIBLE.includes(k) ? Math.round(1 + req / 25) : 0 });
+    });
+    return out;
+  }
+  function doGig(S, pid, c, a, X) {
+    const now = X.idx(S.date), g = gigs(S, c, now).find((x) => x.id === a.id);
+    if (!g) return 'Den Gig gibt es nicht mehr.';
+    if (c.flags.gigAt === now) return 'Ein Gig pro Monat reicht. Du brauchst auch Schlaf.';
+    if (c.away && c.away.kind === 'trip' && c.away.until > S.round) return 'Du bist gerade verreist.';
+    c.flags.gigAt = now;
+    const lv = level(c, g.skill), roll = X.d20(), score = roll + Math.round((lv - g.req) / 5);
+    if (roll === 20 || (roll !== 1 && score >= 9)) {
+      const pay = Math.round(g.pay * (score >= 16 ? 1.25 : 1) / 10) * 10;
+      c.stats.money += pay; c.stats.happy = X.clampStat(c.stats.happy + 3);
+      c.tx = c.tx || { y: S.date.y, gross: 0, rent: 0, biz: 0 }; c.tx.biz += pay;
+      change(c, g.skill, 1.5 * (1 - lv / 120));
+      if (g.fame) change(c, 'Bekanntheit', g.fame);
+      X.report(S, pid, '•', `Gig: ${g.title} (${g.skill}). +${X.eur(pay)}${score >= 16 ? ', mit Trinkgeld' : ''}${g.fame ? ', ein paar mehr Leute kennen dich' : ''}.`, 'good');
+    } else {
+      const pay = roll === 1 ? 0 : Math.round(g.pay * 0.4 / 10) * 10;
+      c.stats.money += pay; c.stats.happy = X.clampStat(c.stats.happy - 3);
+      change(c, g.skill, 0.5);
+      X.report(S, pid, '•', `Gig: ${g.title} lief schief (Wurf ${roll}). ${pay ? `Nur ${X.eur(pay)}, ` : 'Kein Geld, '}${['der Kunde war unzufrieden', 'nichts hat geklappt', 'du warst zu nervös', 'die Technik hat gestreikt'][X.rnd(4)]}.`, 'bad');
+    }
+    return null;
+  }
+
   // ---------- Firma ----------
   const FIRSTN = ['Lena', 'Mo', 'Kevin', 'Aylin', 'Jonas', 'Sophie', 'Emre', 'Lara', 'Finn', 'Mia', 'Can', 'Nele', 'Tim', 'Selin', 'Luca', 'Hannah', 'Yusuf', 'Paula', 'Ben', 'Zoe', 'Niklas', 'Elif', 'Jan', 'Leonie'];
   const SURN = ['Becker', 'Yılmaz', 'Schmidt', 'Nguyen', 'Kowalski', 'Wagner', 'Demir', 'Hoffmann', 'Popescu', 'Fischer', 'Kaya', 'Neumann', 'Weber', 'Haddad'];
@@ -193,6 +240,7 @@
       X.report(S, pid, '•', `Einstufungstest ${n}: ${Math.round(sc)} von 100. Level ${Math.round(cur)} → ${Math.round(c.skills[n])}.`, d >= 0 ? 'good' : 'bad');
       return null;
     }
+    if (a.type === 'kGig') return doGig(S, pid, c, a, X);
     if (a.type === 'kQuit') {
       if (!c.job2 || !c.job2.boss) return 'Du arbeitest nicht für eine andere Figur.';
       const boss = c.job2.boss;
@@ -390,7 +438,7 @@
     S.sms.push({ id: 's' + Math.random().toString(36).slice(2, 9), from, to, t: String(text).slice(0, 400), d, round: S.round, npc: npc || null });
     if (S.sms.length > 400) S.sms.splice(0, S.sms.length - 400);
   }
-  const COMPANY = { autoUnlocks, LADDER, missingFor, players, setGross, endPlayerJob, sms, top2, startLevel, CATALOG, ALL, catOf, ensure, change, level, train, monthSkills, firm, can, capacity, skills, applicants, offers, pace, act, month };
+  const COMPANY = { gigs, autoUnlocks, LADDER, missingFor, players, setGross, endPlayerJob, sms, top2, startLevel, CATALOG, ALL, catOf, ensure, change, level, train, monthSkills, firm, can, capacity, skills, applicants, offers, pace, act, month };
   if (isNode) module.exports = COMPANY;
   else root.DULI_LARP_COMPANY = COMPANY;
 })(typeof window !== 'undefined' ? window : globalThis);

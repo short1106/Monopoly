@@ -166,7 +166,8 @@
       }
       case 'job': {
         if (to.job2 && to.job2.kind !== 'mini' && T.jobKind !== 'mini') X.endJob(S, to, `neuer Job bei ${T.firm}`);
-        to.job2 = { title: T.title, firm: T.firm, gross: T.gross, kind: T.jobKind === 'voll' ? 'voll' : T.jobKind, since: X.idx(S.date), warnings: 0, boss: o.from };
+        const lvl = T.gross < 1500 ? 0 : T.gross < 2800 ? 1 : T.gross < 3800 ? 2 : T.gross < 5000 ? 3 : 4;
+        to.job2 = { title: T.title, firm: T.firm, gross: T.gross, kind: T.jobKind === 'voll' ? 'voll' : T.jobKind, since: X.idx(S.date), warnings: 0, boss: o.from, level: lvl };
         if (T.jobKind === 'voll') to.job = `${T.title} bei ${T.firm}`;
         S.contracts.push({ id: X.uid('v'), kind: 'salary', payer: o.from, payee: o.to, pm: Math.round(T.gross * 1.21), title: `Gehalt ${to.name} (inkl. Arbeitgeberanteil)`, missed: 0, viaJob: true });
         rel(to, from.name, 6, 'Chef:in'); rel(from, to.name, 4, 'Angestellte:r');
