@@ -36,6 +36,11 @@ Shaquille: Gründer von Dulidan Studios, Duisburg, macht noch Abi, wohnt bei sei
 Kimberly: Friedrichsruhe, macht noch Abi, wohnt bei ihren Eltern. Leute helfen ihr, sie kommt leichter aus Ärger raus. Mittelmäßig belastbar, wird öfter krank. Eigene Beziehungs-Events mit ihrem Freund Justin; die Beziehung kann auch zerbrechen (z. B. weil Justin sich zu sehr gemoggt hat oder einen Crush auf Shaquille hat).
 Justin: Künzelsau, macht Abi oder Ausbildung, wohnt bei seinen Eltern. Sigma. Gewinnt fast jedes soziale Kräftemessen (Ausstrahlung, Einschüchtern, Flirten, Verhandeln), versagt aber oft genau im entscheidenden Moment (Fumble).
 April (als Spielfigur): eine KI auf den Dulidan-Servern; sehr schlau, kann in der echten Welt anfangs kaum etwas selbst tun.
+Deniz (Oberhausen): Schrauber, fleißig, Onkel hat eine Kfz-Werkstatt; zu ehrlich zum Lügen und Verhandeln.
+Lea (Heilbronn): Influencerin mit 40.000 Followern, Mama ist Maklerin; kaufsüchtig.
+Jonas (Münster): Mathe- und Informatik-Nerd; sozial unbeholfen.
+Aylin (Stuttgart): Geschäftsfrau, Familie hat drei Kioske; Stress geht auf die Gesundheit.
+Die Spieler können sich gegenseitig Angebote machen (Jobs, Kredite, Fahrschule, Werkstatt, Einziehen, Duelle) und erleben gemeinsame Szenen; was davon passiert ist, steht im Bericht. Greif solche Verbindungen in der Erzählung auf.
 Eigene Figuren haben Bonus und Schwäche laut Figurenbogen. Die drei Freunde sind zu Beginn befreundet. Weitere Menschen (Familie, Lehrer, Kollegen, Rivalen, Politiker) spielst du selbst. Alle starten mit 18, mitten im Abi bzw. in der Ausbildung, und wohnen bei Eltern bzw. Opa.
 
 FESTE SYSTEME

@@ -13,6 +13,10 @@
     kimberly: { social: 4, rescue: 1, fragile: 1, body: -2 },
     justin: { social: 6, fumble: 1, body: 2 },
     april: { smart: 7, body: -7, work: 2, server: 1 },
+    deniz: { work: 5, body: 3, social: -3 },
+    lea: { social: 5, luck: 2, work: -2 },
+    jonas: { smart: 7, social: -4 },
+    aylin: { work: 5, smart: 3, body: -2 },
   };
   const KEYWORDS = [
     [/überred|charm|flirt|beliebt|sozial|rede|verhandl|cool|rizz|aura/i, 'social'],
@@ -97,7 +101,7 @@
       { t: 'Beim Direktor beschweren', stat: 'smart', dc: 11, ok: R('Du hast Beweise, Daten, Zeugen. Er muss sich entschuldigen. Er hasst dich jetzt noch mehr, aber leise.', { power: 3 }), bad: R('Der Direktor und er gehen zusammen angeln. Das wusstest du nicht.', { happy: -5 }) },
       { t: 'Ignorieren', dc: 0, ok: R('Du lässt es abprallen. Innerlich nicht ganz.', { happy: -2 }) },
     ] });
-  ev({ id: 'abi-fail', stage: ['after', 'job'], text: 'Kein Abitur. Die Schule will wissen, wie es weitergeht. Deine Eltern auch. Vor allem deine Eltern.',
+  ev({ id: 'abi-fail', stage: ['after', 'job'], forced: true, text: 'Kein Abitur. Die Schule will wissen, wie es weitergeht. Deine Eltern auch. Vor allem deine Eltern.',
     opts: [
       { t: 'Das Jahr wiederholen', dc: 0, ok: R('Noch ein Jahr. Neue Klasse, alte Lehrer. Diesmal ernst.', { happy: -6 }, { flag: { repeatAbi: 1, abiChoice: -1 }, chron: 'Wiederholt das Abschlussjahr.' }) },
       { t: 'Mit Fachhochschulreife abgehen (schulischer Teil)', stat: 'smart', dc: 6, ok: R('Die Kurse reichen für den schulischen Teil der Fachhochschulreife. Mit einem Praktikum ist sie komplett.', { happy: 2 }, { flag: { fhr: 1, abiChoice: -1 }, status: { education: 'Fachhochschulreife (schulischer Teil)' } }), bad: R('Nicht mal das reicht. Du gehst mit dem mittleren Abschluss.', { happy: -6 }, { flag: { abiChoice: -1 }, status: { education: 'Mittlerer Schulabschluss' } }) },

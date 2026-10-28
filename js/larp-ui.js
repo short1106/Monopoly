@@ -792,6 +792,7 @@
     const num = (id, v, min = 0) => `<input id="of-${id}" type="number" min="${min}" value="${v}">`;
     switch (kind) {
       case 'perk-fahrschule': return f('discount', 'Rabatt', '<select id="of-discount"><option value="0.25">25 %</option><option value="0.5" selected>50 % (halber Preis)</option><option value="1">gratis</option></select>');
+      case 'perk-werkstatt': return f('discount', 'Rabatt', '<select id="of-discount"><option value="0.25">25 %</option><option value="0.5" selected>50 %</option></select>');
       case 'job': return f('jobKind', 'Art', '<select id="of-jobKind"><option value="mini">Minijob (603 €)</option><option value="werk">Werkstudent:in</option><option value="voll">Vollzeit</option></select>') + f('title', 'Titel', '<input id="of-title" maxlength="60" placeholder="z. B. Junior Game Designer">') + f('gross', 'Brutto pro Monat (Vollzeit/Werkstudent)', num('gross', 2800, 1000));
       case 'money': return f('amount', 'Betrag €', num('amount', 100, 1));
       case 'loan': return f('amount', 'Betrag €', num('amount', 1000, 50)) + f('months', 'Monate', num('months', 12, 1)) + f('pm', 'Rate pro Monat € (leer = gleichmäßig)', '<input id="of-pm" type="number" min="1">');

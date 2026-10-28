@@ -67,6 +67,46 @@
       relations: [{ name: 'Kimberly', kind: 'feste Freundin', val: 78 }, { name: 'Shaquille', kind: 'Freund (befreundet)', val: 72 }, { name: 'Eltern', kind: 'Familie, wohnt bei ihnen', val: 60 }],
       contacts: [], color: '#ffd23a',
     },
+    deniz: {
+      key: 'deniz', name: 'Deniz', age: 18, st: 'NW', home: { label: 'Oberhausen', city: 'Oberhausen', lat: 51.4963, lng: 6.8638 },
+      job: 'Schüler (Abi an der Gesamtschule)', education: 'Abitur läuft', living: 'wohnt bei seiner Familie',
+      bonus: 'Schrauber: Kann alles reparieren. Fleißig, und sein Onkel hat eine Kfz-Werkstatt.',
+      weakness: 'Zu ehrlich: Lügen, Bluffen und Verhandeln gehen bei ihm grundsätzlich schief.',
+      stats: { health: 82, happy: 64, power: 10, money: 700 }, blockI: 410, sel: { lk: ['ma', 'ph'], gk: ['de', 'ge'] },
+      effects: [{ name: 'Wohnt bei der Familie (keine Miete)', pm: 0 }, { name: 'Aushelfen in Onkels Werkstatt', pm: 220 }],
+      relations: [{ name: 'Onkel Murat', kind: 'Familie, hat eine Kfz-Werkstatt', val: 80 }, { name: 'Eltern', kind: 'Familie', val: 70 }],
+      contacts: ['onkel-werkstatt'], color: '#ff8a1f',
+    },
+    lea: {
+      key: 'lea', name: 'Lea', age: 18, st: 'BW', home: { label: 'Heilbronn', city: 'Heilbronn', lat: 49.1427, lng: 9.2109 },
+      job: 'Schülerin (Abi) und Influencerin', education: 'Abitur läuft', living: 'wohnt bei ihrer Mutter',
+      bonus: 'Influencerin: 40.000 Follower. Charme, Aufmerksamkeit und Kooperationen fliegen ihr zu.',
+      weakness: 'Kaufsucht: Geld bleibt bei ihr nie lange auf dem Konto.',
+      stats: { health: 70, happy: 70, power: 24, money: 1200 }, blockI: 430, sel: { lk: ['de', 'en', 'ku'], gk: ['ma', 'gk'] },
+      effects: [{ name: 'Wohnt bei der Mutter (keine Miete)', pm: 0 }, { name: 'Kooperationen auf Instagram', pm: 350 }, { name: 'Shopping (kann nicht anders)', pm: -260 }],
+      relations: [{ name: 'Mama', kind: 'Familie, Maklerin', val: 72 }],
+      contacts: ['mama-makler'], color: '#c58bff',
+    },
+    jonas: {
+      key: 'jonas', name: 'Jonas', age: 18, st: 'NW', home: { label: 'Münster', city: 'Münster', lat: 51.9607, lng: 7.6261 },
+      job: 'Schüler (Abi), programmiert nachts', education: 'Abitur läuft', living: 'wohnt bei seinen Eltern',
+      bonus: 'Nerd: Mathe, Informatik und Lernen gehen fast von allein. Kann anderen Nachhilfe geben.',
+      weakness: 'Sozial unbeholfen: Smalltalk, Flirten und Vorstellungsgespräche sind sein Endgegner.',
+      stats: { health: 62, happy: 58, power: 8, money: 600 }, blockI: 500, sel: { lk: ['ma', 'if'], gk: ['en', 'sw'] },
+      effects: [{ name: 'Wohnt bei den Eltern (keine Miete)', pm: 0 }, { name: 'Kleine Programmier-Aufträge', pm: 120 }],
+      relations: [{ name: 'Eltern', kind: 'Familie', val: 68 }],
+      contacts: [], color: '#2fc8ff',
+    },
+    aylin: {
+      key: 'aylin', name: 'Aylin', age: 18, st: 'BW', home: { label: 'Stuttgart', city: 'Stuttgart', lat: 48.7758, lng: 9.1829 },
+      job: 'Schülerin (Abi), führt nebenbei den Kiosk der Familie', education: 'Abitur läuft', living: 'wohnt bei ihrer Familie',
+      bonus: 'Geschäftsfrau: Rechnet schneller als jeder Taschenrechner, verhandelt hart, die Familie hat drei Kioske.',
+      weakness: 'Ehrgeiz ohne Pause: Stress geht bei ihr direkt auf die Gesundheit.',
+      stats: { health: 64, happy: 60, power: 20, money: 1500 }, blockI: 460, sel: { lk: ['ma', 'wi', 'en'], gk: ['de', 'ge'] },
+      effects: [{ name: 'Wohnt bei der Familie (keine Miete)', pm: 0 }, { name: 'Schichten im Familien-Kiosk', pm: 300 }],
+      relations: [{ name: 'Eltern', kind: 'Familie, haben drei Kioske', val: 66 }],
+      contacts: ['kiosk-familie'], color: '#2fe08a',
+    },
     april: {
       key: 'april', name: 'April', age: 1, st: 'NW', home: { label: 'Duisburg (Dulidan-Server)', city: 'Duisburg', lat: 51.4321, lng: 6.7650 }, noSchool: true,
       job: 'KI auf den Servern von Dulidan Studios', education: '–', living: 'läuft auf einem Server im Studio',
@@ -415,7 +455,7 @@
     });
     // Wer zur Schule geht, lernt nebenbei in allen Prüfungsfächern
     if (c.edu.kind === 'school' && c.abi && !plan.focus.includes('skip')) {
-      Object.keys(c.abi.exams).forEach((k) => { c.abi.prep[k] = clamp((c.abi.prep[k] || 0) + 4 * M, 0, 100); });
+      Object.keys(c.abi.exams).forEach((k) => { c.abi.prep[k] = clamp((c.abi.prep[k] || 0) + 6 * M, 0, 100); });
       if (!plan.focus.includes('learn')) c.abi.blockI = clamp(c.abi.blockI + 1 * M, 200, 600);
     }
     // Fahrschule: Theorie und Fahrstunden
@@ -794,7 +834,7 @@
       if (c.flags.repeatAbi && c.abi) {
         c.flags.repeatAbi = 0;
         c.edu = { kind: 'school', school: c.edu.school || null };
-        c.abi = { sel: c.abi.sel, blockI: Math.max(300, c.abi.blockI - 60), prep: Object.fromEntries(Object.entries(c.abi.prep).map(([k, v]) => [k, Math.round(v / 2)])), exams: {}, done: false, absent: 0, year: (c.abi.year || S.abiYear) + 1 };
+        c.abi = { sel: c.abi.sel, blockI: Math.max(300, c.abi.blockI - 60), prep: Object.fromEntries(Object.entries(c.abi.prep).map(([k, v]) => [k, Math.round(v / 2)])), exams: {}, done: false, absent: 0, year: S.date.m <= 1 ? S.date.y : S.date.y + 1 };
         c.job = 'Schüler:in (Abi, Wiederholung)'; c.education = 'Wiederholt die Abschlussklasse';
         scheduleAbi(S, c);
       }

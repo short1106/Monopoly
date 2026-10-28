@@ -232,6 +232,9 @@
     'opa-fahrschule': { name: 'Opas Fahrschule', kind: 'fahrschule', text: 'Opa besitzt eine Fahrschule. Für dich: Grundbetrag und Fahrstunden gratis. Freunden kannst du Rabatt anbieten.' },
     'dulidan-studios': { name: 'Dulidan Studios', kind: 'firma', text: 'Deine eigene Firma. Du kannst anderen Jobs geben (Minijob, Werkstudent, Vollzeit) und Aufträge annehmen.' },
     'april-server': { name: 'Rechenleistung', kind: 'nachhilfe', text: 'April kann anderen Nachhilfe geben, Bewerbungen und Steuererklärungen schreiben.' },
+    'onkel-werkstatt': { name: 'Onkels Kfz-Werkstatt', kind: 'werkstatt', text: 'Reparaturen und TÜV-Vorbereitung zum halben Preis. Kann man auch Freunden anbieten.' },
+    'mama-makler': { name: 'Mama ist Maklerin', kind: 'makler', text: 'Beim Wohnungs- und Hauskauf keine Maklerprovision. Kann man auch Freunden anbieten.' },
+    'kiosk-familie': { name: 'Kiosk-Imperium der Familie', kind: 'firma', text: 'Kann anderen Jobs geben: Minijob oder Vollzeit im Kiosk.' },
   };
   const NPCS = ['Opa', 'Mama', 'Papa', 'Frau Krämer (Mathe)', 'Herr Yilmaz (Deutsch)', 'Fahrlehrer Dieter', 'Sachbearbeiterin vom Amt', 'Bankberater Herr Wolff', 'Vermieterin Frau Becker', 'Chefin Frau Albers'];
 

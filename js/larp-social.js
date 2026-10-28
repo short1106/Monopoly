@@ -8,7 +8,9 @@
   // need: Bedingung für den Absender, accept: was beim Annehmen passiert
   const KINDS = {
     'perk-fahrschule': { name: 'Fahrschule bei Opa', need: (c) => (c.contacts || []).includes('opa-fahrschule'), text: (o) => `${o.fromName} bietet dir Opas Fahrschule an: ${o.terms.discount >= 1 ? 'komplett gratis' : `${Math.round(o.terms.discount * 100)} % Rabatt`} auf Grundbetrag, Fahrstunden und Sonderfahrten.` },
-    job: { name: 'Job anbieten', need: (c) => (c.contacts || []).includes('dulidan-studios') || (c.flags.company || 0) >= 1, text: (o) => `${o.fromName} bietet dir einen Job: ${o.terms.title} (${o.terms.gross} € brutto im Monat).` },
+    'perk-werkstatt': { name: 'Onkels Werkstatt', need: (c) => (c.contacts || []).includes('onkel-werkstatt'), text: (o) => `${o.fromName} bietet dir die Werkstatt vom Onkel an: Reparaturen und TÜV-Mängel ${Math.round(o.terms.discount * 100)} % günstiger.` },
+    'perk-makler': { name: 'Mamas Maklerbüro', need: (c) => (c.contacts || []).includes('mama-makler'), text: (o) => `${o.fromName} bietet dir an, über ihre Mama zu kaufen: keine Maklerprovision beim nächsten Wohnungs- oder Hauskauf.` },
+    job: { name: 'Job anbieten', need: (c) => (c.contacts || []).some((k) => k === 'dulidan-studios' || k === 'kiosk-familie') || (c.flags.company || 0) >= 1, text: (o) => `${o.fromName} bietet dir einen Job: ${o.terms.title} (${o.terms.gross} € brutto im Monat).` },
     money: { name: 'Geld schenken', text: (o) => `${o.fromName} schenkt dir ${o.terms.amount} €.` },
     loan: { name: 'Geld leihen', text: (o) => `${o.fromName} leiht dir ${o.terms.amount} €. Zurück: ${o.terms.pm} € im Monat, ${o.terms.months} Monate.` },
     nachhilfe: { name: 'Nachhilfe geben', text: (o) => `${o.fromName} gibt dir Nachhilfe${o.terms.subjName ? ` in ${o.terms.subjName}` : ''}${o.terms.price ? ` für ${o.terms.price} €` : ', gratis'}.` },
@@ -51,10 +53,13 @@
     const n = (v, lo, hi) => X.num(v, lo, hi);
     switch (kind) {
       case 'perk-fahrschule': return { discount: [0.25, 0.5, 1].includes(Number(x.discount)) ? Number(x.discount) : 0.5 };
+      case 'perk-werkstatt': return { discount: [0.25, 0.5].includes(Number(x.discount)) ? Number(x.discount) : 0.5 };
+      case 'perk-makler': return {};
       case 'job': {
         const kinds = { mini: ['Minijob', 603], werk: ['Werkstudent:in', 1400], voll: ['Vollzeit', 3200] };
         const k = kinds[x.jobKind] ? x.jobKind : 'mini';
-        return { jobKind: k, title: X.cleanText(x.title, 60) || `${kinds[k][0]} bei Dulidan Studios`, gross: k === 'mini' ? 603 : n(x.gross || kinds[k][1], 1000, 9000), firm: c.key === 'shaquille' ? 'Dulidan Studios' : `Firma von ${c.name}` };
+        const firm = c.key === 'shaquille' ? 'Dulidan Studios' : (c.contacts || []).includes('kiosk-familie') ? `Kiosk ${c.name}` : `Firma von ${c.name}`;
+        return { jobKind: k, title: X.cleanText(x.title, 60) || `${kinds[k][0]} bei ${firm}`, gross: k === 'mini' ? 603 : n(x.gross || kinds[k][1], 1000, 9000), firm };
       }
       case 'money': { const amount = n(x.amount, 1, 1e7); if (c.stats.money < amount) return 'So viel hast du nicht.'; return { amount }; }
       case 'loan': { const amount = n(x.amount, 50, 1e7), months = n(x.months || 12, 1, 120), pm = n(x.pm || Math.ceil(amount / months), 1, amount); if (c.stats.money < amount) return 'So viel hast du nicht.'; return { amount, months, pm }; }
@@ -110,6 +115,14 @@
         rep(o.to, `Ab jetzt Opas Fahrschule: ${T.discount >= 1 ? 'gratis' : `${Math.round(T.discount * 100)} % Rabatt`}. Danke, ${from.name}.`);
         rep(o.from, `${to.name} fährt jetzt bei Opa.`);
         to.chronicle.push({ d: X.dateText(S), t: `Macht den Führerschein bei Opas Fahrschule (über ${from.name}).` });
+        return null;
+      }
+      case 'perk-werkstatt': case 'perk-makler': {
+        const kind = o.kind === 'perk-werkstatt' ? 'werkstatt' : 'makler';
+        to.perks = (to.perks || []).filter((p) => p.kind !== kind).concat({ kind, discount: T.discount || 1, from: o.from });
+        rel(to, from.name, 6); rel(from, to.name, 3);
+        rep(o.to, kind === 'werkstatt' ? `Ab jetzt schraubt ${from.name}s Onkel an deinem Auto. ${Math.round((T.discount || 0.5) * 100)} % günstiger.` : `Beim nächsten Kauf keine Maklerprovision. Danke, ${from.name}.`);
+        rep(o.from, `${to.name} nimmt dein Angebot an.`, '');
         return null;
       }
       case 'job': {

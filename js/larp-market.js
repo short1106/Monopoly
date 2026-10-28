@@ -261,7 +261,8 @@
   function loanRate(S, c) { const s = c.bank.schufa; return Math.round((S.econ.zins + (s >= 95 ? 0 : s >= 90 ? 0.35 : s >= 80 ? 0.9 : s >= 70 ? 1.8 : 3.2)) * 100) / 100; }
   function buyHome(S, pid, c, x, a, X) {
     if (!/^(buyflat|house)$/.test(x.cat)) return 'Das kann man nicht kaufen.';
-    const grest = Math.round(x.price * DB.STATES[x.st].grest / 100), notar = Math.round(x.price * 0.015), gb = Math.round(x.price * 0.005), makler = Math.round(x.price * x.courtage / 100);
+    const noMakler = (c.contacts || []).includes('mama-makler') || (c.perks || []).some((p) => p.kind === 'makler');
+    const grest = Math.round(x.price * DB.STATES[x.st].grest / 100), notar = Math.round(x.price * 0.015), gb = Math.round(x.price * 0.005), makler = noMakler ? 0 : Math.round(x.price * x.courtage / 100);
     const extra = grest + notar + gb + makler;
     const down = a.finance ? Math.max(extra, Math.round(Number(a.down) || 0)) : x.price + extra;
     if (!canPay(c, down)) return `Du brauchst ${X.eur(down)} (inklusive ${X.eur(extra)} Kaufnebenkosten).`;
@@ -474,6 +475,7 @@
         let repair = 0;
         if (c.car.defect && !c.car.defectFound) { c.car.defectFound = true; repair = 600 + X.rnd(1800); }
         else if (S.date.y - c.car.year > 8 && X.rnd(100) < 35) repair = 200 + X.rnd(900);
+        repair = Math.round(repair * (1 - garage(c)));
         c.stats.money -= repair;
         X.report(S, pid, '🔧', `TÜV ${repair ? `erst im zweiten Anlauf. Reparatur ${X.eur(repair)}${c.car.defect ? ` (${c.car.defect})` : ''}` : 'ohne Mängel'}. Gebühr ${X.eur(ap.fee)}. Nächster Termin in 2 Jahren.`, repair ? 'bad' : 'good');
         const t = X.idx(S.date) + 24;
@@ -598,6 +600,9 @@
     }
   }
 
+  // Werkstatt-Rabatt: eigener Onkel oder von Freunden angeboten
+  function garage(c) { if ((c.contacts || []).includes('onkel-werkstatt')) return 0.5; const p = (c.perks || []).find((x) => x.kind === 'werkstatt'); return p ? p.discount : 0; }
+
   // ---------- Monatlich: Kredite, Mieter, Auto, Hausgeld ----------
   function month(S, c, pid, X) {
     let inc = 0, out = 0;
@@ -649,7 +654,7 @@
       const k = carCosts(S, c, c.car);
       c.stats.money -= k.total; out += k.total;
       c.car.km += 1000;
-      if (c.car.defect && !c.car.defectFound && X.rnd(100) < 4) { c.car.defectFound = true; const rep = 500 + X.rnd(2500); c.stats.money -= rep; out += rep; X.report(S, pid, '💥', `Das Auto zeigt sein wahres Gesicht: ${c.car.defect}. Werkstatt ${X.eur(rep)}.`, 'bad'); }
+      if (c.car.defect && !c.car.defectFound && X.rnd(100) < 4) { c.car.defectFound = true; const rep = Math.round((500 + X.rnd(2500)) * (1 - garage(c))); c.stats.money -= rep; out += rep; X.report(S, pid, '💥', `Das Auto zeigt sein wahres Gesicht: ${c.car.defect}. Werkstatt ${X.eur(rep)}.`, 'bad'); }
     }
     // Ausbildung: Lehrjahr steigt
     if (c.edu && c.edu.kind === 'azubi' && c.job2 && c.edu.training) {
