@@ -89,8 +89,19 @@
   let pendSeen = 0;
 
   // ---------- Host: April (KI) ----------
+  const aprilBusy = {};
+  function aprilQueue(V, api) {
+    Object.entries(V.aprilWait || {}).forEach(([pid, seq]) => {
+      if (aprilBusy[pid] === seq) return;
+      aprilBusy[pid] = seq;
+      const k = AI.keys();
+      if (!k.anthropic) { api.act({ type: 'aprilReply', pid, seq, data: { reply: 'Ich bin gerade ohne KI unterwegs. Der Host muss oben unter „KI & Stimme“ einen Anthropic-Schlüssel eintragen, dann kann ich alles für dich umsetzen. Bis dahin: Markt, Akademie, Firma und die Ereignisse.' } }); return; }
+      AI.chat(V, pid).then((r) => { api.act(r.error ? { type: 'aprilReply', pid, seq, error: ERRORS[r.error] || r.error } : { type: 'aprilReply', pid, seq, data: r.data }); });
+    });
+  }
   function controller(V, api) {
     if (!api.isHost) return;
+    aprilQueue(V, api);
     if (V.phase === 'act' && V.deadline && Date.now() > V.deadline && forcedFor !== V.aiSeq) { forcedFor = V.aiSeq; api.act({ type: 'force' }); return; }
     if (V.phase !== 'think' || V.gm !== 'ai' || aiRun === V.aiSeq || (aiErr && aiErr.seq === V.aiSeq)) return;
     const seq = V.aiSeq;
@@ -478,10 +489,12 @@
           return `<button type="button" class="lb-opt ${dr.choice === i ? 'is-picked' : ''} ${poor ? 'is-poor' : ''}" data-choice="${i}" style="--odds:${o.dc ? p : 100}%" ${poor ? 'disabled' : ''}><b>${esc(o.t)}</b>${odds}${o.cost ? `<small>${poor ? 'zu teuer: ' : 'kostet '}${eur(o.cost)}</small>` : ''}</button>`;
         }).join('');
         cardHtml = `<div class="lb-card kind-${esc(card.kind || 'real')}"><span class="lb-k">Ereignis · ${KIND[card.kind] || 'Alltag'}${card.t ? ` · ${esc(card.t)}` : ''}</span><p class="lb-card-t">${esc(card.text)}</p><div class="lb-opts">${opts}</div>
-          <details class="lb-free" ${dr.text ? 'open' : ''}><summary>Oder etwas ganz anderes machen</summary><textarea id="mo-text" rows="3" maxlength="600" placeholder="Schreib, was ${esc(c.name)} tut, sagt oder plant."></textarea></details></div>`;
+          <div class="lb-free open"><label class="lx-lbl">Oder mach etwas ganz anderes – du kannst alles schreiben:</label><textarea id="mo-text" rows="2" maxlength="600" placeholder="Schreib, was ${esc(c.name)} tut, sagt oder plant. Freitext ersetzt die Auswahl oben."></textarea></div></div>`;
       } else cardHtml = `${V.events[me] ? `<div class="lb-card"><span class="lb-k">Ereignis</span>${para(V.events[me])}</div>` : ''}<div class="lb-form-do"><label class="field"><span>Was machst du? (frei schreiben)</span></label><textarea id="mo-text" rows="3" maxlength="600" placeholder="Schreib, was ${esc(c.name)} tut, sagt oder plant."></textarea></div>`;
     }
+    cardHtml += playing && !sent ? `<button class="lx-askbtn" id="mo-ask"><b>Frag April</b><span>Du willst etwas, das es hier nicht gibt? Café eröffnen, Pferd kaufen, Band gründen … schreib es April. Sie fragt nach und setzt es sofort um.</span></button>` : '';
     if (put($('#mo-card'), cardHtml)) {
+      if ($('#mo-ask')) $('#mo-ask').onclick = () => { phone.open = true; phone.app = 'april'; phone.thread = null; renderPhone(last.V, last.me); };
       $('#mo-card').querySelectorAll('[data-choice]').forEach((b) => { b.onclick = () => { FX && FX.play('pop'); dr.choice = dr.choice === Number(b.dataset.choice) ? null : Number(b.dataset.choice); if (dr.choice != null) dr.text = ''; redraw(); }; });
       const ta = $('#mo-text');
       if (ta) { ta.value = dr.text; ta.oninput = () => { dr.text = ta.value; if (dr.text && dr.choice != null) { dr.choice = null; $('#mo-card').querySelectorAll('.is-picked').forEach((x) => x.classList.remove('is-picked')); } }; }
@@ -902,6 +915,11 @@
       if (!(phone.open && phone.app === 'sms' && phone.thread === m.from)) { toast(`SMS von ${smsName(V, m.from)}: ${m.t.slice(0, 60)}`); FX && FX.play('pop'); }
     });
     const reqs = (V.offers || []).filter((o) => o.to === me && o.status === 'open');
+    const achat = ((V.aprilChat || {})[me] || []);
+    if (phone.aprilSeen == null) phone.aprilSeen = achat.length;
+    if (phone.open && phone.app === 'april') phone.aprilSeen = achat.length;
+    const aprilNew = achat.slice(phone.aprilSeen).filter((m) => m.who === 'april').length;
+    if (aprilNew && phone.aprilToast !== achat.length) { phone.aprilToast = achat.length; toast(`April: ${achat[achat.length - 1].t.slice(0, 70)}`); FX && FX.play('pop'); }
     const unread = threadsOf(V, me).reduce((s2, t) => s2 + t.unread, 0);
     if (!btn) {
       btn = document.createElement('button');
@@ -909,14 +927,14 @@
       btn.onclick = () => { phone.open = !phone.open; renderPhone(last.V, last.me); };
       document.body.appendChild(btn);
     }
-    put(btn, `<svg viewBox="0 0 24 24" width="22" height="22"><rect x="6" y="2" width="12" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1.3" fill="currentColor"/></svg>${unread + reqs.length ? `<i>${unread + reqs.length}</i>` : ''}`);
+    put(btn, `<svg viewBox="0 0 24 24" width="22" height="22"><rect x="6" y="2" width="12" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="18" r="1.3" fill="currentColor"/></svg>${unread + reqs.length + aprilNew ? `<i>${unread + reqs.length + aprilNew}</i>` : ''}`);
     let ov = document.getElementById('lx-phone');
     if (!phone.open) { if (ov) ov.remove(); return; }
     if (!ov) { ov = document.createElement('div'); ov.id = 'lx-phone'; ov.className = 'lx-phone'; document.body.appendChild(ov); }
     const top = `<div class="ph-top"><span>${esc(L.dateText(V))}</span><b>${esc(c.name)}</b><button class="ph-x" data-ph="close" aria-label="Schließen">×</button></div>`;
     let inner = '';
     if (phone.app === 'home') {
-      inner = `<div class="ph-home"><button class="ph-app" data-ph="sms"><span class="ic sms">SMS</span><small>Nachrichten</small>${unread ? `<i>${unread}</i>` : ''}</button><button class="ph-app" data-ph="req"><span class="ic req">!</span><small>Anfragen</small>${reqs.length ? `<i>${reqs.length}</i>` : ''}</button><button class="ph-app" data-ph="bank"><span class="ic bank">€</span><small>Banking</small></button></div><p class="ph-note">April liest mit. Was ihr schreibt, ist Teil der Geschichte.</p>`;
+      inner = `<div class="ph-home"><button class="ph-app" data-ph="sms"><span class="ic sms">SMS</span><small>Nachrichten</small>${unread ? `<i>${unread}</i>` : ''}</button><button class="ph-app" data-ph="req"><span class="ic req">!</span><small>Anfragen</small>${reqs.length ? `<i>${reqs.length}</i>` : ''}</button><button class="ph-app" data-ph="bank"><span class="ic bank">€</span><small>Banking</small></button><button class="ph-app" data-ph="april"><span class="ic april">A</span><small>Frag April</small>${aprilNew ? `<i>${aprilNew}</i>` : ''}</button></div><p class="ph-note">April liest mit. Was ihr schreibt, ist Teil der Geschichte.</p>`;
     } else if (phone.app === 'sms' && !phone.thread) {
       const th = threadsOf(V, me), others = V.players.filter((p) => p.id !== me && V.chars[p.id] && !V.chars[p.id].dead && !th.some((t) => t.k === p.id));
       inner = `<div class="ph-head"><button data-ph="home">‹</button><b>Nachrichten</b></div><ul class="ph-list">${th.map((t) => `<li data-th="${esc(t.k)}"><span class="av" style="--pc:${esc(smsColor(V, t.k))}">${esc(smsName(V, t.k)[0])}</span><div><b>${esc(smsName(V, t.k))}</b><small>${t.last.from === me ? 'Du: ' : ''}${esc(t.last.t.slice(0, 50))}</small></div>${t.unread ? `<i>${t.unread}</i>` : ''}</li>`).join('')}
@@ -929,19 +947,24 @@
         <div class="ph-in"><input id="ph-text" maxlength="400" placeholder="Nachricht …" value="${esc(phone.draft[k] || '')}"><button id="ph-send">Senden</button></div>`;
     } else if (phone.app === 'req') {
       inner = `<div class="ph-head"><button data-ph="home">‹</button><b>Anfragen</b></div>${reqs.length ? reqs.map((o) => `<div class="ph-req"><b>${esc(o.fromName)} · ${esc(SOC.KINDS[o.kind].name)}</b><p>${esc(SOC.KINDS[o.kind].text(o))}</p><div class="btn-row"><button class="btn btn-small btn-primary" data-pans="${o.id}" data-yes="1">${SOC.KINDS[o.kind].ask ? 'Ja' : 'Annehmen'}</button><button class="btn btn-small" data-pans="${o.id}">${SOC.KINDS[o.kind].ask ? 'Nein' : 'Ablehnen'}</button></div></div>`).join('') : '<p class="ph-empty">Keine offenen Anfragen.</p>'}`;
+    } else if (phone.app === 'april') {
+      const waiting = V.aprilWait && V.aprilWait[me];
+      inner = `<div class="ph-head"><button data-ph="home">‹</button><span class="av" style="--pc:#ff4fd8">A</span><b>April</b><small class="ph-sub">${V.gm === 'ai' || AI.keys().anthropic || !last.api.isHost ? 'deine Spielleiterin' : 'ohne KI-Schlüssel'}</small></div>
+        <div class="ph-chat" id="ph-chat">${achat.length ? '' : '<p class="ph-hint">Schreib mir, was du machen willst. Alles. Ich frag nach, wenn mir was fehlt, und setz es dann um. Mit echtem Geld und echten Folgen.</p>'}${achat.map((m) => `<p class="${m.who === 'me' ? 'me' : 'april'}">${esc(m.t)}<small>${esc(m.d)}</small></p>`).join('')}${waiting ? '<p class="april typing"><span></span><span></span><span></span></p>' : ''}</div>
+        <div class="ph-in"><input id="ph-text" maxlength="600" placeholder="Ich will …" value="${esc(phone.draft.april || '')}" ${waiting ? 'disabled' : ''}><button id="ph-send" ${waiting ? 'disabled' : ''}>Senden</button></div>`;
     } else if (phone.app === 'bank') {
       const loans = c.bank.loans.reduce((s2, l) => s2 + l.rest, 0);
       inner = `<div class="ph-head"><button data-ph="home">‹</button><b>Banking</b></div><div class="ph-bank"><small>Kontostand</small><b class="${c.stats.money < 0 ? 'down' : 'up'}">${eur(c.stats.money)}</b><p>Dispo ${eur(c.bank.dispo)} · SCHUFA ${c.bank.schufa}${loans ? ` · Kredite offen ${eur(loans)}` : ''}</p>${(c.effects || []).filter((e) => e.pm).slice(0, 10).map((e) => `<p class="ph-tx"><span>${esc(e.name)}</span><b class="${e.pm > 0 ? 'up' : 'down'}">${e.pm > 0 ? '+' : ''}${eur(e.pm)}</b></p>`).join('')}</div>`;
     }
     if (put(ov, `<div class="ph-frame">${top}<div class="ph-screen">${inner}</div></div>`)) {
-      ov.querySelectorAll('[data-ph]').forEach((b) => { b.onclick = () => { const t = b.dataset.ph; if (t === 'close') phone.open = false; else { phone.app = t === 'home' || t === 'sms' || t === 'req' || t === 'bank' ? t : 'home'; phone.thread = null; } renderPhone(last.V, last.me); }; });
+      ov.querySelectorAll('[data-ph]').forEach((b) => { b.onclick = () => { const t = b.dataset.ph; if (t === 'close') phone.open = false; else { phone.app = ['home', 'sms', 'req', 'bank', 'april'].includes(t) ? t : 'home'; phone.thread = null; } renderPhone(last.V, last.me); }; });
       ov.querySelectorAll('[data-th]').forEach((b) => { b.onclick = () => { phone.thread = b.dataset.th; renderPhone(last.V, last.me); }; });
       ov.querySelectorAll('[data-pans]').forEach((b) => { b.onclick = () => act({ type: 'oAnswer', id: b.dataset.pans, yes: !!b.dataset.yes }); });
       const inp = ov.querySelector('#ph-text');
       if (inp) {
-        const k = phone.thread;
+        const k = phone.app === 'april' ? 'april' : phone.thread;
         inp.oninput = () => { phone.draft[k] = inp.value; };
-        const send = () => { const t = inp.value.trim(); if (!t) return; phone.draft[k] = ''; inp.value = ''; act({ type: 'sms', to: k, text: t }); };
+        const send = () => { const t = inp.value.trim(); if (!t) return; phone.draft[k] = ''; inp.value = ''; act(k === 'april' ? { type: 'askApril', text: t } : { type: 'sms', to: k, text: t }); };
         ov.querySelector('#ph-send').onclick = send;
         inp.onkeydown = (e) => { if (e.key === 'Enter') send(); };
         const ch = ov.querySelector('#ph-chat'); if (ch) ch.scrollTop = ch.scrollHeight;
@@ -1304,6 +1327,7 @@
       <li>Im <b>Markt</b>: Wohnungen und WGs auf echten Straßen, Häuser mit Grunderwerbsteuer, Notar und Kredit, Autos mit Versicherung und TÜV, echte Hochschulen mit NC, Ausbildungsplätze, Jobs, Kleinanzeigen.</li>
       <li>In der <b>Akademie</b> gibt es Prüfungen für fast alles: Pilot, Polizei, Bundeswehr, Rettungsdienst, Motorrad, Tauchen … April schickt dir einen Lernzettel.</li>
       <li><b>Weltweit</b>: im Ausland studieren (IELTS, Visum), auswandern, reisen.</li>
+      <li><b>Frag April</b> (Handy): Schreib April, was du machen willst – egal was. Sie fragt nach und setzt es um (mit KI-Schlüssel beim Host).</li>
       <li>Jede Runde gibt es ein <b>Ereignis</b> mit Würfelprobe. Am Ende zählt das beste Leben. In der Lobby kann der Host <b>Bots</b> dazuholen.</li></ul></div>`,
     engine: L, render,
     onCustom: (d) => { if (d && d.kind === 'voice' && d.audio) AI.play(d.audio); },

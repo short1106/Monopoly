@@ -218,5 +218,52 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
   }
   function stopVoice() { try { if (audioEl) audioEl.pause(); } catch (e) { /* egal */ } }
 
-  window.DULI_LARP_AI = { MODELS, VOICE_ID, keys, saveKeys, runAI, speak, play, stopVoice, voice, userMessage, SYSTEM };
+  // ---------- „Frag April“: direktes Gespräch, sofort umgesetzt ----------
+  const CHAT_LITE = obj({
+    reply: str, chronicle: str,
+    delta: obj({ money: int, health: int, happy: int, power: int }),
+    add_effects: { type: 'array', items: obj({ name: str, pm: int, health: int, happy: int, power: int, months: int }) },
+    status: obj({ job: str, location: str, title: str, living: str }),
+    job: obj({ set: bool, title: str, firm: str, gross: int }),
+    company: obj({ found: bool, name: str }),
+    loan: obj({ amount: int, months: int, why: str }),
+  });
+  const CHAT_SCHEMA = JSON.parse(JSON.stringify(CHAT_LITE));
+  Object.assign(CHAT_SCHEMA.properties, {
+    end_effects: { type: 'array', items: str },
+    skills: { type: 'array', items: obj({ name: str, change: int }) },
+    assets: { type: 'array', items: obj({ name: str, kind: str, value: int, pm: int, remove: bool }) },
+    appointments: { type: 'array', items: obj({ title: str, where: str, months_from_now: int }) },
+    places: { type: 'array', items: obj({ name: str, lat: { type: 'number' }, lng: { type: 'number' } }) },
+    memory: str,
+  });
+  CHAT_SCHEMA.required = Object.keys(CHAT_SCHEMA.properties);
+  let chatLite = false;
+  const CHAT_RULES = `Eine Person spricht dich gerade direkt an („Frag April“), mitten im Monat. Sie darf ALLES versuchen, was ein Mensch im echten Leben tun kann: Firma gründen, Laden eröffnen, etwas kaufen oder verkaufen, umziehen, jemanden anrufen, Sport anfangen, verreisen, Unsinn machen, Verbrechen begehen. Du bist ihre Spielleiterin.
+- Fehlen wichtige Details (wo, wie viel Geld, wie genau, mit wem), stell in "reply" eine kurze Rückfrage und ändere noch nichts (alles 0/leer).
+- Ist es klar, setz es sofort um und erzähl in "reply" in 2–4 Sätzen (du-Form, Aprils Ton), was passiert. Realistisch: Dinge kosten echtes Geld (delta.money negativ), laufende Kosten als add_effects (pm negativ), Einnahmen nur, wenn sie glaubwürdig sind. Nicht alles klappt sofort; Glück, Können (skills) und Geld entscheiden. Riskantes kann schiefgehen.
+- Job mit Gehalt: "job" (set=true, Titel, Firma, Brutto). Eigene Firma gründen: "company" (found=true, Name) und Gründungskosten abziehen. Bankkredit: "loan" (Betrag, Laufzeit in Monaten, Zweck) – die Bank prüft selbst SCHUFA und Einkommen; das Geld kommt dann aufs Konto, also delta.money nicht zusätzlich erhöhen. Besitz: "assets". Neue Fähigkeiten: "skills". Treffen und Fristen: "appointments". Orte: "places" (echte Koordinaten). Merken: "memory".
+- Feste Systeme machst du nicht selbst, sondern verweist darauf: Abi und Prüfungen (Kalender), Führerschein (Dieser Monat), Wohnungen, Autos, Büros, Studium, Jobs aus Anzeigen (Markt), Lizenzen (Akademie), Mitarbeiter (Firma), Reisen buchen (Markt → Reisen). Sag kurz, wo es geht.
+- Bleib bei dieser einen Person. Antworte nur im JSON-Format.`;
+  async function chat(S, pid) {
+    const k = keys();
+    if (!k.anthropic || !window.Anthropic) return { error: 'nokey' };
+    try {
+      const client = new window.Anthropic({ apiKey: k.anthropic, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 120000 });
+      const model = MODELS.some(([id]) => id === k.model) ? k.model : MODELS[0][0];
+      const hist = ((S.aprilChat || {})[pid] || []).slice(-12).map((m) => `${m.who === 'me' ? 'Person' : 'April'}: ${m.t}`);
+      const ctx = { aufgabe: CHAT_RULES, datum: L.dateText(S), person: charContext(S, pid), gespraech: hist };
+      const params = (schema) => ({ model, max_tokens: 4000, system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }], messages: [{ role: 'user', content: JSON.stringify(ctx) }], output_config: { effort: 'low', format: { type: 'json_schema', schema } } });
+      let res;
+      try { res = await client.messages.create(params(chatLite ? CHAT_LITE : CHAT_SCHEMA)); } catch (e) {
+        if (e && e.status === 400 && !chatLite) { chatLite = true; res = await client.messages.create(params(CHAT_LITE)); } else throw e;
+      }
+      return parse(res);
+    } catch (e) {
+      console.warn('Frag April:', e);
+      const st = e && e.status;
+      return { error: st === 401 ? 'badkey' : st === 429 ? 'ratelimit' : st === 400 ? 'badrequest' : 'network', detail: String((e && e.message) || e).slice(0, 200) };
+    }
+  }
+  window.DULI_LARP_AI = { chat, MODELS, VOICE_ID, keys, saveKeys, runAI, speak, play, stopVoice, voice, userMessage, SYSTEM };
 })();

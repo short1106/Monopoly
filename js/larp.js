@@ -380,6 +380,30 @@
         if (Co) Co.sms(S, pid, /^npc:/.test(to) ? `npc:${cleanText(to.slice(4), 40)}` : to, t);
         return null;
       }
+      // „Frag April“: freie Wünsche an April (KI). Sie fragt nach oder setzt es direkt um.
+      case 'askApril': {
+        if (!me || me.dead) return 'Deine Figur lebt nicht mehr.';
+        const t = cleanText(a.text, 600);
+        if (!t) return 'Schreib, was du willst.';
+        S.aprilChat = S.aprilChat || {};
+        const list = (S.aprilChat[pid] = S.aprilChat[pid] || []);
+        if (list.filter((m) => m.who === 'me' && m.round === S.round).length >= 8) return 'April braucht eine Pause. Nächste Runde wieder (höchstens 8 Nachrichten pro Runde).';
+        list.push({ who: 'me', t, d: dateText(S), round: S.round });
+        if (list.length > 40) list.splice(0, list.length - 40);
+        S.aprilWait = Object.assign({}, S.aprilWait || {}, { [pid]: (S.aprilSeq = (S.aprilSeq || 0) + 1) });
+        return null;
+      }
+      case 'aprilReply': {
+        if (!isHost) return 'Nur der Host.';
+        const tp = a.pid, c = S.chars[tp];
+        if (!c || !S.aprilWait || S.aprilWait[tp] !== a.seq) return null;
+        delete S.aprilWait[tp];
+        const x = a.data || {};
+        const t = cleanText(x.reply, 900) || (a.error ? `Ich komme gerade nicht durch (${cleanText(a.error, 80)}). Versuch es gleich nochmal.` : '…');
+        S.aprilChat[tp].push({ who: 'april', t, d: dateText(S), round: S.round });
+        if (!a.error) applyChat(S, tp, c, x);
+        return null;
+      }
       case 'chat': {
         const t = cleanText(a.text, 280);
         if (!t || !me) return null;
@@ -789,6 +813,63 @@
     if (Co) Co.sms(S, pid, fid, `${card.text} „${o.t}“ – bist du dabei?`);
   }
 
+  // Was April im direkten Gespräch umsetzt: dieselben Bausteine wie in der Runde, plus Job und Firma
+  function applyChat(S, pid, c, x) {
+    const d = x.delta || {};
+    const cap = Math.max(25000, Math.abs(c.stats.money) * 1.5 + c.props.reduce((s2, q) => s2 + q.value, 0) * 0.5);
+    const dm = num(d.money, -cap, cap);
+    c.stats.money += dm;
+    STATS.forEach((k) => { c.stats[k] = clampStat(c.stats[k] + num(d[k], -30, 30)); });
+    (Array.isArray(x.add_effects) ? x.add_effects : []).slice(0, 3).forEach((e) => {
+      const name = cleanText(e && e.name, 80);
+      if (!name || c.effects.length >= 24) return;
+      const mcap = Math.max(4000, Math.abs(c.stats.money) * 0.3);
+      c.effects = c.effects.filter((o) => o.name !== name);
+      const months = num(e.months, 0, 600);
+      c.effects.push({ id: uid('e'), name, pm: num(e.pm, -mcap, mcap), health: num(e.health, -24, 24), happy: num(e.happy, -24, 24), power: num(e.power, -24, 24), until: months ? S.round + 1 + Math.max(1, Math.ceil(months / Math.max(1, S.stepM))) : 0 });
+    });
+    (Array.isArray(x.end_effects) ? x.end_effects : []).slice(0, 4).forEach((name) => { const n = cleanText(name, 80).toLowerCase(); if (n) c.effects = c.effects.filter((e) => e.locked || e.name.toLowerCase() !== n); });
+    const st = x.status || {};
+    if (st.job) c.job = cleanText(st.job, 100);
+    if (st.location) c.location = cleanText(st.location, 80);
+    if (st.title != null && st.title !== '') c.title = cleanText(st.title, 80) === '-' ? '' : cleanText(st.title, 80);
+    if (st.living) c.living = cleanText(st.living, 100);
+    // Job mit echtem Vertrag (Gehalt läuft jeden Monat)
+    const j = x.job || {};
+    if (j.set && cleanText(j.title, 80)) {
+      if (c.job2) endJob(S, c, 'neuer Job');
+      const gross = num(j.gross, 0, 30000);
+      c.job2 = { title: cleanText(j.title, 80), firm: cleanText(j.firm, 60) || 'Arbeitgeber', gross, kind: gross <= DB.TAX.minijob ? 'mini' : 'voll', since: idx(S.date), warnings: 0 };
+      c.job = `${c.job2.title} bei ${c.job2.firm}`;
+      if (!c.flags.path) { c.flags.path = 'job'; c.flags.pathAt = idx(S.date); }
+    }
+    // Firma gründen
+    const f = x.company || {};
+    if (f.found && cleanText(f.name, 60)) {
+      c.flags.company = Math.max(1, c.flags.company || 0);
+      c.flags.path = c.flags.path || 'founder';
+      const Co = CO();
+      if (Co) Co.firm(c).name = cleanText(f.name, 60);
+    }
+    // Bankkredit: die Bank prüft wie im Markt (SCHUFA, Einkommen)
+    const L0 = x.loan || {};
+    if (num(L0.amount, 0, 1e7) >= 500) {
+      const amount = num(L0.amount, 500, 1e7), months = num(L0.months || 60, 6, 360);
+      const inc = (c.job2 ? DB.net(c.job2.gross, c.job2.kind) : 0) + c.effects.filter((e) => e.pm > 0).reduce((s2, e) => s2 + e.pm, 0);
+      const rate = Math.round((S.econ.zins + (c.bank.schufa >= 90 ? 1.5 : 3.5)) * 100) / 100, annuity = Math.round(amount / months + amount * rate / 100 / 12);
+      if (c.bank.schufa < 55) report(S, pid, '•', `Bank lehnt den Kredit ab: SCHUFA ${c.bank.schufa}.`, 'bad');
+      else if (annuity > Math.max(150, inc * 0.45)) report(S, pid, '•', `Bank lehnt den Kredit über ${eur(amount)} ab: Die Rate von ${eur(annuity)} passt nicht zu deinem Einkommen.`, 'bad');
+      else { c.bank.loans.push({ id: uid('k'), why: cleanText(L0.why, 60) || 'Kredit', orig: amount, rest: amount, rate, annuity }); c.stats.money += amount; report(S, pid, '•', `Kredit bewilligt: ${eur(amount)} zu ${String(rate).replace('.', ',')} %, Rate ${eur(annuity)} im Monat.`, 'good'); }
+    }
+    const ch = cleanText(x.chronicle, 200);
+    if (ch) c.chronicle.push({ d: dateText(S), t: ch });
+    applyTools(S, pid, c, x, 1);
+    const parts = [];
+    if (dm) parts.push(`${dm > 0 ? '+' : ''}${eur(dm)}`);
+    if (ch) parts.push(ch);
+    if (parts.length) report(S, pid, '•', `April: ${parts.join(' · ')}`, dm < 0 ? '' : 'good');
+  }
+
   // ---------- Bausteine, mit denen April (KI) alles Mögliche ins Spiel bringen kann ----------
   function applyTools(S, pid, c, x, M) {
     const Co = CO();
@@ -995,7 +1076,10 @@
   // Sicht: eigene Pläne bleiben geheim
   function view(S, pid) {
     const V = JSON.parse(JSON.stringify(S));
-    V.sms = (V.sms || []).filter((m) => m.from === pid || m.to === pid);
+    if (pid !== S.host) {
+      V.sms = (V.sms || []).filter((m) => m.from === pid || m.to === pid);
+      V.aprilChat = { [pid]: (V.aprilChat || {})[pid] || [] };
+    }
     if (pid !== S.host) {
       Object.keys(V.actions).forEach((k) => { if (k !== pid) V.actions[k] = '•'; });
       Object.keys(V.picks || {}).forEach((k) => { if (k !== pid) delete V.picks[k]; });

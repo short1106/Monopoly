@@ -356,3 +356,17 @@
 .lx-awards span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
 .lx-awards b { font-size: 18px; }
 .lx-awards small { opacity: .75; }
+/* Frag April */
+.ph-app .april { background: linear-gradient(135deg, #ff4fd8, #7a5cff); font-size: 24px; }
+.ph-sub { margin-left: auto; opacity: .6; font-size: 11px; }
+.ph-chat p.april { background: linear-gradient(135deg, #3a1f45, #2a2040); border: 1px solid rgba(255, 79, 216, .35); }
+.ph-hint { opacity: .7; font-size: 13px; text-align: center; margin: 20px 10px; }
+.ph-chat p.typing { display: flex; gap: 4px; padding: 12px 14px; }
+.ph-chat p.typing span { width: 7px; height: 7px; border-radius: 50%; background: #ff9be9; animation: lxDot 1s infinite; }
+.ph-chat p.typing span:nth-child(2) { animation-delay: .15s; } .ph-chat p.typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes lxDot { 50% { opacity: .2; transform: translateY(-3px); } }
+.lx-askbtn { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-top: 12px; padding: 14px 16px; border: 1px solid rgba(255, 79, 216, .5); border-radius: 16px; background: linear-gradient(135deg, rgba(255, 79, 216, .14), rgba(122, 92, 255, .14)); color: var(--fg); text-align: left; cursor: pointer; font: 14px var(--font); }
+.lx-askbtn b { font-size: 16px; color: #ff9be9; }
+.lx-askbtn span { opacity: .8; font-size: 13px; }
+.lb-free.open { margin-top: 12px; }
+.lb-free.open textarea { width: 100%; }
