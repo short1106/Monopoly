@@ -339,6 +339,30 @@
         : x === 1 && y === 1 ? [[0, 2, 'Ihr schlaft. Alle anderen nicht. Ihr seid die einzigen, die sich an die Rückfahrt erinnern.'], [0, 2, null]]
           : x === 0 ? [[-80, 6, '{a} feiert, {b} will schlafen. Um vier Uhr fliegt ein Kissen.', true], [0, -4, null]]
             : [[0, -4, '{b} feiert, {a} will schlafen. Um vier Uhr fliegt ein Kissen.', true], [-80, 6, null]] },
+    { id: 'crush', text: (a, b) => `${a} und ${b} sitzen nachts allein auf einer Parkbank. Die Stimmung ist … komisch. Gut komisch.`,
+      opts: ['Gefühle gestehen', 'Nichts sagen, cool bleiben'],
+      res: (x, y) => x === 0 && y === 0 ? [[0, 15, 'Ihr gesteht es euch beide. Gleichzeitig. Peinlich und perfekt.'], [0, 15, null]]
+        : x === 1 && y === 1 ? [[0, -2, 'Ihr redet über das Wetter. Zwei Stunden lang. Ihr denkt beide dasselbe und sagt es nie.'], [0, -2, null]]
+          : x === 0 ? [[0, -12, '{a} gesteht alles. {b} sagt „Du bist echt ein guter Freund.“ Autsch.'], [0, 2, null]]
+            : [[0, 2, null], [0, -12, '{b} gesteht alles. {a} sagt „Du bist echt eine gute Freundin.“ Autsch.']] },
+    { id: 'spickzettel', school: true, text: (a, b) => `Mathe-Klausur. ${a} und ${b} sitzen nebeneinander. Die Aufsicht schaut aufs Handy.`,
+      opts: ['Zusammen spicken', 'Jeder für sich'],
+      res: (x, y) => x === 0 && y === 0 ? [[0, 5, 'Ihr helft euch gegenseitig. Niemand merkt was. Beide gute Noten.'], [0, 5, null]]
+        : x === 1 && y === 1 ? [[0, 0, 'Ehrliche Klausur. Mittelmäßige Noten. Reines Gewissen.'], [0, 0, null]]
+          : x === 0 ? [[-50, -8, '{a} will abschreiben, {b} hält das Blatt zu. {a} wird beim Rüberschauen erwischt.'], [0, 2, null]]
+            : [[0, 2, null], [-50, -8, '{b} will abschreiben, {a} hält das Blatt zu. {b} wird erwischt.']] },
+    { id: 'pruegelei', text: (a, b) => `Vor einer Bar in der Stadt pöbelt jemand ${a} an. ${b} steht daneben.`,
+      opts: ['Dazwischengehen', 'Weggehen'],
+      res: (x, y) => x === 0 && y === 0 ? [[-80, 6, 'Ihr steht zusammen. Der Typ verschwindet. Ihr habt ein blaues Auge und eine Geschichte.'], [-80, 6, null]]
+        : x === 1 && y === 1 ? [[0, -1, 'Ihr geht beide. Klug. Nicht heldenhaft, aber klug.'], [0, -1, null]]
+          : x === 0 ? [[-300, -6, '{a} geht dazwischen, {b} ist plötzlich weg. Anzeige wegen Körperverletzung für {a}.', true], [0, -3, null]]
+            : [[0, -3, null], [-300, -6, '{b} geht dazwischen, {a} ist plötzlich weg. Anzeige für {b}.', true]] },
+    { id: 'wohnungsparty', text: (a, b) => `${a} und ${b} schmeißen zusammen eine Party. Morgens um vier ruft der Nachbar die Polizei.`,
+      opts: ['Ich nehme das auf mich', 'Ich war das nicht'],
+      res: (x, y) => x === 0 && y === 0 ? [[-100, 6, 'Ihr steht beide dazu. Ordnungsgeld geteilt, die Polizisten finden euch fast sympathisch.'], [-100, 6, null]]
+        : x === 1 && y === 1 ? [[-250, -6, 'Ihr zeigt aufeinander. Die Polizei zeigt auf euch beide. Je 250 €.'], [-250, -6, null]]
+          : x === 0 ? [[-200, 2, '{a} nimmt alles auf sich. {b} schuldet {a} jetzt was. Viel.'], [0, 0, null]]
+            : [[0, 0, null], [-200, 2, '{b} nimmt alles auf sich. {a} schuldet {b} jetzt was.']] },
   ];
   function maybeScene(S, X) {
     if (S.scene && !S.scene.done) return;
@@ -378,13 +402,13 @@
     const x = sc.choices[a] != null ? sc.choices[a] : 0, y = sc.choices[b] != null ? sc.choices[b] : 0;
     const def = SCENES.find((s) => s.id === sc.kind);
     const [ra, rb] = def.res(x, y);
-    const text = ra[2].replace(/\{a\}/g, A.name).replace(/\{b\}/g, B.name);
+    const text = (ra[2] || rb[2] || '').replace(/\{a\}/g, A.name).replace(/\{b\}/g, B.name);
     [[A, a, ra], [B, b, rb]].forEach(([C, id, r]) => {
       C.stats.money += r[0];
       C.stats.happy = X.clampStat(C.stats.happy + r[1]);
       X.report(S, id, '•', `Gemeinsame Szene: ${text}`, r[1] > 0 || r[0] > 0 ? 'good' : r[1] < 0 || r[0] < 0 ? 'bad' : '');
     });
-    if (ra[3]) { const [traitor, victim] = x === 1 ? [A, B] : [B, A]; rel(victim, traitor.name, -30, 'hat dich verraten'); rel(traitor, victim.name, -5); }
+    if (ra[3] || rb[3]) { const [traitor, victim] = x === 1 ? [A, B] : [B, A]; rel(victim, traitor.name, -30, 'hat dich verraten'); rel(traitor, victim.name, -5); }
     else { rel(A, B.name, ra[1] > 0 ? 8 : -6); rel(B, A.name, rb[1] > 0 ? 8 : -6); }
     sc.result = text; sc.picks = { [a]: sc.opts[x], [b]: sc.opts[y] };
     A.chronicle.push({ d: X.dateText(S), t: text }); B.chronicle.push({ d: X.dateText(S), t: text });

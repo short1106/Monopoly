@@ -840,6 +840,13 @@
       }
     });
     if (task === 'resolve') {
+      // Wirtschaft: Zinsen, Inflation, Spritpreis wandern langsam
+      const e = S.econ;
+      for (let k = 0; k < M; k++) {
+        e.zins = Math.round(clamp(e.zins + (rng() - 0.5) * 0.18, 1.2, 7.5) * 100) / 100;
+        e.infl = Math.round(clamp(e.infl + (rng() - 0.5) * 0.25, -0.5, 8) * 100) / 100;
+        e.fuel = Math.round(clamp(e.fuel + (rng() - 0.5) * 0.06, 1.35, 2.6) * 100) / 100;
+      }
       S.round++;
       const mm = S.date.m + M;
       S.date = { y: S.date.y + Math.floor(mm / 12), m: mm % 12 };

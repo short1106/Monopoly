@@ -434,6 +434,12 @@
     const c = S.chars[pid], skip = dec.d !== 'go' || late;
     switch (ap.kind) {
       case 'keys': X.report(S, pid, '🔑', `Schlüssel abgeholt: ${c.housing.label || ''}.`); return;
+      case 'aufbau': {
+        if (skip) { c.license.has = false; c.license.status = 'none'; c.license.revoked = true; X.report(S, pid, '•', 'Aufbauseminar geschwänzt. Die Führerscheinstelle zieht den Führerschein ein.', 'bad'); c.chronicle.push({ d: X.dateText(S), t: 'Führerschein weg, Aufbauseminar geschwänzt.' }); return; }
+        c.stats.money -= ap.fee;
+        X.report(S, pid, '•', `Aufbauseminar gemacht. Vier Abende mit Leuten, die auch zu schnell waren. ${X.eur(ap.fee)}.`);
+        return;
+      }
       case 'tax': {
         const T = c.taxDue;
         if (!T) return;
@@ -650,6 +656,21 @@
       }
       p.value = Math.round(p.value * (1 + (S.econ.infl + 0.6) / 1200));
     });
+    // Blitzer: wer fährt, wird manchmal erwischt
+    if (c.car && c.license.has && X.rnd(1000) < 45) {
+      const over = 6 + X.rnd(30), fine = over <= 10 ? 30 : over <= 15 ? 70 : over <= 20 ? 115 : over <= 25 ? 180 : 260, pts = over > 20 ? 1 : 0;
+      c.stats.money -= fine; out += fine;
+      c.license.points = (c.license.points || 0) + pts;
+      let line = `Geblitzt: ${over} km/h zu schnell. ${X.eur(fine)}${pts ? ', 1 Punkt in Flensburg' : ''}.`;
+      if (pts && c.license.probation && X.idx(S.date) < c.license.probation) {
+        c.license.probation += 24;
+        const t = X.idx(S.date) + 2;
+        X.addAppt(S, c, { kind: 'aufbau', y: Math.floor(t / 12), m: t % 12, d: 12, title: 'Aufbauseminar (Probezeit-Verstoß)', where: 'Fahrschule', fee: 420 });
+        line += ' In der Probezeit: Aufbauseminar Pflicht, Probezeit verlängert sich um 2 Jahre.';
+      }
+      if (c.license.points >= 8) { c.license.has = false; c.license.status = 'none'; c.license.revoked = true; line += ' 8 Punkte erreicht: FÜHRERSCHEIN WEG.'; c.chronicle.push({ d: X.dateText(S), t: 'Führerschein entzogen (8 Punkte).' }); }
+      X.report(S, pid, '•', line, 'bad');
+    }
     if (c.car) {
       const k = carCosts(S, c, c.car);
       c.stats.money -= k.total; out += k.total;
