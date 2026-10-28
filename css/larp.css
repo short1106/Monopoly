@@ -246,3 +246,30 @@
 .lx-tripst.ok { color: #3ddc97; }
 .lx-tripst.bad { color: #ff7a8a; }
 .leaflet-popup-content .btn { margin-top: 6px; }
+/* Skills und Firma */
+.lx-sk { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.lx-sk li { display: grid; grid-template-columns: minmax(120px, 1.2fr) 2fr 40px auto; gap: 10px; align-items: center; }
+.lx-sk li span { display: flex; flex-direction: column; }
+.lx-sk li small { opacity: .65; font-size: 11px; }
+.lx-sk li em { font-style: normal; font-weight: 800; text-align: right; }
+.lx-sbar { display: block; height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .08); position: relative; overflow: hidden; }
+.lx-sbar::after { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--v); border-radius: 99px; background: linear-gradient(90deg, #7a5cff, #ff4fd8); }
+.lx-sbar.firm::after { background: linear-gradient(90deg, #2bd4a4, #7ab8ff); }
+@media (max-width: 600px) { .lx-sk li { grid-template-columns: 1fr 40px; } .lx-sk li .lx-sbar { grid-column: 1 / -1; grid-row: 2; } .lx-sk li button { grid-column: 1 / -1; } }
+.lx-sk-others { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.lx-sk-others li { border-left: 3px solid var(--pc); padding-left: 8px; font-size: 13px; }
+.lx-sk-others span, .lx-req span { display: inline-block; margin: 2px 4px 0 0; padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, .07); font-size: 12px; }
+.lx-req span.ok { background: rgba(61, 220, 151, .18); color: #3ddc97; }
+.lx-req span.mid { background: rgba(255, 196, 61, .16); color: #ffc43d; }
+.lx-req span.bad { background: rgba(255, 90, 110, .16); color: #ff7a8a; }
+.lx-firm-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.lx-firm-kpi div { padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, .05); display: flex; flex-direction: column; }
+.lx-firm-kpi b { font-size: 20px; }
+.lx-firm-kpi small { opacity: .7; font-size: 11px; }
+.lx-job, .lx-staff { padding: 10px 0; border-top: 1px solid var(--line); }
+.lx-job small, .lx-staff small { display: block; opacity: .75; font-size: 12px; margin: 2px 0 4px; }
+.lx-staff { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+@media (max-width: 600px) { .lx-staff { flex-direction: column; align-items: stretch; } }
+.lx-prog { position: relative; height: 18px; border-radius: 99px; background: rgba(255, 255, 255, .08); overflow: hidden; }
+.lx-prog i { position: absolute; inset: 0 auto 0 0; width: var(--v); background: linear-gradient(90deg, #2bd4a4, #7ab8ff); }
+.lx-prog span { position: relative; display: block; text-align: center; font: 700 11px/18px var(--font); }

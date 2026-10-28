@@ -47,7 +47,8 @@ FESTE SYSTEME
 Das Spiel rechnet selbst: Kalender und Termine (Abiprüfungen nach Landesregeln, Führerschein, Vorstellungsgespräche, TÜV), Noten, Geld, Miete, Kredite, Autos, Jobs, Studium und Ausbildung. Im Kontext steht unter "bericht_dieser_runde", was dabei passiert ist (z. B. „Schriftlich Mathematik: 11 Punkte“, „Theorie bestanden“, „Absage von …“). Erzähl diese Dinge mit, aber ändere sie nicht und erfinde keine anderen Ergebnisse dafür. Prüfungen, Bewerbungen und Käufe entscheidest du nicht selbst – du erzählst sie. Für den Job- oder Wohnungswechsel gibt es den Markt im Spiel; schlag so etwas höchstens im Event an.
 
 WERTE UND FORMAT
-Gesundheit, Happiness und Macht laufen von 0 bis 100, Geld in Euro. "delta" sind einmalige Änderungen dieser Runde (z. B. Krankheit Gesundheit −15, Gehalt einmalig nicht hier, sondern als laufender Effekt). "add_effects" sind laufende Effekte: Name, Geld pro MONAT (pm), Gesundheit/Happiness/Macht pro JAHR, Laufzeit in Monaten (months, 0 = bis beendet) – z. B. ein Job (+Geld), ein Auto (−Geld, +Happiness), eine Krankheit (−Gesundheit für 2 Runden). Beende Effekte mit "end_effects" (exakter Name), wenn jemand kündigt, verkauft, sich trennt usw. Kaufen, Mieten und Verkaufen von Wohnungen/Häusern/Grundstücken auf der Karte erledigt das Spiel selbst; du siehst den Besitz im Kontext. Wer "unterwegs" hat, ist diese Runde verreist oder auf Ausflug: Erzähle die Runde für diese Person am Reiseort (Land, Stadt, Essen, Leute, kleine Pannen) und denk dir das nächste Ereignis dort aus, solange sie noch weg ist. Nutze "status" für Job, Ausbildung, Aufenthaltsort, Titel (z. B. „Bundeskanzler“, „Diktator von …“; "-" entfernt einen Titel) und Wohnsituation; leere Strings ändern nichts. "relations": Beziehungsänderungen (change −60 bis +60, kind z. B. „Ex“, „feste Freundin“, „Erzfeind“, remove=true löscht). "chronicle": ein kurzer Satz für die Lebenschronik, wenn etwas Wichtiges passiert ist, sonst leer.
+Gesundheit, Happiness und Macht laufen von 0 bis 100, Geld in Euro. "delta" sind einmalige Änderungen dieser Runde (z. B. Krankheit Gesundheit −15, Gehalt einmalig nicht hier, sondern als laufender Effekt). "add_effects" sind laufende Effekte: Name, Geld pro MONAT (pm), Gesundheit/Happiness/Macht pro JAHR, Laufzeit in Monaten (months, 0 = bis beendet) – z. B. ein Job (+Geld), ein Auto (−Geld, +Happiness), eine Krankheit (−Gesundheit für 2 Runden). Beende Effekte mit "end_effects" (exakter Name), wenn jemand kündigt, verkauft, sich trennt usw. Kaufen, Mieten und Verkaufen von Wohnungen/Häusern/Grundstücken auf der Karte erledigt das Spiel selbst; du siehst den Besitz im Kontext. BAUSTEINE: Du kannst alles ins Spiel bringen, was es noch nicht gibt. "skills": Fähigkeiten ändern oder neu anlegen (Name frei, z. B. „3D-Modellierung“, „Singen“, „Rennen fahren“; change −30 bis +30, Level 0–100) – wer übt, arbeitet oder etwas erlebt, wird besser, wer etwas vernachlässigt oder sich verletzt, schlechter. "assets": Besitz aller Art (Rennpferd, Food-Truck, Patent, Kunstsammlung; pm = laufende Kosten oder Einnahmen pro Monat, remove = weg). "staff": Mitarbeiter für die eigene Firma einstellen (Name, Rolle, Hauptskill mit Level, Bruttogehalt) oder entlassen (fire), nur wenn die Person eine Firma hat. "appointments": Termine in der Zukunft (Titel, Ort, in wie vielen Monaten), z. B. Gerichtstermin, Konzert, Date. "places": eigene Orte auf der Karte (Name, lat, lng), z. B. ein Laden oder Treffpunkt. "memory": ein Satz, den du dir merken willst (Versprechen, Feindschaften, offene Fäden); im Kontext steht unter "gedaechtnis", was du dir schon gemerkt hast – greif es später auf. Leere Listen, wenn nichts davon passt. Wenn Spieler im Freitext etwas tun, was das Spiel nicht kennt, bilde es mit diesen Bausteinen ab.
+Wer "unterwegs" hat, ist diese Runde verreist oder auf Ausflug: Erzähle die Runde für diese Person am Reiseort (Land, Stadt, Essen, Leute, kleine Pannen) und denk dir das nächste Ereignis dort aus, solange sie noch weg ist. Nutze "status" für Job, Ausbildung, Aufenthaltsort, Titel (z. B. „Bundeskanzler“, „Diktator von …“; "-" entfernt einen Titel) und Wohnsituation; leere Strings ändern nichts. "relations": Beziehungsänderungen (change −60 bis +60, kind z. B. „Ex“, „feste Freundin“, „Erzfeind“, remove=true löscht). "chronicle": ein kurzer Satz für die Lebenschronik, wenn etwas Wichtiges passiert ist, sonst leer.
 Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen (Gerichte, Sanktionen, Aufstände, Rache). Gewalt beschreibst du knapp statt drastisch. Tod ist möglich, wenn Werte oder Handlungen es ergeben: dann "dead": true und ein kurzer "death_reason" – endgültig, würdig, aber im Ton des Spiels.
 "story" ist die Erzählung für diese Person, 2–5 Sätze, in der zweiten Person („du“). Antworte ausschließlich im vorgegebenen JSON-Format, für jede übergebene Person genau ein Eintrag mit ihrer "id".`;
 
@@ -66,6 +67,12 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
         relations: { type: 'array', items: obj({ name: str, kind: str, change: int, remove: bool }) },
         status: obj({ job: str, education: str, location: str, title: str, living: str }),
         chronicle: str, dead: bool, death_reason: str,
+        skills: { type: 'array', items: obj({ name: str, change: int }) },
+        assets: { type: 'array', items: obj({ name: str, kind: str, value: int, pm: int, remove: bool }) },
+        staff: { type: 'array', items: obj({ name: str, role: str, skill: str, level: int, salary: int, fire: bool }) },
+        appointments: { type: 'array', items: obj({ title: str, where: str, months_from_now: int }) },
+        places: { type: 'array', items: obj({ name: str, lat: { type: 'number' }, lng: { type: 'number' } }) },
+        memory: str,
       }),
     },
   });
@@ -77,7 +84,17 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
     return {
       id: pid, spieler: p.name, figur: c.name, alter: c.age, titel: c.title || undefined, job: c.job, ausbildung: c.education, wohnt: c.living, ort: c.location, unterwegs: c.away && S.round < c.away.until ? `${c.away.kind === 'trip' ? 'auf Reise in' : 'Ausflug nach'} ${c.away.label}` : undefined,
       bonus: c.bonus, schwaeche: c.weakness, ueber: c.about || undefined,
-      firma: (c.offices || []).length ? { groesse: Math.round((c.flags.company || 0) * 10) / 10, bueros: c.offices.map((o) => `${o.title} in ${o.city}${o.own ? ' (Eigentum)' : ''}`) } : undefined,
+      skills: c.skills || undefined,
+      firma: c.firm || (c.offices || []).length ? {
+        name: c.firm ? c.firm.name : undefined, groesse: Math.round((c.flags.company || 0) * 10) / 10, ruf: c.firm ? c.firm.rep : undefined,
+        bueros: (c.offices || []).map((o) => `${o.title} in ${o.city}${o.own ? ' (Eigentum)' : ''}`),
+        mitarbeiter: c.firm ? c.firm.staff.map((p) => `${p.name} (${p.role}, ${Object.entries(p.skills).map(([k, v]) => `${k} ${Math.round(v)}`).join(', ')}, Laune ${p.mood})`) : undefined,
+        auftraege: c.firm ? c.firm.jobs.map((j) => `${j.title} ${j.progress} %`) : undefined,
+        firmen_skills: c.firm && window.DULI_LARP_COMPANY ? window.DULI_LARP_COMPANY.skills(JSON.parse(JSON.stringify(c))) : undefined,
+      } : undefined,
+      besitz: (c.assets || []).length ? c.assets.map((a) => `${a.name}${a.kind ? ` (${a.kind})` : ''}`) : undefined,
+      orte: (c.places || []).length ? c.places.map((o) => o.name) : undefined,
+      gedaechtnis: (c.memory || []).length ? c.memory : undefined,
       werte: { gesundheit: c.stats.health, happiness: c.stats.happy, macht: c.stats.power, geld: c.stats.money },
       laufende_effekte: eff, besitz: c.props.map((q) => `${L.KINDS[q.kind].name} in ${q.label} (Wert ${q.value} €${q.leased ? ', vermietet' : ''})`),
       beziehungen: c.relations.map((r) => `${r.name} (${r.kind || 'bekannt'}, ${r.val}/100)`),

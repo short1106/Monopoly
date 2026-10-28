@@ -302,7 +302,7 @@
   }
 
   // ----- Hauptbildschirm -----
-  const TABS = [['month', 'Dieser Monat'], ['market', 'Markt'], ['acad', 'Akademie'], ['cal', 'Kalender'], ['people', 'Leute'], ['life', 'Lebenslauf']];
+  const TABS = [['month', 'Dieser Monat'], ['market', 'Markt'], ['acad', 'Akademie'], ['skills', 'Skills'], ['firma', 'Firma'], ['cal', 'Kalender'], ['people', 'Leute'], ['life', 'Lebenslauf']];
   function ensureSkel(root, V, me) {
     if (skel && root.contains(skel.el)) return;
     killSkel();
@@ -371,6 +371,7 @@
       ${loans ? `<h4>Kredite</h4><ul class="lb-list">${loans}</ul>` : ''}${car}
       ${props ? `<h4>Immobilien</h4><ul class="lb-list lb-props">${props}</ul>` : ''}
       ${(c.offices || []).length ? `<h4>Firma <small>${esc(window.DULI_LARP_OFFICE ? window.DULI_LARP_OFFICE.firmName(c) : '')} · Größe ${String((c.flags.company || 0).toFixed(1)).replace('.', ',')}</small></h4><ul class="lb-list lb-props">${c.offices.map((o) => `<li><span><b>${esc(o.title)}</b><small>${esc(o.label)} · ${o.desks} ${o.desks === 1 ? "Platz" : "Plätze"} · ${o.own ? `Eigentum, Wert ${eur(o.value)}` : `Miete ${eur(o.rent)}/M`}</small></span><span class="btn-row"><button class="btn btn-small btn-ghost" data-ofend="${esc(o.id)}">${o.own ? 'Verkaufen' : 'Kündigen'}</button></span></li>`).join('')}</ul>` : ''}
+      ${(c.assets || []).length ? `<h4>Besitz</h4><ul class="lb-list">${c.assets.map((a) => `<li><span>${esc(a.name)}${a.kind ? ` <small>${esc(a.kind)}</small>` : ''}</span>${a.value ? `<b>${eur(a.value)}</b>` : ''}</li>`).join('')}</ul>` : ''}
       ${rel ? `<h4>Beziehungen</h4><ul class="lb-list">${rel}</ul>` : ''}</div>`;
   }
   function renderMain(root, V, me, api) {
@@ -415,6 +416,8 @@
     if (tab === 'month') renderMonth(body, V, me, api);
     else if (tab === 'market') renderMarket(body, V, me, api);
     else if (tab === 'acad') renderAcad(body, V, me);
+    else if (tab === 'skills') renderSkills(body, V, me);
+    else if (tab === 'firma') renderFirm(body, V, me);
     else if (tab === 'cal') renderCal(body, V, me);
     else if (tab === 'people') renderPeople(body, V, me, api);
     else renderLife(body, V, me);
@@ -422,7 +425,7 @@
 
   // ----- Tab: Dieser Monat -----
   function ensureDraft(V, me) {
-    if (!draft || draft.key !== `${V.aiSeq}|${me}`) draft = { key: `${V.aiSeq}|${me}`, choice: null, text: '', focus: [], subj: [], appts: {}, drive: { theory: 0, lessons: 0, special: 0 }, courses: [] };
+    if (!draft || draft.key !== `${V.aiSeq}|${me}`) draft = { key: `${V.aiSeq}|${me}`, choice: null, text: '', focus: [], subj: [], appts: {}, drive: { theory: 0, lessons: 0, special: 0 }, courses: [], skills: [] };
     return draft;
   }
   function resultHTML(V, me) {
@@ -488,11 +491,13 @@
       const fs = Object.entries(L.FOCUS).filter(([f]) => f !== 'hustle' || (c.flags.company || c.key === 'shaquille'));
       const subs = c.abi && c.edu.kind === 'school' ? Object.keys(c.abi.exams) : [];
       focusHtml = `<div class="lx-panel"><span class="lb-k">Fokus ${V.stepM > 1 ? `für ${V.stepM} Monate` : 'des Monats'} <small>bis zu 2</small></span><div class="lx-chips">${fs.map(([f, n]) => `<button type="button" class="lx-chip ${dr.focus.includes(f) ? 'on' : ''}" data-focus="${f}">${esc(n)}</button>`).join('')}</div>
+        ${dr.focus.includes('learn') && c.skills ? `<p class="lx-lbl">Welche Skills trainieren? <small>bis zu 2, auch im Tab „Skills“</small></p><div class="lx-chips">${Object.entries(c.skills).sort((a, b) => b[1] - a[1]).slice(0, 14).map(([k, v]) => `<button type="button" class="lx-chip sm ${dr.skills.includes(k) ? 'on' : ''}" data-skl="${esc(k)}">${esc(k)} <small>${Math.round(v)}</small></button>`).join('')}</div>` : ''}
         ${dr.focus.includes('learn') && learning(c).length ? `<p class="lx-lbl">Für welche Akademie-Prüfung? <small>bis zu 2</small></p><div class="lx-chips">${learning(c).map((K) => `<button type="button" class="lx-chip sm ${dr.courses.includes(K.id) ? 'on' : ''}" data-crs="${K.id}">${esc(K.name)} <small>${c.courses[K.id].prep}</small></button>`).join('')}</div>` : ''}
         ${dr.focus.includes('learn') && subs.length ? `<p class="lx-lbl">Welche Fächer? <small>bis zu 3</small></p><div class="lx-chips">${subs.map((s) => `<button type="button" class="lx-chip sm ${dr.subj.includes(s) ? 'on' : ''}" data-subj="${s}">${esc(DB.SUBJECTS[s].name)} <small>${c.abi.prep[s] || 0}</small></button>`).join('')}</div>` : ''}</div>`;
     }
     if (put($('#mo-focus'), focusHtml)) {
       $('#mo-focus').querySelectorAll('[data-focus]').forEach((b) => { b.onclick = () => { const f = b.dataset.focus; if (dr.focus.includes(f)) dr.focus = dr.focus.filter((x) => x !== f); else { dr.focus.push(f); if (dr.focus.length > 2) dr.focus.shift(); } redraw(); }; });
+      $('#mo-focus').querySelectorAll('[data-skl]').forEach((b) => { const k = b.dataset.skl; b.onclick = () => { toggleSkill(k); redraw(); }; });
       $('#mo-focus').querySelectorAll('[data-crs]').forEach((b) => { const s = b.dataset.crs; b.onclick = () => { if (dr.courses.includes(s)) dr.courses = dr.courses.filter((x) => x !== s); else { dr.courses.push(s); if (dr.courses.length > 2) dr.courses.shift(); } redraw(); }; });
       $('#mo-focus').querySelectorAll('[data-subj]').forEach((b) => { const s = b.dataset.subj; b.onclick = () => { if (dr.subj.includes(s)) dr.subj = dr.subj.filter((x) => x !== s); else { dr.subj.push(s); if (dr.subj.length > 3) dr.subj.shift(); } redraw(); }; });
     }
@@ -506,7 +511,7 @@
     if (put($('#mo-send'), sendHtml)) {
       if ($('#mo-undo')) $('#mo-undo').onclick = () => act({ type: 'undo' });
       if ($('#mo-go')) $('#mo-go').onclick = () => {
-        const plan = { focus: dr.focus, subj: dr.subj, appts: dr.appts, drive: dr.drive, courses: dr.courses };
+        const plan = { focus: dr.focus, subj: dr.subj, appts: dr.appts, drive: dr.drive, courses: dr.courses, skills: dr.skills };
         const a = dr.choice != null ? { type: 'do', choice: dr.choice, plan } : dr.text.trim() ? { type: 'do', text: dr.text.trim(), plan } : { type: 'do', plan };
         act(a);
       };
@@ -755,6 +760,60 @@
     mine.forEach((m) => { if (!seenDocs.has(m.id)) { seenDocs.add(m.id); toast('April hat dir einen Lernzettel geschickt.'); say('larp-doc', true); setTimeout(() => openDoc(m.doc, V.chars[me]), 400); } });
   }
 
+  // ----- Tab: Skills -----
+  const CO = window.DULI_LARP_COMPANY;
+  function toggleSkill(k) {
+    const dr = draft;
+    if (!dr) return;
+    if (dr.skills.includes(k)) dr.skills = dr.skills.filter((x) => x !== k);
+    else { dr.skills.push(k); if (dr.skills.length > 2) dr.skills.shift(); if (!dr.focus.includes('learn')) { dr.focus.push('learn'); if (dr.focus.length > 2) dr.focus.shift(); } }
+  }
+  const lvlName = (v) => (v >= 90 ? 'Weltklasse' : v >= 75 ? 'Profi' : v >= 55 ? 'Fortgeschritten' : v >= 30 ? 'Solide' : v >= 12 ? 'Anfänger:in' : 'Ahnungslos');
+  const sbar = (v, cls) => `<i class="lx-sbar ${cls || ''}" style="--v:${Math.max(0, Math.min(100, v))}%"></i>`;
+  function renderSkills(body, V, me) {
+    const c = V.chars[me];
+    if (!c || !CO) { put(body, '<p class="p-sub">Du schaust zu.</p>'); return; }
+    const sk = c.skills || {}, dr = ensureDraft(V, me), open = V.phase === 'act' && !c.dead && !V.actions[me];
+    const groups = {};
+    Object.entries(sk).forEach(([k, v]) => { const g = CO.catOf(k); (groups[g] = groups[g] || []).push([k, v]); });
+    const missing = CO.ALL.filter((k) => sk[k] == null);
+    const others = V.players.filter((p) => p.id !== me && V.chars[p.id] && V.chars[p.id].skills).map((p) => { const o = V.chars[p.id]; return `<li style="--pc:${esc(o.color)}"><b>${esc(o.name)}</b> ${Object.entries(o.skills).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `<span>${esc(k)} ${Math.round(v)}</span>`).join('')}</li>`; }).join('');
+    const html = `<div class="lx-panel lx-skills"><span class="lb-k">Deine Skills</span><p class="p-sub">Level 0–100. Trainieren läuft über den Fokus „Lernen“ (bis zu 2 Skills pro Runde). Jobs, Lizenzen, Leben im Ausland und Aprils Ereignisse ändern Skills auch. Deine Skills zählen für deine Firma mit.</p>
+      ${Object.keys(groups).sort().map((g) => `<h4>${esc(g)}</h4><ul class="lx-sk">${groups[g].sort((a, b) => b[1] - a[1]).map(([k, v]) => `<li><span><b>${esc(k)}</b><small>${lvlName(v)}</small></span>${sbar(v)}<em>${Math.round(v)}</em><button class="lx-chip sm ${dr.skills.includes(k) ? 'on' : ''}" data-tr="${esc(k)}" ${open ? '' : 'disabled'}>${dr.skills.includes(k) ? 'wird trainiert' : 'trainieren'}</button></li>`).join('')}</ul>`).join('') || '<p class="p-sub">Noch keine Skills.</p>'}
+      <h4>Neuen Skill anfangen</h4><div class="lb-inline"><input id="sk-new" list="sk-list" maxlength="40" placeholder="z. B. 3D-Modellierung, Singen, Poker …"><datalist id="sk-list">${missing.map((k) => `<option value="${esc(k)}">`).join('')}</datalist><button class="btn btn-small" id="sk-add" ${open ? '' : 'disabled'}>Anfangen</button></div></div>
+      ${others ? `<div class="lx-panel"><span class="lb-k">Die anderen können</span><ul class="lx-sk-others">${others}</ul></div>` : ''}`;
+    if (put(body, html)) {
+      body.querySelectorAll('[data-tr]').forEach((b) => { b.onclick = () => { toggleSkill(b.dataset.tr); body._html = null; redraw(); }; });
+      const add = () => { const n = $('#sk-new').value.trim(); if (n) act({ type: 'kLearn', name: n }); };
+      $('#sk-add').onclick = add;
+      $('#sk-new').onkeydown = (e) => { if (e.key === 'Enter') add(); };
+    }
+  }
+  // ----- Tab: Firma -----
+  function renderFirm(body, V, me) {
+    const c = V.chars[me];
+    if (!c || !CO) { put(body, '<p class="p-sub">Du schaust zu.</p>'); return; }
+    if (!CO.can(c)) { put(body, '<div class="lx-panel"><span class="lb-k">Firma</span><p>Du hast noch keine Firma. Gründen geht über den Fokus „Eigenes Projekt“ (ab etwas Erfahrung) oder über Ereignisse. Danach kannst du hier Leute einstellen, Aufträge annehmen und im Markt Büros mieten.</p></div>'); return; }
+    const C = JSON.parse(JSON.stringify(c)), F = CO.firm(C), fs = CO.skills(C), now = idx(V.date), open = V.phase === 'act' && !c.dead && !c.prison;
+    const apps = CO.applicants(V, C, now).filter((p) => !(V.market.taken || {})[`${me}:${p.id}`]), offers = CO.offers(V, C, now).filter((j) => !F.jobs.some((x) => x.id === j.id));
+    const cap = CO.capacity(C), salary = F.staff.reduce((s, p) => s + Math.round(p.gross * 1.21), 0);
+    const reqHTML = (req) => Object.entries(req).map(([k, v]) => { const have = fs[k] || 0; return `<span class="${have >= v ? 'ok' : have >= v * 0.6 ? 'mid' : 'bad'}">${esc(k)} ${v} <small>(ihr ${have})</small></span>`; }).join('');
+    const html = `<div class="lx-panel lx-firm"><span class="lb-k">${esc(F.name)}</span>
+      <div class="lx-firm-kpi"><div><b>${F.rep}</b><small>Ruf</small></div><div><b>${F.staff.length}/${cap}</b><small>Leute (Büro + 2 Homeoffice)</small></div><div><b>${eur(salary)}</b><small>Gehälter/Monat</small></div><div><b class="${F.lastRev >= 0 ? 'up' : 'down'}">${eur(F.lastRev || 0)}</b><small>Ergebnis letzter Monat</small></div><div><b>${F.done}</b><small>Aufträge fertig</small></div></div>
+      <h4>Firmen-Skills <small>du + Team kombiniert: der oder die Beste zählt voll, alle anderen helfen mit</small></h4>
+      <ul class="lx-sk">${Object.entries(fs).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `<li><span><b>${esc(k)}</b><small>${lvlName(Math.min(100, v))}</small></span>${sbar(Math.min(100, v), 'firm')}<em>${v}</em></li>`).join('')}</ul></div>
+      ${F.jobs.length ? `<div class="lx-panel"><span class="lb-k">Laufende Aufträge</span>${F.jobs.map((j) => `<div class="lx-job"><b>${esc(j.title)}</b><small>${eur(j.pay)} · Deadline ${esc(L.MONTHS[j.deadline % 12])} ${Math.floor(j.deadline / 12)} · etwa ${CO.pace(C, j)} % pro Monat</small><div class="lx-prog"><i style="--v:${j.progress}%"></i><span>${j.progress} %</span></div></div>`).join('')}</div>` : ''}
+      <div class="lx-panel"><span class="lb-k">Aufträge diesen Monat</span><p class="p-sub">Grün: euer Firmen-Skill reicht. Gleichzeitig schafft ihr ${1 + Math.floor(F.staff.length / 2)} Auftrag${F.staff.length >= 2 ? 'e' : ''}.</p>${offers.map((j) => `<div class="lx-job"><b>${esc(j.title)}</b><small>${eur(j.pay)} · ${j.months} Monate geplant${j.minRep ? ` · braucht Ruf ${j.minRep}` : ''} · bei euch etwa ${CO.pace(C, j)} % pro Monat</small><div class="lx-req">${reqHTML(j.req)}</div><div class="btn-row"><button class="btn btn-small btn-primary" data-take="${esc(j.id)}" ${open ? '' : 'disabled'}>Annehmen</button></div></div>`).join('')}</div>
+      <div class="lx-panel"><span class="lb-k">Team</span>${F.staff.length ? F.staff.map((p) => `<div class="lx-staff"><div><b>${esc(p.name)}</b><small>${esc(p.role)} · ${esc(p.trait[0])} · ${eur(p.gross)} brutto · Laune ${p.mood}</small><div class="lx-req">${Object.entries(p.skills).map(([k, v]) => `<span>${esc(k)} ${Math.round(v)}</span>`).join('')}</div></div><div class="btn-row"><button class="btn btn-small btn-ghost" data-raise="${esc(p.id)}" ${open ? '' : 'disabled'}>+10 % Gehalt</button><button class="btn btn-small btn-ghost" data-fire="${esc(p.id)}" ${open ? '' : 'disabled'}>Entlassen</button></div></div>`).join('') : '<p class="p-sub">Noch niemand. Unten warten Bewerbungen.</p>'}</div>
+      <div class="lx-panel"><span class="lb-k">Bewerbungen</span><p class="p-sub">Arbeitgeberkosten sind etwa 21 % mehr als das Bruttogehalt. Mehr Plätze gibt es mit einem größeren Büro (Markt → Büros).</p>${apps.map((p) => `<div class="lx-staff"><div><b>${esc(p.name)}</b><small>${esc(p.role)} · ${esc(p.trait[0])} · will ${eur(p.gross)} brutto${p.junior ? ' · Berufseinsteiger:in' : ''}</small><div class="lx-req">${Object.entries(p.skills).map(([k, v]) => `<span>${esc(k)} ${v}</span>`).join('')}</div></div><div class="btn-row"><button class="btn btn-small btn-primary" data-hire="${esc(p.id)}" ${open && F.staff.length < cap ? '' : 'disabled'}>Einstellen</button></div></div>`).join('')}</div>`;
+    if (put(body, html)) {
+      body.querySelectorAll('[data-take]').forEach((b) => { b.onclick = () => act({ type: 'kTake', id: b.dataset.take }); });
+      body.querySelectorAll('[data-hire]').forEach((b) => { b.onclick = () => act({ type: 'kHire', id: b.dataset.hire }); });
+      body.querySelectorAll('[data-raise]').forEach((b) => { b.onclick = () => act({ type: 'kRaise', staff: b.dataset.raise }); });
+      body.querySelectorAll('[data-fire]').forEach((b) => { b.onclick = () => { if (confirm('Wirklich entlassen?')) act({ type: 'kFire', staff: b.dataset.fire }); }; });
+    }
+  }
+
   // ----- Tab: Markt -----
   const CATS = [['flat', 'Wohnung mieten'], ['wg', 'WG-Zimmer'], ['buyflat', 'Wohnung kaufen'], ['house', 'Haus kaufen'], ['office', 'Büros'], ['car', 'Autos'], ['uni', 'Studium'], ['abroad', 'Studium weltweit'], ['training', 'Ausbildung'], ['job', 'Jobs'], ['travel', 'Reisen'], ['ad', 'Kleinanzeigen']];
   function renderMarket(body, V, me, api) {
@@ -974,7 +1033,7 @@
   function drawMap(V, me) {
     const Lf = window.L, layer = skel.layer, Wd = window.DULI_LARP_WORLD;
     const awayOf = (c) => (c.away && V.round < c.away.until && Number.isFinite(c.away.lat) ? c.away : null);
-    const key = JSON.stringify([V.round, V.phase, V.players.map((p) => { const c = V.chars[p.id]; return c ? [c.home, awayOf(c), c.props.length, (c.offices || []).length, c.edu.school && c.edu.school.name, c.dead] : 0; })]);
+    const key = JSON.stringify([V.round, V.phase, V.players.map((p) => { const c = V.chars[p.id]; return c ? [c.home, awayOf(c), c.props.length, (c.offices || []).length, (c.places || []).length, c.edu.school && c.edu.school.name, c.dead] : 0; })]);
     if (skel.mapKey === key) return;
     skel.mapKey = key;
     layer.clearLayers();
@@ -1006,6 +1065,7 @@
       }
       if (c.edu.school && c.edu.school.lat) Lf.marker([c.edu.school.lat, c.edu.school.lng], { icon: Lf.divIcon({ className: 'lb-pin', html: `<span style="--pc:${esc(c.color)}">S</span>`, iconSize: [22, 22] }) }).bindTooltip(`${esc(c.name)}: ${esc(c.edu.school.name)}`).addTo(layer);
       c.props.forEach((q) => { Lf.marker([q.lat, q.lng], { icon: Lf.divIcon({ className: 'lb-pin', html: `<span style="--pc:${esc(c.color)}">${q.kind === 'house' ? '⌂' : '▤'}</span>`, iconSize: [22, 22] }) }).bindTooltip(`${esc(c.name)}: ${esc(q.title || q.label)}`).addTo(layer); });
+      (c.places || []).forEach((o) => { Lf.marker([o.lat, o.lng], { icon: Lf.divIcon({ className: 'lb-pin', html: `<span style="--pc:${esc(c.color)}">P</span>`, iconSize: [22, 22] }) }).bindTooltip(`${esc(c.name)}: ${esc(o.name)}`).addTo(layer); });
       (c.offices || []).forEach((o) => { Lf.marker([o.lat, o.lng], { icon: Lf.divIcon({ className: 'lb-pin', html: `<span style="--pc:${esc(c.color)}">B</span>`, iconSize: [22, 22] }) }).bindTooltip(`${esc(c.name)}: Büro ${esc(o.title)}, ${esc(o.label)}`).addTo(layer); });
     });
     if (!skel.fitted && pts.length > 1) { skel.map.fitBounds(pts, { padding: [30, 30], maxZoom: 10 }); skel.fitted = true; }

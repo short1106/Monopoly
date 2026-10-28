@@ -11,6 +11,8 @@
   const MK = () => { if (root.DULI_LARP_MARKET) return root.DULI_LARP_MARKET; if (isNode && mk === null) { try { mk = require('./larp-market'); } catch (e) { mk = false; } } return mk || null; };
   let ac = null;
   const ACAD = () => { if (root.DULI_LARP_ACADEMY) return root.DULI_LARP_ACADEMY; if (isNode && ac === null) { try { ac = require('./larp-courses'); } catch (e) { ac = false; } } return ac || null; };
+  let co = null;
+  const CO = () => { if (root.DULI_LARP_COMPANY) return root.DULI_LARP_COMPANY; if (isNode && co === null) { try { co = require('./larp-company'); } catch (e) { co = false; } } return co || null; };
   let lf = null;
   const LIFE = () => { if (root.DULI_LARP_LIFE) return root.DULI_LARP_LIFE; if (isNode && lf === null) { try { lf = require('./larp-life'); } catch (e) { lf = false; } } return lf || null; };
   const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -266,6 +268,7 @@
         const def = a.char || {};
         if (def.key && PRESETS[def.key] && Object.entries(S.chars).some(([id, c]) => id !== pid && !c.dead && c.key === def.key)) return 'Die Figur hat schon jemand.';
         const c = makeChar(S, def);
+        if (CO()) CO().ensure(c);
         if (me && me.dead) c.chronicle.push({ d: dateText(S), t: `Neues Leben nach ${me.name}.` });
         S.chars[pid] = c;
         delete S.ready[pid];
@@ -382,6 +385,8 @@
         if (M && M.act && /^m[A-Z]/.test(a.type)) return M.act(S, pid, a, API);
         const Ac = ACAD();
         if (Ac && /^a[A-Z]/.test(a.type)) return Ac.act(S, pid, a, API);
+        const Co = CO();
+        if (Co && /^k[A-Z]/.test(a.type)) return Co.act(S, pid, a, API);
         const Wd = root.DULI_LARP_WORLD || (isNode ? require('./larp-world') : null);
         if (Wd && /^w[A-Z]/.test(a.type)) { if (S.phase !== 'act' || !me || me.dead) return 'Geht nur, während ihr plant.'; return Wd.act(S, pid, a, API); }
       }
@@ -417,7 +422,8 @@
     });
     const drive = { theory: num(p.drive && p.drive.theory, 0, 14), lessons: num(p.drive && p.drive.lessons, 0, 16), special: num(p.drive && p.drive.special, 0, 12) };
     const courses = (Array.isArray(p.courses) ? p.courses : []).filter((k) => c.courses && c.courses[k] && c.courses[k].status === 'learning').slice(0, 2);
-    return { focus, subj, appts, drive, courses };
+    const skills = (Array.isArray(p.skills) ? p.skills : []).filter((k) => c.skills && c.skills[k] != null).slice(0, 2);
+    return { focus, subj, appts, drive, courses, skills };
   }
 
   function toThink(S) {
@@ -450,7 +456,9 @@
           subs.forEach((k) => { c.abi.prep[k] = clamp((c.abi.prep[k] || 0) + gain, 0, 100); });
           c.abi.blockI = clamp(c.abi.blockI + 3 * M, 200, 600);
           report(S, pid, '📚', `Gelernt: ${subs.map((k) => DB.SUBJECTS[k].name).join(', ')} (+${gain} Vorbereitung)`);
-        } else if (!(plan.courses || []).length) { c.flags.study = (c.flags.study || 0) + 1; report(S, pid, '📚', 'Gelernt und weitergebildet.'); }
+        } else if (!(plan.courses || []).length && !(plan.skills || []).length) { c.flags.study = (c.flags.study || 0) + 1; report(S, pid, '📚', 'Gelernt und weitergebildet.'); }
+        const Co = CO();
+        if (Co && (plan.skills || []).length) Co.train(S, pid, c, plan.skills, M, API);
         const Ac = ACAD();
         if (Ac) Ac.study(S, pid, c, plan.courses, M, API);
         c.stats.happy = clampStat(c.stats.happy - 2);
@@ -611,6 +619,11 @@
         addAppt(S, c, { kind: 'birthday', y: ap.y + 1, m: ap.m, d: ap.d, title: 'Geburtstag', where: '', soft: true });
         return;
       }
+      case 'story': {
+        report(S, pid, '•', dec.d === 'skip' || late ? `Termin verpasst: ${ap.title}.` : `Termin: ${ap.title}${ap.where ? ` (${ap.where})` : ''}.`, dec.d === 'skip' ? 'bad' : '');
+        c.memory = (c.memory || []).concat(`${dateText(S)}: ${dec.d === 'skip' || late ? 'nicht hingegangen zu' : 'war bei'} „${ap.title}“`).slice(-15);
+        return;
+      }
       default: {
         const Lf = LIFE();
         if (Lf && Lf.appt(S, pid, ap, dec, late, API)) return;
@@ -742,12 +755,57 @@
     if (M && M.month) { const r = M.month(S, c, pid, API) || {}; inc += r.inc || 0; out += r.out || 0; }
     const Lf = LIFE();
     if (Lf) Lf.month(S, c, pid, API);
+    const Co = CO();
+    if (Co) { const r = Co.month(S, c, pid, API); inc += r.inc; out += r.out; }
     return { inc, out };
   }
   function endJob(S, c, why) {
     if (!c.job2) return;
     c.chronicle.push({ d: dateText(S), t: `Job weg: ${c.job2.title} (${why}).` });
     c.job2 = null;
+  }
+
+  // ---------- Bausteine, mit denen April (KI) alles Mögliche ins Spiel bringen kann ----------
+  function applyTools(S, pid, c, x, M) {
+    const Co = CO();
+    // Skills hoch oder runter (neue entstehen dabei)
+    (Array.isArray(x.skills) ? x.skills : []).slice(0, 6).forEach((k) => { if (Co && k && k.name) Co.change(c, cleanText(k.name, 40), num(k.change, -30, 30)); });
+    // Besitz aller Art (Rennpferd, Food-Truck, Patent …) mit laufenden Kosten oder Einnahmen
+    (Array.isArray(x.assets) ? x.assets : []).slice(0, 4).forEach((a) => {
+      const name = cleanText(a && a.name, 60);
+      if (!name) return;
+      c.assets = c.assets || [];
+      const old = c.assets.find((o) => o.name.toLowerCase() === name.toLowerCase());
+      if (a.remove) { c.assets = c.assets.filter((o) => o !== old); c.effects = c.effects.filter((e) => e.asset !== name); return; }
+      if (old || c.assets.length >= 15) return;
+      const pm = num(a.pm, -Math.max(3000, c.stats.money * 0.2), Math.max(3000, c.stats.money * 0.2));
+      c.assets.push({ name, kind: cleanText(a.kind, 40), value: num(a.value, 0, 1e8), since: dateText(S) });
+      if (pm) c.effects.push({ id: uid('e'), name, pm, health: 0, happy: 0, power: 0, until: 0, asset: name });
+    });
+    // Mitarbeiter einstellen oder entlassen
+    (Array.isArray(x.staff) ? x.staff : []).slice(0, 3).forEach((p) => {
+      if (!Co || !p || !p.name || !Co.can(c)) return;
+      const F = Co.firm(c), name = cleanText(p.name, 40);
+      if (p.fire) { F.staff = F.staff.filter((o) => o.name !== name); return; }
+      if (F.staff.length >= Co.capacity(c) || F.staff.some((o) => o.name === name)) return;
+      F.staff.push({ id: uid('st'), name, role: cleanText(p.role, 40) || 'Mitarbeiter:in', skills: { [cleanText(p.skill, 40) || 'Verkauf']: num(p.level, 1, 100) }, gross: num(p.salary, 603, 12000), trait: ['neu', 1, 0], mood: 70, since: idx(S.date) });
+    });
+    // Termine, die April sich ausdenkt
+    (Array.isArray(x.appointments) ? x.appointments : []).slice(0, 2).forEach((t) => {
+      const title = cleanText(t && t.title, 80);
+      if (!title || c.appts.filter((a) => a.status === 'open').length > 20) return;
+      const at = idx(S.date) + Math.max(M, num(t.months_from_now, 1, 36));
+      addAppt(S, c, { kind: 'story', y: Math.floor(at / 12), m: at % 12, d: 1 + rnd(27), title, where: cleanText(t.where, 60) });
+    });
+    // Orte auf der Karte
+    (Array.isArray(x.places) ? x.places : []).slice(0, 2).forEach((pl) => {
+      const name = cleanText(pl && pl.name, 50), lat = Number(pl && pl.lat), lng = Number(pl && pl.lng);
+      if (!name || !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 85 || Math.abs(lng) > 180) return;
+      c.places = (c.places || []).filter((o) => o.name !== name).concat({ name, lat, lng }).slice(-10);
+    });
+    // Gedächtnis: was April sich merken will
+    const mem = cleanText(x.memory, 200);
+    if (mem) c.memory = (c.memory || []).concat(`${dateText(S)}: ${mem}`).slice(-15);
   }
 
   // ---------- KI- oder Karten-Antwort übernehmen ----------
@@ -853,6 +911,7 @@
       if (st.living) c.living = cleanText(st.living, 100);
       const ch = cleanText(x.chronicle, 200);
       if (ch) c.chronicle.push({ d: dateText(S), t: ch });
+      applyTools(S, p.id, c, x, M);
       if (c.chronicle.length > 100) c.chronicle.splice(0, c.chronicle.length - 100);
     });
     alive(S).forEach((p) => {
