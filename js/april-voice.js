@@ -107,7 +107,32 @@
     if (foot) foot.insertAdjacentHTML('beforeend', '<br><small class="av-foot">April sagt: Strg + Alt + P. Frag nicht.</small>');
   });
 
+  // Eine bestimmte Zeile sprechen und warten, bis sie fertig ist (für Intros)
+  function line(id) {
+    const l = LINES.find((x) => x.id === id);
+    if (!l) return Promise.resolve();
+    lastLine = l; lastAt = Date.now();
+    const ms = Math.max(2400, l.text.length * 68);
+    show(l.text, ms + 600);
+    return new Promise((res) => {
+      let done = false;
+      const fin = () => { if (!done) { done = true; res(); } };
+      if (on && have[l.id] && !(FX && FX.muted)) {
+        try {
+          if (audio) audio.pause();
+          audio = new Audio(BASE + l.id + '.mp3');
+          audio.onended = fin;
+          audio.onerror = () => setTimeout(fin, ms);
+          audio.onloadedmetadata = () => { if (audio.duration && isFinite(audio.duration)) show(l.text, audio.duration * 1000 + 800); };
+          audio.play().catch(() => setTimeout(fin, ms));
+          setTimeout(fin, ms + 12000);
+        } catch (e) { setTimeout(fin, ms); }
+      } else setTimeout(fin, ms);
+    });
+  }
+  function stop() { try { if (audio) audio.pause(); } catch (e) { /* egal */ } hide(); }
+
   // Eine Seite kann Sounds anders deuten (z. B. Schiffe: „jail“-Ton = Treffer)
   function remap(o) { Object.assign(MAP, o); }
-  window.DULI_VOICE = { say, remap, setOn, get on() { return on; }, togglePeriod, get period() { return period; }, LINES };
+  window.DULI_VOICE = { say, line, stop, remap, setOn, get on() { return on; }, togglePeriod, get period() { return period; }, LINES };
 })();

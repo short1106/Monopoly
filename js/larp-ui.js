@@ -70,7 +70,22 @@
     AI.play(buf);
     last.api.broadcast({ kind: 'voice', seq, audio: buf });
   }
-  const say = (ev) => { if (window.DULI_VOICE) window.DULI_VOICE.say(ev); };
+  const say = (ev, force) => { if (window.DULI_VOICE) window.DULI_VOICE.say(ev, { force: !!force }); };
+  // Welche Zeile passt zu welchem Bericht (erste passende gewinnt)
+  const VOICE_RULES = [
+    [/gestorben/, 'larp-death'], [/Abi bestanden|Abitur bestanden|Gerettet\. Abi/, 'larp-abi-pass'], [/Abi nicht bestanden|Kein Abitur|nicht gereicht\. Abi/, 'larp-abi-fail'],
+    [/FÜHRERSCHEIN BESTANDEN/, 'larp-license'], [/Fahrprüfung nicht bestanden|Theorie durchgefallen/, 'larp-license-fail'],
+    [/verpfeift|nimmt alles|Aufgeflogen|verraten/, 'larp-betray'], [/nie existiert|Paket kommt nie/, 'larp-scam'], [/Hochzeit/, 'larp-wedding'],
+    [/ZULASSUNG/, 'larp-uni'], [/Absage/, 'larp-reject'], [/Erster Tag bei|Zusage/, 'larp-job'], [/Mietvertrag unterschrieben/, 'larp-move'],
+    [/gekauft\. Laufende Kosten/, 'larp-car'], [/nicht erschienen|geschwänzt|Geschwänzt/, 'larp-skip'],
+  ];
+  function voiceFromReports(list) {
+    const txt = (list || []).map((r) => r.text).join(' | ');
+    const hit = VOICE_RULES.find(([re]) => re.test(txt));
+    if (hit) { say(hit[1], true); return true; }
+    return false;
+  }
+  let pendSeen = 0;
 
   // ---------- Host: April (KI) ----------
   function controller(V, api) {
@@ -100,16 +115,27 @@
     else if (V.phase === 'intro') { killSkel(); renderIntro(root, V, me, api); }
     else if (V.phase === 'over') { killSkel(); renderOver(root, V, me, api); }
     else renderMain(root, V, me, api);
+    if (lastPhaseKey.startsWith('intro|') && V.phase !== 'intro' && window.DULI_VOICE && window.DULI_VOICE.stop) window.DULI_VOICE.stop();
     const pk = `${V.phase}|${V.aiSeq}`;
     if (pk !== lastPhaseKey && V.phase === 'act' && lastPhaseKey && FX) {
       const reps = V.reports[me] || [];
       FX.play(reps.some((r) => r.tone === 'bad') && !reps.some((r) => r.tone === 'good') ? 'coinDown' : 'turn');
-      if (reps.some((r) => /FÜHRERSCHEIN BESTANDEN|Abitur bestanden|ZULASSUNG|Zusage/.test(r.text))) say('win');
-      else if (reps.some((r) => /0 Punkte|nicht bestanden|Absage|durchgefallen/.test(r.text))) say('loss');
+      const c = V.chars[me];
+      if (!voiceFromReports(reps) && c && !c.dead) {
+        const due = L.dueAppts(V, c);
+        if (due.some((a) => /^(abi|lic-)/.test(a.kind))) say('larp-exam', true);
+        else if (due.some((a) => a.kind === 'tax')) say('larp-tax', true);
+      }
       if (innerWidth < 1100) { const st = root.querySelector('.lx-stage'); if (st) st.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
       if (V.gm !== 'ai' && api.isHost && V.round > 0) voiceFor(V.aiSeq);
     }
     lastPhaseKey = pk;
+    // Sprüche zu dem, was gerade eben passiert ist (Kauf, Angebot, Duell)
+    const pend = (V.pending && V.pending[me]) || [];
+    if (V.phase === 'act' && pend.length > pendSeen) voiceFromReports(pend.slice(pendSeen));
+    pendSeen = V.phase === 'act' ? pend.length : 0;
+    if (V.phase === 'over' && !render.endSaid) { render.endSaid = true; say('larp-end', true); }
+    if (V.phase !== 'over') render.endSaid = false;
     controller(V, api);
   }
   function killSkel() { if (skel) { try { skel.map.remove(); } catch (e) { /* weg */ } skel = null; } }
@@ -348,6 +374,7 @@
   function renderMain(root, V, me, api) {
     ensureSkel(root, V, me);
     const mine = V.chars[me];
+    notifyOffers(V, me);
     if (put($('#lx-left'), mine ? sheet(V, me, true) : '<p class="p-sub">Du schaust zu.</p>')) {
       const left = $('#lx-left');
       left.querySelectorAll('[data-mv]').forEach((b) => { b.onclick = () => act({ type: 'mMoveIn', prop: b.dataset.mv }); });
@@ -395,16 +422,18 @@
     const c = V.chars[me], ck = V.checks[me], r = V.recap && V.recap[me], did = V.lastAction && V.lastAction[me];
     const reps = V.reports[me] || [];
     const story = para(V.stories[me]);
+    const live = (V.pending && V.pending[me]) || [];
     if (!story && !reps.length) return '';
     const roll = ck ? `<div class="lb-roll ${ck.success ? 'ok' : 'bad'}"><span class="lb-d20"><b>${ck.roll}</b></span><div><small>W20 ${ck.mod ? `${ck.mod > 0 ? '+' : '−'} ${Math.abs(ck.mod)} ${esc(ck.stat || '')}` : esc(ck.stat || '')} = <b>${ck.roll + (ck.mod || 0)}</b> gegen ${ck.dc}</small><strong>${ck.roll === 20 ? 'Glückswurf!' : ck.roll === 1 ? 'Totalausfall' : ck.success ? 'Geschafft' : 'Verkackt'}</strong></div></div>` : '';
     return `<div class="lb-result ${ck ? (ck.success ? 'ok' : 'bad') : ''}"><span class="lb-k">${V.round === 0 ? 'Dein Start' : 'Was passiert ist'}</span>
       ${did && did !== '•' && V.round > 0 ? `<p class="lb-did">Du: „${esc(did)}“</p>` : ''}${roll}${story}
       ${reps.length ? `<ul class="lx-reps">${reps.map((x) => `<li class="${esc(x.tone)}"><i></i><span>${esc(x.text)}</span></li>`).join('')}</ul>` : ''}
-      ${r && Object.keys(r).length ? `<div class="lb-deltas"><small>Bilanz der Runde:</small>${fx(r)}</div>` : ''}${c && c.dead ? `<p class="lb-dead">${esc(c.deathReason || '')}</p>` : ''}</div>`;
+      ${r && Object.keys(r).length ? `<div class="lb-deltas"><small>Bilanz der Runde:</small>${fx(r)}</div>` : ''}${c && c.dead ? `<p class="lb-dead">${esc(c.deathReason || '')}</p>` : ''}</div>
+      ${live.length ? `<div class="lx-panel lx-live"><span class="lb-k">Gerade eben</span><ul class="lx-reps">${live.map((x) => `<li class="${esc(x.tone)}"><i></i><span>${esc(x.text)}</span></li>`).join('')}</ul></div>` : ''}`;
   }
   const KIND = { real: 'Alltag', odd: 'Ungewöhnlich', absurd: 'Absurd' };
   function renderMonth(body, V, me, api) {
-    if (!body.querySelector('#mo-result')) body.innerHTML = '<div id="mo-result"></div><div id="mo-think"></div><div id="mo-appts"></div><div id="mo-card"></div><div id="mo-focus"></div><div id="mo-drive"></div><div id="mo-send"></div><div id="mo-who"></div><div id="mo-more"></div>';
+    if (!body.querySelector('#mo-result')) body.innerHTML = '<div id="mo-result"></div><div id="mo-think"></div><div id="mo-offers"></div><div id="mo-appts"></div><div id="mo-scene"></div><div id="mo-card"></div><div id="mo-focus"></div><div id="mo-drive"></div><div id="mo-send"></div><div id="mo-who"></div><div id="mo-more"></div>';
     const c = V.chars[me];
     put($('#mo-result'), c ? (c.dead ? `<div class="lb-result bad"><span class="lb-k">Tot</span><p>${esc(c.name)} ist gestorben. ${esc(c.deathReason || '')}</p></div>` : resultHTML(V, me)) : '');
     const k = AI.keys();
@@ -418,6 +447,10 @@
       $('#mo-appts').querySelectorAll('[data-ad]').forEach((b) => { b.onclick = () => { dr.appts[b.dataset.ap] = Object.assign(dr.appts[b.dataset.ap] || {}, { d: b.dataset.ad }); redraw(); }; });
       $('#mo-appts').querySelectorAll('[data-quiz]').forEach((b) => { b.onclick = () => startQuiz(V, c, appts.find((a) => a.id === b.dataset.quiz), dr); });
     }
+    // Angebote, gemeinsame Szene
+    const incN = playing ? V.offers.filter((o) => o.to === me && o.status === 'open').length : 0;
+    if (put($('#mo-offers'), incN ? `<button class="lx-banner" id="mo-gooffers">${incN} Angebot${incN > 1 ? 'e' : ''} von anderen warten auf dich. Ansehen</button>` : '')) { if ($('#mo-gooffers')) $('#mo-gooffers').onclick = () => { tab = 'people'; redraw(); }; }
+    if (put($('#mo-scene'), sceneHTML(V, me))) $('#mo-scene').querySelectorAll('[data-scene]').forEach((b) => { b.onclick = () => { FX && FX.play('pop'); act({ type: 'oScene', choice: Number(b.dataset.scene) }); }; });
     // Ereigniskarte
     const card = V.cards && V.cards[me];
     let cardHtml = '';
@@ -479,15 +512,15 @@
     const otherStories = V.players.filter((p) => p.id !== me && V.chars[p.id] && (V.stories[p.id] || (V.reports[p.id] || []).length)).map((p) => `<div class="lb-os" style="--pc:${p.color}"><b>${esc(V.chars[p.id].name)}</b>${V.lastAction && V.lastAction[p.id] && V.lastAction[p.id] !== '•' && V.round > 0 ? `<small>„${esc(V.lastAction[p.id])}“</small>` : ''}${para(V.stories[p.id])}${(V.reports[p.id] || []).filter((r) => r.tone).slice(0, 4).map((r) => `<p class="lx-orep ${esc(r.tone)}">${esc(r.text)}</p>`).join('')}</div>`).join('');
     put($('#mo-more'), otherStories ? `<details open class="lx-more"><summary>Was bei den anderen los ist</summary>${otherStories}</details>` : '');
   }
-  const needsQuiz = (V, a) => V.settings.exam === 'quiz' && /^(abi-w|abi-o|abi-retake|abi-extra|lic-theory)$/.test(a.kind);
+  const needsQuiz = (V, a) => a.kind === 'tax' || (V.settings.exam === 'quiz' && /^(abi-w|abi-o|abi-retake|abi-extra|lic-theory)$/.test(a.kind));
   function apptCard(V, c, a, dr, locked) {
     const d = (dr.appts[a.id] && dr.appts[a.id].d) || 'go', q = dr.appts[a.id] && dr.appts[a.id].quiz;
     const late = idx(a) < idx(V.date);
     const exam = /^(abi|lic)/.test(a.kind);
-    const opts = [['go', 'Hingehen'], ['sick', exam ? 'Krankmelden (Attest)' : 'Absagen'], ['skip', 'Schwänzen']];
+    const opts = a.kind === 'tax' ? [['go', 'Selbst machen (STEUER-RUSH)'], ['sick', 'Steuerberaterin'], ['skip', 'Ignorieren']] : [['go', 'Hingehen'], ['sick', exam ? 'Krankmelden (Attest)' : 'Absagen'], ['skip', 'Schwänzen']];
     return `<div class="lx-ap ${late ? 'late' : ''}"><div class="lx-ap-h"><b>${esc(L.dayText(a))}</b><span>${esc(a.title)}</span>${a.fee ? `<small>Gebühr ${eur(a.fee)}</small>` : ''}</div>
       ${late ? '<p class="lx-warn">Verpasst – das wird jetzt abgerechnet.</p>' : `<div class="lx-ap-opts">${opts.map(([k, n]) => `<button type="button" class="lx-chip sm ${d === k ? 'on' : ''} ${k === 'skip' ? 'bad' : ''}" data-ap="${a.id}" data-ad="${k}" ${locked ? 'disabled' : ''}>${n}</button>`).join('')}</div>
-      ${needsQuiz(V, a) && d === 'go' ? (q ? `<p class="lx-quizres">Prüfung geschrieben: ${a.kind === 'lic-theory' ? `${q.err} Fehlerpunkte` : `${q.ok}/${q.total} richtig`}</p>` : `<button class="btn btn-small btn-primary" data-quiz="${a.id}" ${locked ? 'disabled' : ''}>Prüfung jetzt schreiben</button>`) : ''}`}</div>`;
+      ${needsQuiz(V, a) && d === 'go' ? (q ? `<p class="lx-quizres">${a.kind === 'tax' ? `STEUER-RUSH: ${q.ok}/${q.total} Belege richtig` : `Prüfung geschrieben: ${a.kind === 'lic-theory' ? `${q.err} Fehlerpunkte` : `${q.ok}/${q.total} richtig`}`}</p>` : `<button class="btn btn-small btn-primary" data-quiz="${a.id}" ${locked ? 'disabled' : ''}>${a.kind === 'tax' ? 'STEUER-RUSH starten' : 'Prüfung jetzt schreiben'}</button>`) : ''}`}</div>`;
   }
   function driveHTML(V, c, dr, locked) {
     const Lc = c.license;
@@ -526,6 +559,7 @@
   // ----- Prüfungs-Quiz -----
   function startQuiz(V, c, a, dr) {
     if (!a) return;
+    if (a.kind === 'tax') return taxRush(V, c, a, dr);
     let qs, drive = a.kind === 'lic-theory';
     if (drive) qs = shuffle(Q.DRIVE).slice(0, 10).map((q) => ({ q: q[0], right: q[1], opts: shuffle(q.slice(1, 5)), pts: q[5] }));
     else { const bank = Q.ABI[a.data.subj] || Q.ABI.de; qs = shuffle(bank).slice(0, a.kind === 'abi-o' || a.kind === 'abi-extra' ? 4 : 6).map((q) => ({ q: q[0], right: q[1], opts: shuffle(q.slice(1)) })); }
@@ -557,6 +591,87 @@
       });
     };
     draw();
+  }
+
+  // ----- STEUER-RUSH (Belege abtippen wie bei Monopoly REALISTIC) -----
+  function taxTasks(c, T, n) {
+    const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+    const f = (x) => `${x.toLocaleString('de-DE')} €`;
+    const gross = Math.max(600, Math.round((T.gross || 7200) / 12 / 10) * 10);
+    const L = [
+      () => ({ head: 'Lohnsteuerbescheinigung', stamp: 'BRUTTO', q: `Bruttolohn ${f(gross)}<br>× 12 Monate`, a: gross * 12 }),
+      () => { const km = ri(4, 35), d = ri(18, 23) * 10; return { head: 'Entfernungspauschale', stamp: 'PENDLER', q: `${km} km einfach × 0,38 €<br>× ${d} Arbeitstage`, a: Math.round(km * 0.38 * d) }; },
+      () => { const a = ri(30, 120) * 10, b = ri(2, 9) * 10, d = ri(3, 15) * 5; return { head: 'Arbeitsmittel', stamp: 'WERBUNGSK.', q: `Laptop ${f(a)}<br>+ Fachbücher ${f(b)} + Kleidung ${f(d)}`, a: a + b + d }; },
+      () => { const a = ri(25, 90) * 100, b = ri(9, 30) * 100; return { head: 'Zu versteuern', stamp: 'zvE', q: `Einkünfte ${f(a)}<br>− Werbungskosten ${f(b)}`, a: a - b }; },
+      () => { const s1 = ri(2, 20) * 5, s2 = ri(2, 20) * 5; return { head: 'Spenden', stamp: 'SONDERAUSG.', q: `Tierheim ${f(s1)}<br>+ Kältehilfe ${f(s2)}`, a: s1 + s2 }; },
+      () => { const r = (T.rent ? Math.round(T.rent / 12 / 10) * 10 : ri(40, 90) * 10); return { head: 'Mieteinnahmen', stamp: 'V+V', q: `Kaltmiete ${f(r)}<br>× 12 Monate`, a: r * 12 }; },
+      () => { const x = ri(10, 60) * 100; return { head: 'Steuer drauf', stamp: 'ESt', q: `${f(x)} Gewinn<br>× 25 %`, a: x / 4 }; },
+      () => { const kv = ri(12, 30) * 10; return { head: 'Krankenversicherung', stamp: 'VORSORGE', q: `Beitrag ${f(kv)} im Monat<br>× 12`, a: kv * 12 }; },
+    ];
+    const pool = T.rent ? L : L.filter((_, i) => i !== 5);
+    return Array.from({ length: n }, () => pool[Math.floor(Math.random() * pool.length)]());
+  }
+  function taxRush(V, c, a, dr) {
+    const T = c.taxDue || { year: V.date.y - 1, gross: 0, rent: 0 };
+    const n = T.pflicht ? 8 : 6, secs = 20, tasks = taxTasks(c, T, n);
+    let k = 0, ok = 0, combo = 0, input = '', t0 = 0, timer = null, lock = true;
+    const ov = document.createElement('div');
+    ov.className = 'taxgame';
+    ov.innerHTML = `<div class="tg-grid" aria-hidden="true"></div><div class="tg-box" role="dialog" aria-label="Steuer-Rush">
+      <div class="tg-top"><span class="tg-logo">ELSTER<b>3000</b></span><span class="tg-lvl">STEUER-RUSH · ${T.year}</span><span class="tg-prog" id="tg-prog">${n} Belege</span><button class="tg-x" id="tg-x" aria-label="Abbrechen">×</button></div>
+      <div class="tg-time"><i id="tg-bar"></i></div><div class="tg-stage" id="tg-stage"></div>
+      <div class="tg-display" hidden><span id="tg-in">0</span></div>
+      <div class="tg-keys" hidden>${[7, 8, 9, 4, 5, 6, 1, 2, 3].map((d) => `<button data-k="${d}">${d}</button>`).join('')}<button data-k="del">⌫</button><button data-k="0">0</button><button data-k="ok" class="tg-ok">OK</button></div>
+      <div class="tg-foot"><span id="tg-score">Steuerjahr ${T.year}</span><span id="tg-combo"></span></div></div>`;
+    document.body.appendChild(ov);
+    const q = (x) => ov.querySelector(x);
+    const onKey = (e) => {
+      if (e.key === 'Escape') return close();
+      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); press(e.key); } else if (e.key === 'Backspace') { e.preventDefault(); press('del'); } else if (e.key === 'Enter') { e.preventDefault(); if (q('#tg-send')) q('#tg-send').click(); else press('ok'); }
+    };
+    const close = () => { clearInterval(timer); ov.remove(); document.removeEventListener('keydown', onKey); };
+    const upd = () => { q('#tg-in').textContent = input ? Number(input).toLocaleString('de-DE') : '0'; };
+    function show() {
+      if (k >= n) return finish();
+      const t = tasks[k];
+      q('#tg-prog').textContent = `Beleg ${k + 1}/${n}`;
+      q('#tg-stage').innerHTML = `<div class="tg-receipt" style="--rot:${(Math.random() * 6 - 3).toFixed(1)}deg"><div class="tg-r-head">${esc(t.head)}<span>Nr. ${1000 + Math.floor(Math.random() * 9000)}</span></div><div class="tg-r-body">${t.q}</div><div class="tg-r-eq">= ?</div><div class="tg-stamp">${esc(t.stamp)}</div></div>`;
+      input = ''; upd(); t0 = Date.now(); lock = false;
+      clearInterval(timer);
+      timer = setInterval(() => { const left = 1 - (Date.now() - t0) / (secs * 1000); q('#tg-bar').style.width = Math.max(0, left * 100) + '%'; q('#tg-bar').classList.toggle('is-low', left < 0.3); if (left <= 0) answer(true); }, 60);
+    }
+    function answer(timeout) {
+      if (lock) return;
+      lock = true; clearInterval(timer);
+      const t = tasks[k], right = !timeout && Number(input) === t.a;
+      if (right) { ok++; combo++; FX && FX.play('coinUp'); } else { combo = 0; FX && FX.play('coinDown'); }
+      const fb = document.createElement('div');
+      fb.className = 'tg-fb ' + (right ? 'is-ok' : 'is-bad');
+      fb.textContent = right ? `KORREKT${combo >= 3 ? ` · ${combo}er-Serie` : ''}` : `${timeout ? 'ZEIT UM' : 'FALSCH'} · richtig: ${t.a.toLocaleString('de-DE')} €`;
+      q('#tg-stage').appendChild(fb);
+      q('#tg-score').textContent = `${ok} von ${k + 1} richtig`;
+      k++;
+      setTimeout(show, right ? 700 : 1600);
+    }
+    function finish() {
+      lock = true; clearInterval(timer);
+      q('.tg-keys').hidden = true; q('.tg-display').hidden = true; q('.tg-time').style.visibility = 'hidden';
+      const grade = ok === n ? 'A+' : ok >= n * 0.8 ? 'B' : ok >= n * 0.6 ? 'C' : ok >= n * 0.4 ? 'D' : 'F';
+      q('#tg-stage').innerHTML = `<div class="tg-end"><div class="tg-grade g-${grade[0]}">${grade}</div><h3>${ok}/${n} Belege richtig</h3><p>${ok === n ? 'Fehlerfrei. Das Finanzamt ist beeindruckt.' : 'Abgeschickt wird beim Abrechnen des Monats. Fehler kosten Erstattung, bei Pflicht-Erklärungen auch Nachfragen.'}</p><button class="btn btn-primary" id="tg-send">Erklärung abschicken</button></div>`;
+      q('#tg-send').onclick = () => { dr.appts[a.id] = { d: 'go', quiz: { ok, total: n } }; close(); redraw(); };
+    }
+    function press(key) {
+      if (lock) return;
+      if (key === 'del') input = input.slice(0, -1);
+      else if (key === 'ok') { if (input) answer(false); return; }
+      else if (input.length < 9) input = (input + key).replace(/^0+(?=\d)/, '');
+      upd();
+    }
+    document.addEventListener('keydown', onKey);
+    ov.addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) press(b.dataset.k); });
+    q('#tg-x').onclick = close;
+    q('#tg-stage').innerHTML = `<div class="tg-end"><div class="tg-grade">§</div><h3>Steuererklärung ${T.year}</h3><p>${n} Belege, je ${secs} Sekunden. Rechnen, eintippen, OK. ${T.pflicht ? 'Du musst abgeben (Mieten oder Selbstständigkeit). Fehler können auffallen.' : 'Freiwillig, aber jeder richtige Beleg holt Geld zurück.'}</p><button class="btn btn-primary" id="tg-go">Los</button></div>`;
+    q('#tg-go').onclick = () => { q('.tg-keys').hidden = false; q('.tg-display').hidden = false; show(); };
   }
 
   // ----- Tab: Markt -----
@@ -657,10 +772,86 @@
       $('#pe-send').onclick = send;
       $('#pe-in').onkeydown = (e) => { if (e.key === 'Enter') send(); };
     }
-    if (window.DULI_LARP_SOCIAL) window.DULI_LARP_SOCIAL.render($('#pe-offers'), V, me, api);
+    renderOffers($('#pe-offers'), V, me);
     const ch = $('#pe-chat');
     if (put(ch, V.chat.slice(-60).map((m) => `<p class="${m.ooc ? 'ooc' : ''}" style="--pc:${esc(m.color)}"><b>${esc(m.name)}</b>${m.ooc ? ' <small>(OOC)</small>' : ''}: ${esc(m.t)} <small>${esc(m.d)}</small></p>`).join('') || '<p class="p-sub">Noch still hier.</p>')) ch.scrollTop = ch.scrollHeight;
     put($('#pe-list'), `<div class="lx-others-full">${V.players.filter((p) => V.chars[p.id]).map((p) => sheet(V, p.id, p.id === me && false)).join('')}</div>`);
+  }
+
+  // ----- Angebote zwischen Spielern -----
+  const SOC = window.DULI_LARP_SOCIAL;
+  const offerDraft = { to: '', kind: '' };
+  let seenOffers = null;
+  function notifyOffers(V, me) {
+    const inc = (V.offers || []).filter((o) => o.to === me && o.status === 'open');
+    if (seenOffers === null) { seenOffers = new Set(inc.map((o) => o.id)); return; }
+    inc.forEach((o) => { if (!seenOffers.has(o.id)) { seenOffers.add(o.id); toast(`Neues Angebot von ${o.fromName}: ${SOC.KINDS[o.kind].name}`); FX && FX.play('card'); } });
+  }
+  function offerFields(V, c, t, kind) {
+    const f = (id, label, input) => `<label class="field"><span>${label}</span>${input}</label>`;
+    const num = (id, v, min = 0) => `<input id="of-${id}" type="number" min="${min}" value="${v}">`;
+    switch (kind) {
+      case 'perk-fahrschule': return f('discount', 'Rabatt', '<select id="of-discount"><option value="0.25">25 %</option><option value="0.5" selected>50 % (halber Preis)</option><option value="1">gratis</option></select>');
+      case 'job': return f('jobKind', 'Art', '<select id="of-jobKind"><option value="mini">Minijob (603 €)</option><option value="werk">Werkstudent:in</option><option value="voll">Vollzeit</option></select>') + f('title', 'Titel', '<input id="of-title" maxlength="60" placeholder="z. B. Junior Game Designer">') + f('gross', 'Brutto pro Monat (Vollzeit/Werkstudent)', num('gross', 2800, 1000));
+      case 'money': return f('amount', 'Betrag €', num('amount', 100, 1));
+      case 'loan': return f('amount', 'Betrag €', num('amount', 1000, 50)) + f('months', 'Monate', num('months', 12, 1)) + f('pm', 'Rate pro Monat € (leer = gleichmäßig)', '<input id="of-pm" type="number" min="1">');
+      case 'nachhilfe': case 'lerngruppe': {
+        const subs = t && t.abi && t.abi.exams ? Object.keys(t.abi.exams) : [];
+        return (subs.length ? f('subj', 'Fach', `<select id="of-subj">${subs.map((k) => `<option value="${k}">${esc(DB.SUBJECTS[k].name)}</option>`).join('')}</select>`) : '') + (kind === 'nachhilfe' ? f('price', 'Preis € (0 = gratis)', num('price', 0)) : '');
+      }
+      case 'lift': case 'flat': return f('pm', 'Pro Monat € (0 = gratis)', num('pm', 0));
+      case 'duel': return f('stat', 'Disziplin', `<select id="of-stat">${Object.entries(SOC.STATS).map(([k, n]) => `<option value="${k}">${n}</option>`).join('')}</select>`) + f('stake', 'Einsatz €', num('stake', 50));
+      case 'sell': return f('what', 'Was', `<select id="of-what">${c.car ? `<option value="car">Auto: ${esc(c.car.brand)} ${esc(c.car.model)}</option>` : ''}${(c.items || []).map((i) => `<option value="item:${esc(i)}">${esc(i)}</option>`).join('')}</select>`) + f('price', 'Preis €', num('price', 100));
+      default: return '';
+    }
+  }
+  function renderOffers(el, V, me) {
+    const c = V.chars[me];
+    if (!el || !c || c.dead) { put(el, ''); return; }
+    const others = L.alive(V).filter((p) => p.id !== me);
+    const inc = V.offers.filter((o) => o.to === me && o.status === 'open');
+    const out = V.offers.filter((o) => o.from === me && o.status === 'open');
+    const recent = V.offers.filter((o) => (o.from === me || o.to === me) && o.status !== 'open' && o.round >= V.round - 2).slice(-6).reverse();
+    const kinds = Object.entries(SOC.KINDS).filter(([, k]) => !k.need || k.need(c));
+    if (!offerDraft.to || !others.some((p) => p.id === offerDraft.to)) offerDraft.to = others[0] ? others[0].id : '';
+    if (!kinds.some(([k]) => k === offerDraft.kind)) offerDraft.kind = kinds[0][0];
+    const t = V.chars[offerDraft.to];
+    const contracts = (V.contracts || []).filter((v) => !v.ended && (v.payer === me || v.payee === me));
+    const html = `${inc.length ? `<div class="lx-appts"><span class="lb-k">Angebote für dich</span>${inc.map((o) => `<div class="lx-ap"><div class="lx-ap-h"><b>${esc(o.fromName)}</b><span>${esc(SOC.KINDS[o.kind].name)}</span></div><p>${esc(SOC.KINDS[o.kind].text(o))}</p><div class="btn-row"><button class="btn btn-small btn-primary" data-ans="${o.id}" data-yes="1">Annehmen</button><button class="btn btn-small" data-ans="${o.id}">Ablehnen</button></div></div>`).join('')}</div>` : ''}
+      ${others.length ? `<div class="lx-panel"><span class="lb-k">Jemandem etwas anbieten <small>max. ${SOC.MAX_OUT} offen</small></span>
+        <div class="lx-of-grid"><label class="field"><span>An</span><select id="of-to">${others.map((p) => `<option value="${p.id}" ${p.id === offerDraft.to ? 'selected' : ''}>${esc(V.chars[p.id].name)} (${esc(p.name)})</option>`).join('')}</select></label>
+        <label class="field"><span>Was</span><select id="of-kind">${kinds.map(([k, x]) => `<option value="${k}" ${k === offerDraft.kind ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+        ${offerFields(V, c, t, offerDraft.kind)}</div>
+        <div class="btn-row"><button class="btn btn-primary" id="of-send" ${V.phase === 'act' ? '' : 'disabled'}>Angebot schicken</button></div>
+        ${out.length ? `<p class="lx-lbl">Offen</p>${out.map((o) => `<p class="lx-out">${esc(SOC.KINDS[o.kind].name)} an ${esc(o.toName)} <button class="btn btn-small btn-ghost" data-cancel="${o.id}">Zurückziehen</button></p>`).join('')}` : ''}</div>
+      <div class="lx-panel"><span class="lb-k">Gemeinheiten</span><div class="lb-inline"><select id="ru-to">${others.map((p) => `<option value="${p.id}">${esc(V.chars[p.id].name)}</option>`).join('')}</select><input id="ru-text" maxlength="120" placeholder="Gerücht, z. B. hat beim Abi gespickt"><button class="btn btn-small" id="ru-go" ${V.phase === 'act' ? '' : 'disabled'}>Gerücht streuen</button></div>
+        <small class="p-sub">Charme gegen Charme. Gewinnst du, verliert die Person Macht. Verlierst du, fliegst du auf.</small>
+        ${c.flags.partner ? `<div class="btn-row"><button class="btn btn-small btn-ghost" id="bu-go">Schluss machen mit ${esc(c.flags.partner)}</button></div>` : ''}</div>` : '<p class="p-sub">Alleine im Spiel. Angebote gehen nur mit anderen Spielern.</p>'}
+      ${contracts.length ? `<div class="lx-panel"><span class="lb-k">Verträge</span>${contracts.map((v) => `<p class="lx-out">${esc(v.title)}: ${v.payer === me ? '−' : '+'}${eur(v.pm)}/Monat${v.left != null ? ` · noch ${v.left} Raten` : ''}${v.missed ? ` · ${v.missed}× nicht gezahlt` : ''}</p>`).join('')}</div>` : ''}
+      ${recent.length ? `<div class="lx-panel"><span class="lb-k">Zuletzt</span>${recent.map((o) => `<p class="lx-out">${esc(o.fromName)} → ${esc(o.toName)}: ${esc(SOC.KINDS[o.kind].name)} · <b class="${o.status === 'accepted' ? 'up' : 'down'}">${({ accepted: 'angenommen', declined: 'abgelehnt', expired: 'verfallen', cancelled: 'zurückgezogen' })[o.status]}</b></p>`).join('')}</div>` : ''}`;
+    if (!put(el, html)) return;
+    el.querySelectorAll('[data-ans]').forEach((b) => { b.onclick = () => act({ type: 'oAnswer', id: b.dataset.ans, yes: !!b.dataset.yes }); });
+    el.querySelectorAll('[data-cancel]').forEach((b) => { b.onclick = () => act({ type: 'oCancel', id: b.dataset.cancel }); });
+    const to = $('#of-to', el), kind = $('#of-kind', el);
+    if (to) to.onchange = () => { offerDraft.to = to.value; el._html = null; redraw(); };
+    if (kind) kind.onchange = () => { offerDraft.kind = kind.value; el._html = null; redraw(); };
+    const v = (id) => { const x = $(`#of-${id}`, el); return x ? x.value : undefined; };
+    if ($('#of-send', el)) $('#of-send', el).onclick = () => {
+      const terms = { discount: v('discount'), jobKind: v('jobKind'), title: v('title'), gross: Number(v('gross')), amount: Number(v('amount')), months: Number(v('months')), pm: v('pm') ? Number(v('pm')) : undefined, subj: v('subj'), price: Number(v('price')), stat: v('stat'), stake: Number(v('stake')) };
+      const w = v('what'); if (w) { if (w === 'car') terms.what = 'car'; else { terms.what = 'item'; terms.item = w.slice(5); } }
+      act({ type: 'oOffer', to: offerDraft.to, kind: offerDraft.kind, terms });
+    };
+    if ($('#ru-go', el)) $('#ru-go', el).onclick = () => act({ type: 'oRumor', to: $('#ru-to', el).value, text: $('#ru-text', el).value });
+    if ($('#bu-go', el)) $('#bu-go', el).onclick = () => { if (confirm('Wirklich Schluss machen?')) act({ type: 'oBreakup' }); };
+  }
+  function sceneHTML(V, me) {
+    const sc = V.scene;
+    if (!sc || sc.done || !sc.players.includes(me) || V.phase !== 'act') return '';
+    const other = V.chars[sc.players.find((x) => x !== me)];
+    const mine = sc.choices[me];
+    return `<div class="lb-card kind-absurd lx-scene"><span class="lb-k">Gemeinsame Szene mit ${esc(other ? other.name : '?')} · geheime Wahl</span><p class="lb-card-t">${esc(sc.text)}</p>
+      <div class="lb-opts">${sc.opts.map((o, i) => `<button type="button" class="lb-opt ${mine === i ? 'is-picked' : ''}" data-scene="${i}" style="--odds:0%"><b>${esc(o)}</b><span class="lb-odds">${mine === i ? 'gewählt' : ''}</span></button>`).join('')}</div>
+      <small class="p-sub">${esc(other ? other.name : '')} entscheidet auch. Was rauskommt, hängt von euch beiden ab.</small></div>`;
   }
 
   // ----- Tab: Lebenslauf -----

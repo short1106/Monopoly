@@ -246,6 +246,7 @@
     c.location = label; c.home = { label, city: x.city, lat: x.lat, lng: x.lng };
     if (!c.flags.living) { c.flags.living = 1; c.effects.push({ id: X.uid('e'), name: 'Lebenshaltung (Essen, Handy, Versicherung …)', pm: -950, health: 0, happy: 0, power: 0, until: 0, locked: true }); }
     X.addAppt(S, c, { kind: 'keys', y: Math.floor((X.idx(S.date) + 1) / 12), m: (X.idx(S.date) + 1) % 12, d: 1, title: `Schlüsselübergabe ${x.street}`, where: x.city, soft: true });
+    X.report(S, pid, '•', `Mietvertrag unterschrieben: ${x.title}, ${label}. ${X.eur(warm)} warm, Kaution ${X.eur(x.deposit)}. Einzug zum Ersten.`, 'good');
     c.chronicle.push({ d: X.dateText(S), t: `Mietet ${x.title} in ${label}.` });
     X.log(S, `${c.name} mietet in ${x.city} (${X.eur(warm)} warm).`);
     return null;
@@ -432,6 +433,40 @@
     const c = S.chars[pid], skip = dec.d !== 'go' || late;
     switch (ap.kind) {
       case 'keys': X.report(S, pid, '🔑', `Schlüssel abgeholt: ${c.housing.label || ''}.`); return;
+      case 'tax': {
+        const T = c.taxDue;
+        if (!T) return;
+        c.taxDue = null;
+        // Erstattung aus Werbungskosten (Pendlerpauschale, Arbeitsmittel); Nachzahlung auf Mieten und Selbstständigkeit
+        const refund = T.gross ? Math.round(Math.min(2500, T.gross * 0.022 + 120)) : 0;
+        const owe = Math.round(T.rent * 0.7 * 0.25 + Math.max(0, T.biz - 6000) * 0.22);
+        if (dec.d === 'skip' || late) {
+          if (!T.pflicht) { X.report(S, pid, '•', `Steuererklärung ${T.year} nicht gemacht. ${refund ? `Etwa ${X.eur(refund)} Erstattung verschenkt.` : ''}`, 'bad'); return; }
+          const pen = Math.round(owe * 1.3 + 25 * 6 + 300);
+          c.stats.money -= pen; c.bank.schufa = X.clamp(c.bank.schufa - 2, 0, 100);
+          X.report(S, pid, '•', `Steuererklärung ${T.year} ignoriert. Das Finanzamt schätzt (großzügig zu deinen Ungunsten): ${X.eur(pen)} inklusive Verspätungszuschlag.`, 'bad');
+          c.chronicle.push({ d: X.dateText(S), t: `Vom Finanzamt geschätzt (${X.eur(pen)}).` });
+          return;
+        }
+        if (dec.d === 'sick') {
+          const fee = 250 + Math.round((T.gross + T.rent * 3) / 400);
+          const net = refund - owe - fee;
+          c.stats.money += net;
+          X.report(S, pid, '•', `Steuerberaterin erledigt ${T.year}: ${refund ? `Erstattung ${X.eur(refund)}` : ''}${owe ? `${refund ? ', ' : ''}Nachzahlung ${X.eur(owe)}` : ''}, Honorar ${X.eur(fee)}. Unterm Strich ${net >= 0 ? '+' : '−'}${X.eur(Math.abs(net))}.`, net >= 0 ? 'good' : 'bad');
+          return;
+        }
+        const q = dec.quiz, ratio = q && q.total ? q.ok / q.total : 0.5 + (X.d20() - 10) / 40;
+        let net = Math.round(refund * Math.min(1, ratio + 0.15)) - owe;
+        let line = `Steuererklärung ${T.year} selbst gemacht${q ? ` (STEUER-RUSH ${q.ok}/${q.total})` : ''}: `;
+        if (ratio < 0.5 && T.pflicht && X.rnd(100) < 45) {
+          const extra = Math.round(owe * 0.4 + 200);
+          net -= extra;
+          line += `Rückfrage vom Finanzamt, Fehler gefunden: ${X.eur(extra)} plus Zinsen. `;
+        }
+        c.stats.money += net;
+        X.report(S, pid, '•', line + (net >= 0 ? `Erstattung ${X.eur(net)}.` : `Nachzahlung ${X.eur(-net)}.`), net >= 0 ? 'good' : 'bad');
+        return;
+      }
       case 'tuv': {
         if (!c.car) return;
         if (skip) { X.report(S, pid, '⚠', 'TÜV überzogen. Bei einer Kontrolle: Bußgeld. Neuer Termin nächsten Monat.', 'bad'); const t = X.idx(S.date) + S.stepM; X.addAppt(S, c, { kind: 'tuv', y: Math.floor(t / 12), m: t % 12, d: 10, title: ap.title, where: 'TÜV', fee: 145 }); c.flags.tuvLate = 1; return; }
@@ -566,6 +601,29 @@
   // ---------- Monatlich: Kredite, Mieter, Auto, Hausgeld ----------
   function month(S, c, pid, X) {
     let inc = 0, out = 0;
+    const cur = X.idx(S.date) + (S._mk || 0), y = Math.floor(cur / 12), m = cur % 12;
+    // Steuerjahr: Brutto, Mieteinnahmen, Selbstständigkeit
+    const tx = c.tx || (c.tx = { y, gross: 0, rent: 0, biz: 0 });
+    if (tx.y < y) {
+      if (tx.gross > 0 || tx.rent > 0 || tx.biz > 0) {
+        const pflicht = tx.rent > 0 || tx.biz > 6000;
+        c.taxDue = { year: tx.y, gross: tx.gross, rent: tx.rent, biz: tx.biz, pflicht };
+        X.addAppt(S, c, { kind: 'tax', y, m: 6, d: 31, title: `Steuererklärung ${tx.y}${pflicht ? ' (Pflicht)' : ' (freiwillig, lohnt sich meist)'}`, where: 'Finanzamt (ELSTER)', data: { year: tx.y } });
+      }
+      c.tx = { y, gross: 0, rent: 0, biz: 0 };
+    }
+    if (c.job2) c.tx.gross += c.job2.gross;
+    if (c.flags.company) c.tx.biz += 150 * c.flags.company;
+    // Mieter: jährliche Nebenkostenabrechnung, ab und zu Mieterhöhung
+    if (c.housing && (c.housing.kind === 'rent' || c.housing.kind === 'wg') && m === 5) {
+      const d = Math.round((X.rnd(100) - 55) * (c.housing.warm || 500) / 400) * 5;
+      c.stats.money -= d; if (d > 0) out += d; else inc -= d;
+      X.report(S, pid, '•', d > 0 ? `Nebenkostenabrechnung: ${X.eur(d)} Nachzahlung. Wer heizt hier so viel?` : `Nebenkostenabrechnung: ${X.eur(-d)} Guthaben zurück.`, d > 0 ? 'bad' : 'good');
+      if (X.rnd(100) < 25) {
+        const e = c.effects.find((f) => f.rent && !f.until);
+        if (e) { const plus = Math.round(-e.pm * (0.03 + X.rnd(6) / 100)); e.pm -= plus; c.housing.warm = -e.pm; X.report(S, pid, '•', `Mieterhöhung nach Mietspiegel: +${X.eur(plus)} im Monat.`, 'bad'); }
+      }
+    }
     c.bank.loans.forEach((l) => {
       const zins = l.rest * l.rate / 100 / 12, pay = Math.min(l.annuity, l.rest + zins);
       l.rest = Math.max(0, Math.round(l.rest + zins - pay));
@@ -583,7 +641,7 @@
           p.tenant.unpaid = (p.tenant.unpaid || 0) + 1;
           if (p.tenant.unpaid === 2) X.report(S, pid, '😤', `${p.tenant.name} zahlt seit zwei Monaten keine Miete. Mietnomaden. Räumungsklage kostet ${X.eur(2500)} und dauert.`, 'bad');
           if (p.tenant.unpaid >= 6) { c.stats.money -= 2500; out += 2500; X.report(S, pid, '⚖', `Räumung durch. ${p.tenant.name} ist raus, die Wohnung ist verwüstet.`, 'bad'); p.value = Math.round(p.value * 0.96); p.tenant = null; p.leased = false; }
-        } else { c.stats.money += p.tenant.rent; inc += p.tenant.rent; }
+        } else { c.stats.money += p.tenant.rent; inc += p.tenant.rent; c.tx.rent += p.tenant.rent; }
       }
       p.value = Math.round(p.value * (1 + (S.econ.infl + 0.6) / 1200));
     });

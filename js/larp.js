@@ -5,6 +5,8 @@
   const isNode = typeof module !== 'undefined' && module.exports;
   const DB = root.DULI_LARP_DB || (isNode ? require('./larp-db') : null);
   const DECK = root.DULI_LARP_DECK || (isNode ? require('./larp-deck') : null);
+  let soc = null;
+  const SOC = () => { if (root.DULI_LARP_SOCIAL) return root.DULI_LARP_SOCIAL; if (isNode && soc === null) { try { soc = require('./larp-social'); } catch (e) { soc = false; } } return soc || null; };
   let mk = null;
   const MK = () => { if (root.DULI_LARP_MARKET) return root.DULI_LARP_MARKET; if (isNode && mk === null) { try { mk = require('./larp-market'); } catch (e) { mk = false; } } return mk || null; };
   const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
@@ -26,7 +28,11 @@
   const dayText = (a) => `${a.d}. ${MONTHS[a.m]} ${a.y}`;
   const alive = (S) => S.players.filter((p) => S.chars[p.id] && !S.chars[p.id].dead);
   function log(S, m) { S.log.push(m); if (S.log.length > 80) S.log.shift(); }
-  function report(S, pid, icon, text, tone) { (S.reports[pid] = S.reports[pid] || []).push({ icon, text, tone: tone || '' }); }
+  // Während der Planung gesammelt (pending), beim Abrechnen in den Bericht der Runde übernommen
+  function report(S, pid, icon, text, tone) {
+    const box = S.phase === 'act' ? (S.pending = S.pending || {}) : S.reports;
+    (box[pid] = box[pid] || []).push({ icon, text, tone: tone || '' });
+  }
 
   // ---------- Figuren ----------
   // Startorte sind Ortsmitten. Schulen wählt man in der Vorbereitung aus der Schulliste.
@@ -324,8 +330,10 @@
       case 'licEnroll': return licEnroll(S, me, a);
       case 'licBook': return licBook(S, me, a);
       default: {
+        const So = SOC();
+        if (So && /^o[A-Z]/.test(a.type)) return So.act(S, pid, a, API);
         const M = MK();
-        if (M && M.act && /^(m|o)[A-Z]/.test(a.type)) return M.act(S, pid, a, API);
+        if (M && M.act && /^m[A-Z]/.test(a.type)) return M.act(S, pid, a, API);
       }
     }
     return 'Unbekannte Aktion.';
@@ -363,9 +371,12 @@
 
   function toThink(S) {
     S.phase = 'think'; S.aiTask = 'resolve'; S.aiSeq++;
-    S.reports = {};
+    S.reports = S.pending || {};
+    S.pending = {};
     alive(S).forEach((p) => { S.rolls[p.id] = d20(); });
     alive(S).forEach((p) => processPlan(S, p.id));
+    const So = SOC();
+    if (So) So.resolveScene(S, API);
     builtinNow(S);
   }
   function builtinNow(S) {
@@ -711,12 +722,21 @@
     }
     const M = S.stepM;
     const w = cleanText(data.world, 400);
+    // Zeit vergeht Monat für Monat: erst jede Figur, dann die Verträge zwischen Spielern
+    const flows = {};
+    if (task === 'resolve') {
+      for (let k = 0; k < M; k++) {
+        S._mk = k;
+        alive(S).forEach((p) => { const r = monthTick(S, S.chars[p.id], p.id); const f = flows[p.id] || (flows[p.id] = { inc: 0, out: 0 }); f.inc += r.inc; f.out += r.out; });
+        const So = SOC();
+        if (So) So.month(S, API);
+      }
+      S._mk = 0;
+    }
     alive(S).forEach((p) => {
       const c = S.chars[p.id], x = byId[p.id];
       if (task === 'resolve') {
-        // Zeit vergeht Monat für Monat
-        let inc = 0, out = 0;
-        for (let k = 0; k < M; k++) { const r = monthTick(S, c, p.id); inc += r.inc; out += r.out; }
+        const { inc, out } = flows[p.id] || { inc: 0, out: 0 };
         const f = M / 12, stoch = (v) => Math.floor(v + rng());
         c.effects.forEach((e) => STATS.forEach((k) => { if (e[k]) c.stats[k] = clampStat(c.stats[k] + stoch(e[k] * f)); }));
         c.effects = c.effects.filter((e) => !e.until || e.until > S.round + 1);
@@ -805,6 +825,8 @@
     }
     S.phase = 'act';
     chooseStep(S);
+    const So = SOC();
+    if (So) { So.expire(S); So.maybeScene(S, API); }
     S.deadline = S.settings.timer ? Date.now() + S.settings.timer * 1000 : 0;
   }
 
