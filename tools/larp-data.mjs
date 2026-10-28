@@ -41,18 +41,19 @@ async function sparql(q) {
 const point = (s) => { const m = /Point\(([-\d.]+) ([-\d.]+)\)/.exec(s || ''); return m ? [Number(m[2]), Number(m[1])] : null; };
 const STATES = { 'Nordrhein-Westfalen': 'NW', 'Baden-Württemberg': 'BW', Bayern: 'BY', Berlin: 'BE', Brandenburg: 'BB', Bremen: 'HB', Hamburg: 'HH', Hessen: 'HE', 'Mecklenburg-Vorpommern': 'MV', Niedersachsen: 'NI', 'Rheinland-Pfalz': 'RP', Saarland: 'SL', Sachsen: 'SN', 'Sachsen-Anhalt': 'ST', 'Schleswig-Holstein': 'SH', 'Thüringen': 'TH' };
 
+const BY_AGS = { '01': 'SH', '02': 'HH', '03': 'NI', '04': 'HB', '05': 'NW', '06': 'HE', '07': 'RP', '08': 'BW', '09': 'BY', '10': 'SL', '11': 'BE', '12': 'BB', '13': 'MV', '14': 'SN', '15': 'ST', '16': 'TH' };
 async function cities() {
   console.log('Städte (Wikidata) …');
-  const rows = await sparql(`SELECT ?c ?cLabel ?pop ?coord ?stateLabel WHERE {
+  // Bundesland über die ersten zwei Ziffern des Gemeindeschlüssels (schneller als P131+, das läuft in ein Timeout)
+  const rows = await sparql(`SELECT ?c ?cLabel ?pop ?coord ?ags WHERE {
     ?c wdt:P439 ?ags ; wdt:P1082 ?pop ; wdt:P625 ?coord .
-    ?c wdt:P131+ ?state . ?state wdt:P31 wd:Q1221156 .
     FILTER(?pop >= 8000)
     SERVICE wikibase:label { bd:serviceParam wikibase:language "de". }
   }`);
   if (!rows) return null;
   const by = {};
   rows.forEach((x) => {
-    const name = x.cLabel.value, st = STATES[x.stateLabel.value], p = point(x.coord.value), pop = Math.round(Number(x.pop.value));
+    const name = x.cLabel.value, st = BY_AGS[String(x.ags.value).slice(0, 2)], p = point(x.coord.value), pop = Math.round(Number(x.pop.value));
     if (!st || !p || /^Q\d+$/.test(name)) return;
     const k = `${name}|${st}`;
     if (!by[k] || by[k].pop < pop) by[k] = { name, st, lat: r4(p[0]), lng: r4(p[1]), pop };
@@ -149,7 +150,13 @@ async function schoolsNRW() {
   let text = null;
   for (const u of [...new Set(urls)]) { const r = await get(u); if (r) { text = decode(new Uint8Array(await r.arrayBuffer())); console.log(`  geladen: ${u}`); break; } }
   if (!text) return null;
-  const sep = (text.split('\n')[0].match(/;/g) || []).length > (text.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+  text = text.replace(/^\uFEFF/, '');
+  // Excel-Hinweiszeile „sep=;“ am Anfang
+  let sep = null;
+  const hint = /^sep=(.)\r?\n/.exec(text);
+  if (hint) { sep = hint[1]; text = text.slice(hint[0].length); }
+  const first = text.split('\n')[0];
+  if (!sep) sep = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : (first.match(/\t/g) || []).length > (first.match(/,/g) || []).length ? '\t' : ',';
   const rows = parseCSV(text, sep);
   const head = rows.shift().map((h) => h.trim().toLowerCase());
   console.log('  Spalten:', head.join(' | '));
@@ -211,7 +218,7 @@ async function streets(cityList) {
       area["name"="${c.name}"]["boundary"="administrative"]${ags}->.a;
       (way["highway"~"^(residential|living_street|tertiary|secondary)$"]["name"](area.a););out center tags 1500;
       (node["place"~"^(suburb|quarter|neighbourhood)$"]["name"](area.a););out tags 200;`);
-    if (!el) { console.log(`  ${c.name}: keine Straßen`); continue; }
+    if (!el || !el.length) { console.log(`  ${c.name}: keine Straßen`); continue; }
     const seen = new Set(), sts = [], subs = [];
     el.forEach((e) => {
       const n = e.tags && e.tags.name;
@@ -244,7 +251,8 @@ if (only === 'all' || only === 'cities') cityList = await cities();
 if (!cityList) cityList = await prev('cities.json');
 if (only === 'all' || only === 'unis') await unis();
 if (only === 'all' || only === 'schools') {
-  const nrw = (await schoolsNRW()) || (await schoolsOSM('DE-NW', 'NW'));
+  let nrw = await schoolsNRW();
+  if (!nrw || !nrw.length) { console.log('  NRW-CSV leer, nehme OpenStreetMap'); nrw = await schoolsOSM('DE-NW', 'NW'); }
   await sleep(3000);
   const bw = await schoolsOSM('DE-BW', 'BW');
   const all = [...(nrw || []), ...(bw || [])];
@@ -254,6 +262,7 @@ if (only === 'all' || only === 'streets') {
   const list = CORE.map((n) => (cityList || []).find((c) => c.name === n) || { name: n, st: '' });
   const old = (await prevStreets()) || {};
   // Was schon da ist, nicht nochmal holen
+  Object.keys(old).forEach((k) => { if (!old[k].s || !old[k].s.length) delete old[k]; });
   const todo = list.filter((c) => !Object.keys(old).some((k) => k.startsWith(`${c.name}|`)));
   const s = await streets(todo);
   if (Object.keys(s).length || Object.keys(old).length) await save('streets.json', Object.assign(old, s));
