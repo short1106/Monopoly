@@ -762,7 +762,7 @@
   }
 
   // ----- Tab: Skills -----
-  const CO = window.DULI_LARP_COMPANY;
+  const CO = window.DULI_LARP_COMPANY, ST = window.DULI_LARP_SKILLTEST;
   function toggleSkill(k) {
     const dr = draft;
     if (!dr) return;
@@ -779,13 +779,14 @@
     Object.entries(sk).forEach(([k, v]) => { const g = CO.catOf(k); (groups[g] = groups[g] || []).push([k, v]); });
     const missing = CO.ALL.filter((k) => sk[k] == null);
     const others = V.players.filter((p) => p.id !== me && V.chars[p.id] && V.chars[p.id].skills).map((p) => { const o = V.chars[p.id]; return `<li style="--pc:${esc(o.color)}"><b>${esc(o.name)}</b> ${Object.entries(o.skills).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `<span>${esc(k)} ${Math.round(v)}</span>`).join('')}</li>`; }).join('');
-    const html = `<div class="lx-panel lx-skills"><span class="lb-k">Deine Skills</span><p class="p-sub">Level 0–100. Trainieren läuft über den Fokus „Lernen“ (bis zu 2 Skills pro Runde). Jobs, Lizenzen, Leben im Ausland und Aprils Ereignisse ändern Skills auch. Deine Skills zählen für deine Firma mit.</p>
-      ${Object.keys(groups).sort().map((g) => `<h4>${esc(g)}</h4><ul class="lx-sk">${groups[g].sort((a, b) => b[1] - a[1]).map(([k, v]) => `<li><span><b>${esc(k)}</b><small>${lvlName(v)}</small></span>${sbar(v)}<em>${Math.round(v)}</em><button class="lx-chip sm ${dr.skills.includes(k) ? 'on' : ''}" data-tr="${esc(k)}" ${open ? '' : 'disabled'}>${dr.skills.includes(k) ? 'wird trainiert' : 'trainieren'}</button></li>`).join('')}</ul>`).join('') || '<p class="p-sub">Noch keine Skills.</p>'}
+    const html = `<div class="lx-panel lx-skills"><span class="lb-k">Deine Skills</span><p class="p-sub">Level 0–100. Neue Skills startest du mit einem Einstufungstest, der zum Skill passt (Quiz, Rhythmus, Reaktion, Farbe, Tippen, Gedächtnis). Jeden Skill kannst du einmal nachtesten. Trainieren läuft über den Fokus „Lernen“ (bis zu 2 Skills pro Runde). Jobs, Lizenzen, Leben im Ausland und Aprils Ereignisse ändern Skills auch. Deine Skills zählen für deine Firma mit.</p>
+      ${Object.keys(groups).sort().map((g) => `<h4>${esc(g)}</h4><ul class="lx-sk">${groups[g].sort((a, b) => b[1] - a[1]).map(([k, v]) => `<li><span><b>${esc(k)}</b><small>${lvlName(v)}</small></span>${sbar(v)}<em>${Math.round(v)}</em><span class="lx-sk-btns"><button class="lx-chip sm ${dr.skills.includes(k) ? 'on' : ''}" data-tr="${esc(k)}" ${open ? '' : 'disabled'}>${dr.skills.includes(k) ? 'wird trainiert' : 'trainieren'}</button>${ST && ST.kindOf(k) !== 'none' ? ((c.tested || {})[k] != null ? `<small class="lx-tested">${(c.tested || {})[k] >= 0 ? `Test ${c.tested[k]}` : 'ohne Test'}</small>` : `<button class="lx-chip sm test" data-test="${esc(k)}" ${open ? '' : 'disabled'} title="${esc(ST.LABEL[ST.kindOf(k)])}">Einstufungstest</button>`) : ''}</span></li>`).join('')}</ul>`).join('') || '<p class="p-sub">Noch keine Skills.</p>'}
       <h4>Neuen Skill anfangen</h4><div class="lb-inline"><input id="sk-new" list="sk-list" maxlength="40" placeholder="z. B. 3D-Modellierung, Singen, Poker …"><datalist id="sk-list">${missing.map((k) => `<option value="${esc(k)}">`).join('')}</datalist><button class="btn btn-small" id="sk-add" ${open ? '' : 'disabled'}>Anfangen</button></div></div>
       ${others ? `<div class="lx-panel"><span class="lb-k">Die anderen können</span><ul class="lx-sk-others">${others}</ul></div>` : ''}`;
     if (put(body, html)) {
       body.querySelectorAll('[data-tr]').forEach((b) => { b.onclick = () => { toggleSkill(b.dataset.tr); body._html = null; redraw(); }; });
-      const add = () => { const n = $('#sk-new').value.trim(); if (n) act({ type: 'kLearn', name: n }); };
+      body.querySelectorAll('[data-test]').forEach((b) => { b.onclick = () => ST.run(b.dataset.test, (score) => { if (score != null) act({ type: 'kTest', name: b.dataset.test, score }); }); });
+      const add = () => { const n = $('#sk-new').value.trim(); if (!n) return; if (ST) ST.run(n, (score) => act({ type: 'kLearn', name: n, score })); else act({ type: 'kLearn', name: n }); };
       $('#sk-add').onclick = add;
       $('#sk-new').onkeydown = (e) => { if (e.key === 'Enter') add(); };
     }

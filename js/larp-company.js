@@ -173,8 +173,24 @@
       if (!n) return 'Welcher Skill?';
       if (Object.keys(c.skills).some((k) => k.toLowerCase() === n.toLowerCase())) return 'Den hast du schon. Trainier ihn im Fokus „Lernen“.';
       if (Object.keys(c.skills).length >= 30) return 'Mehr als 30 Skills schafft niemand.';
-      change(c, n, 3);
-      X.report(S, pid, '•', `Neuer Skill: ${n}. Du fängst bei null an. Im Fokus „Lernen“ trainieren.`);
+      // Einstufungstest bestimmt das Startlevel (höchstens 60, der Rest kommt durchs Training)
+      const sc = Number.isFinite(Number(a.score)) ? Math.max(0, Math.min(100, Number(a.score))) : null;
+      const startL = sc == null ? 3 : Math.max(2, Math.round(sc * 0.6));
+      change(c, n, startL);
+      c.tested = Object.assign({}, c.tested || {}, { [n]: sc != null ? Math.round(sc) : -1 });
+      X.report(S, pid, '•', sc == null ? `Neuer Skill: ${n}. Du fängst bei null an.` : `Einstufungstest ${n}: ${Math.round(sc)} von 100 Punkten. Du startest auf Level ${startL}.`, sc != null && sc >= 50 ? 'good' : '');
+      return null;
+    }
+    // Nachtest für einen Skill, den man schon hat (einmal pro Skill): das Level rückt Richtung Testergebnis
+    if (a.type === 'kTest') {
+      const n = Object.keys(c.skills).find((k) => k.toLowerCase() === String(a.name || '').toLowerCase());
+      if (!n) return 'Den Skill hast du nicht.';
+      if ((c.tested || {})[n] != null) return 'Für diesen Skill hast du den Einstufungstest schon gemacht.';
+      const sc = Math.max(0, Math.min(100, Number(a.score) || 0)), cur = c.skills[n], target = sc * 0.85;
+      const d = Math.max(-20, Math.min(20, (target - cur) * 0.5));
+      change(c, n, d);
+      c.tested = Object.assign({}, c.tested || {}, { [n]: Math.round(sc) });
+      X.report(S, pid, '•', `Einstufungstest ${n}: ${Math.round(sc)} von 100. Level ${Math.round(cur)} → ${Math.round(c.skills[n])}.`, d >= 0 ? 'good' : 'bad');
       return null;
     }
     if (a.type === 'kQuit') {

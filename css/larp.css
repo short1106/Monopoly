@@ -332,3 +332,22 @@
 .lx-switch input:checked + i { background: #2bd4a4; }
 .lx-switch input:checked + i::after { left: 23px; }
 .lx-switch input:disabled + i { opacity: .4; }
+/* Einstufungstests */
+.lx-sk li { grid-template-columns: minmax(120px, 1.2fr) 2fr 40px auto; }
+.lx-sk-btns { display: flex !important; flex-direction: row !important; gap: 6px; align-items: center; flex-wrap: wrap; }
+.lx-chip.test { border-color: #ffc43d; color: #ffc43d; }
+.lx-tested { font-size: 11px; opacity: .65; }
+.lx-st-box { max-width: 520px; }
+.lx-st-q { font-size: 17px; font-weight: 700; margin: 8px 0 12px; }
+.lx-st-seq { font-size: 22px; text-align: center; letter-spacing: .02em; }
+.lx-st-beat { display: grid; place-items: center; height: 140px; }
+.lx-st-beat i { width: 70px; height: 70px; border-radius: 50%; background: rgba(255, 255, 255, .1); }
+.lx-st-beat i.on { animation: lxBeat .25s ease-out; }
+@keyframes lxBeat { 0% { background: #ff4fd8; transform: scale(1.25); } 100% { background: rgba(255, 255, 255, .1); transform: scale(1); } }
+.lx-st-tap { width: 100%; height: 64px; font-size: 18px; }
+.lx-st-react { width: 100%; height: 180px; border: 0; border-radius: 18px; font: 800 24px var(--font); color: #fff; cursor: pointer; }
+.lx-st-react.wait { background: #a8324a; }
+.lx-st-react.go { background: #20b46a; }
+.lx-st-colors { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.lx-st-colors div { height: 110px; border-radius: 16px; }
+#st-type { width: 100%; padding: 10px; border-radius: 12px; background: #1a1426; color: #fff; border: 1px solid #333; font: 15px var(--font); margin-bottom: 10px; }
