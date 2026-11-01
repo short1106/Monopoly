@@ -25,6 +25,7 @@
     { href: 'slf.html', name: 'Stadt Land Fluss', sub: 'Schreibspiel · 2–10 online', ic: '✍️' },
     { href: 'risiko.html', name: 'Risiko', sub: 'Welteroberung · 2–6 online', ic: '⚔️' },
     { href: 'geo.html', name: 'GeoGuessr', sub: 'Satellit · Wo ist das? · online', ic: '🌍' },
+    { href: 'aura.html', name: 'AURA GAMES', sub: 'Minispiele-Battle · jede Runde komischer · online', ic: '💥' },
     { href: 'larp.html', name: 'LARP EXTREME', sub: 'Live Action Roleplay · Abi, Führerschein, Markt · online', ic: '🎬' },
     { href: './#arcade', name: 'Spielhalle', sub: '6 Spiele für zwischendurch', ic: '🕹️' },
   ];
