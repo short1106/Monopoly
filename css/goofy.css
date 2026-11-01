@@ -1,0 +1,58 @@
+/* Dulidan – GOOFY-MODUS (js/goofy.js). Alles liegt über dem Spiel, ohne Klicks abzufangen. */
+.gf-layer { position: fixed; inset: 0; z-index: 9000; pointer-events: none; overflow: hidden; }
+.gf-pop { position: fixed; transform: translate(-50%, -50%) rotate(var(--r)); font: 900 20px var(--font, system-ui); color: #fff; white-space: nowrap; -webkit-text-stroke: 1px #000; text-shadow: 3px 3px 0 #000; animation: gf-pop 1.8s cubic-bezier(.2, 1.4, .4, 1) both; }
+.gf-pop.good { color: #3ce08a; }
+.gf-pop.bad { color: #ff3d5e; }
+@keyframes gf-pop { 0% { opacity: 0; transform: translate(-50%, -20%) rotate(var(--r)) scale(.3); } 18% { opacity: 1; transform: translate(-50%, -60%) rotate(var(--r)) scale(1.25); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -190%) rotate(var(--r)) scale(1); } }
+.gf-big { position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%); font: 900 clamp(56px, 14vw, 180px) var(--font, system-ui); color: #fff; -webkit-text-stroke: 3px #000; text-shadow: 8px 8px 0 #000, 0 0 60px rgba(255, 61, 160, .7); white-space: nowrap; letter-spacing: -.03em; animation: gf-big 1.7s cubic-bezier(.2, 1.5, .4, 1) both; }
+.gf-big.gold { color: #ffd83a; }
+.gf-big.bad { color: #ff3d5e; }
+.gf-big.pink { color: #ff4fd8; }
+.gf-big.sixseven { animation: gf-big 1.7s both, gf-67 .32s ease-in-out infinite alternate; }
+@keyframes gf-big { 0% { opacity: 0; transform: translate(-50%, -50%) scale(4) rotate(-8deg); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(.9) rotate(3deg); } 25% { transform: translate(-50%, -50%) scale(1.05) rotate(-2deg); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); } }
+@keyframes gf-67 { from { margin-top: -30px; } to { margin-top: 30px; } }
+.gf-rain { position: fixed; top: -60px; font: 900 28px var(--font, system-ui); font-style: normal; color: #ffd83a; -webkit-text-stroke: 1px #000; animation: gf-rain 2s linear both; }
+.gf-rain:nth-child(3n) { color: #3ce08a; } .gf-rain:nth-child(3n+1) { color: #ff4fd8; }
+@keyframes gf-rain { to { transform: translateY(calc(100vh + 120px)) rotate(540deg); } }
+
+.gf-aura { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 8999; display: flex; gap: 6px; align-items: baseline; padding: 4px 12px; border: 2px solid #000; border-radius: 999px; background: linear-gradient(90deg, #ff4fd8, #8a4dff, #3ad1ff); color: #fff; font: 900 13px var(--font, system-ui); box-shadow: 3px 3px 0 #000; cursor: pointer; opacity: .82; }
+.gf-aura small { font-size: 9px; letter-spacing: .15em; }
+.gf-aura:hover { opacity: 1; }
+.gf-aura.up { animation: gf-bump .4s ease; } .gf-aura.down { animation: gf-bump .4s ease; filter: grayscale(.6); }
+@keyframes gf-bump { 40% { transform: translateX(-50%) scale(1.35) rotate(-4deg); } }
+
+.gf-duck { position: fixed; bottom: 34px; left: -80px; pointer-events: auto; border: 0; background: none; padding: 0; cursor: pointer; animation: gf-walk 12s linear both, gf-waddle .35s ease-in-out infinite alternate; }
+.gf-duck.rtl { left: auto; right: -80px; animation-name: gf-walk-rtl, gf-waddle; }
+.gf-duck.rtl svg { transform: scaleX(-1); }
+.gf-duck.fly { animation: gf-fly .9s ease-in both !important; }
+@keyframes gf-walk { to { left: calc(100vw + 80px); } }
+@keyframes gf-walk-rtl { to { right: calc(100vw + 80px); } }
+@keyframes gf-waddle { from { rotate: -7deg; } to { rotate: 7deg; translate: 0 -4px; } }
+@keyframes gf-fly { to { transform: translate(120px, -110vh) rotate(1080deg) scale(.4); } }
+
+.gf-dvd { position: fixed; left: 0; top: 0; padding: 6px 14px; border: 3px solid currentColor; border-radius: 50% / 40%; font: 900 italic 26px var(--font, system-ui); color: #3ad1ff; letter-spacing: -.02em; opacity: .85; }
+
+.gf-ach { position: fixed; top: 74px; left: 50%; transform: translateX(-50%); display: grid; gap: 2px; min-width: 260px; padding: 10px 16px; border: 2px solid #ffd83a; border-radius: 14px; background: #14101c; color: #fff; box-shadow: 0 0 0 3px #000, 0 12px 40px rgba(0, 0, 0, .6); animation: gf-ach 4.3s ease both; text-align: center; }
+.gf-ach b { font: 900 11px var(--mono, monospace); letter-spacing: .18em; color: #ffd83a; }
+.gf-ach span { font: 800 16px var(--font, system-ui); }
+.gf-ach small { color: #aaa; font-size: 11px; }
+@keyframes gf-ach { 0% { transform: translate(-50%, -160%); } 10%, 85% { transform: translate(-50%, 0); } 100% { transform: translate(-50%, -160%); } }
+
+.gf-toggle.is-on { background: linear-gradient(90deg, #ff4fd8, #ffd83a); color: #000 !important; border-color: #000; font-weight: 900; animation: gf-tg 2.4s ease-in-out infinite; }
+@keyframes gf-tg { 50% { transform: rotate(-3deg) scale(1.05); } }
+
+.gf-wobble { animation: gf-wobble .7s ease !important; }
+@keyframes gf-wobble { 15% { transform: rotate(-9deg) scale(1.1); } 30% { transform: rotate(7deg); } 45% { transform: rotate(-5deg); } 60% { transform: rotate(3deg); } }
+.gf-spin { animation: gf-spin .6s ease; }
+@keyframes gf-spin { to { transform: rotate(360deg); } }
+
+body.gf-shake { animation: gf-shake .5s ease; }
+body.gf-zoom { animation: gf-zoom .7s ease; }
+@keyframes gf-shake { 20%, 60% { transform: translate(-8px, 4px) rotate(-.5deg); } 40%, 80% { transform: translate(8px, -4px) rotate(.5deg); } }
+@keyframes gf-zoom { 15% { transform: scale(1.08) rotate(-1deg); filter: contrast(1.6) saturate(2); } 40% { transform: scale(1.05) rotate(1deg); } }
+body.gf-ohio { transition: transform .5s; transform: rotate(180deg); }
+body.gf-ultra, body.gf-ultra * { font-family: 'Comic Sans MS', 'Comic Neue', 'Chalkboard SE', cursive !important; }
+html:has(body.gf-ultra) { animation: gf-hue 3s linear infinite; }
+body.gf-ultra .btn, body.gf-ultra button { animation: gf-wobble 1.4s ease-in-out infinite; }
+@keyframes gf-hue { to { filter: hue-rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .gf-pop, .gf-big, .gf-rain, .gf-duck, .gf-ach, .gf-toggle.is-on { animation-duration: .01s !important; } }
