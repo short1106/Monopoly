@@ -7,6 +7,7 @@
   const DECK = root.DULI_LARP_DECK || (isNode ? require('./larp-deck') : null);
   let soc = null;
   const SOC = () => { if (root.DULI_LARP_SOCIAL) return root.DULI_LARP_SOCIAL; if (isNode && soc === null) { try { soc = require('./larp-social'); } catch (e) { soc = false; } } return soc || null; };
+  const GOOFY = () => root.DULI_LARP_GOOFY || (isNode ? require('./larp-goofy') : null);
   let mk = null;
   const MK = () => { if (root.DULI_LARP_MARKET) return root.DULI_LARP_MARKET; if (isNode && mk === null) { try { mk = require('./larp-market'); } catch (e) { mk = false; } } return mk || null; };
   let ac = null;
@@ -127,7 +128,7 @@
 
   // ---------- Spielstand ----------
   function start(players, settings) {
-    const st = Object.assign({ pace: 'auto', years: 20, death: 'rejoin', exam: 'quiz', timer: 0, gm: 'auto' }, settings || {});
+    const st = Object.assign({ pace: 'auto', years: 20, death: 'rejoin', exam: 'quiz', timer: 0, gm: 'auto', goofy: 'on', adult: false, music: 'auto' }, settings || {});
     const now = new Date();
     // Das Spiel beginnt im Oktober des laufenden Schuljahres, das Abi ist im Frühjahr danach
     const y = now.getMonth() >= 7 ? now.getFullYear() : now.getFullYear() - 1;
@@ -968,6 +969,9 @@
         if (So) So.month(S, API);
       }
       S._mk = 0;
+      // Goofy-Modus: ab und zu ein Weltereignis, das alle trifft
+      const Gm = GOOFY();
+      if (Gm) Gm.world(S, API);
     }
     alive(S).forEach((p) => {
       const c = S.chars[p.id], x = byId[p.id];

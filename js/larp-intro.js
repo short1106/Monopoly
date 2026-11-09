@@ -100,7 +100,7 @@
       }
       if (run.stop) return;
       // 6. Regeln
-      set('<ul class="lxi-rules"><li><i>01</i>Der Würfel entscheidet. Oder ihr.</li><li><i>02</i>Termine kann man schwänzen. Alles hat Folgen.</li><li><i>03</i>Schreib April, was du willst. Alles geht.</li><li class="d"><i>04</i>Der Tod ist endgültig.</li></ul>', 'is-rules');
+      set('<ul class="lxi-rules"><li><i>01</i>Der Würfel entscheidet. Oder ihr.</li><li><i>02</i>Termine kann man schwänzen. Alles hat Folgen.</li><li><i>03</i>Schreib April, was du willst. Alles geht.</li><li class="d"><i>04</i>Der Tod ist endgültig.</li>' + (V.settings && V.settings.goofy && V.settings.goofy !== 'off' ? `<li class="g"><i>05</i>${V.settings.goofy === 'max' ? 'GOOFY-MODUS: KOMPLETT ESKALIERT.' : 'GOOFY-MODUS: Alles kann passieren.'}</li>` : '') + (V.settings && V.settings.adult ? '<li class="a"><i>18</i>Ab 18. Was in Malle passiert, bleibt in Malle.</li>' : '') + '</ul>', 'is-rules');
       await speak('larp-rules', 4200);
       if (run.stop) return;
       // 7. Countdown

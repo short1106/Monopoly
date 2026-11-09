@@ -123,6 +123,14 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
       pruefung: S.quiz[pid] ? `Prüfungs-Quiz: ${S.quiz[pid].ok} von ${S.quiz[pid].total} richtig` : undefined,
     };
   }
+  // Goofy- und 18+-Modus ändern Aprils Ton (Einstellungen in der Lobby)
+  function modus(S) {
+    const st = S.settings || {}, out = {};
+    if (st.goofy === 'max') out.goofy_modus = 'KOMPLETT ESKALIERT: Vergiss die Zurückhaltung beim Humor. Übertreib alles maßlos. Absurde, filmreife Wendungen, Brainrot-Slang (six seven, Aura, Sigma, Ohio, Skibidi, Rizz) ausdrücklich erwünscht, gern auch eingebaute Gags. Die Welt ist ein Cartoon mit echten Konsequenzen: Werte, Geld und Würfel bleiben fair und nachvollziehbar.';
+    else if (st.goofy === 'on') out.goofy_modus = 'GOOFY: Mehr Übertreibung und absurde Wendungen als sonst. Ungefähr jedes dritte Event ist komplett drüber (sprechende Tiere, Portale, Klone, Döner-Meteore …). Brainrot-Slang erlaubt. Werte und Würfel bleiben fair.';
+    if (st.adult) out.ab_18 = 'AB 18: Alle Figuren sind erwachsen. Alkohol, Partys, Kater, Casino, Dating-Chaos, One-Night-Stands, derbe Sprache und Flüche sind erlaubt und dürfen Teil von Events sein. Sexuelle Inhalte nur andeuten (Fade-to-black, „April schaut weg“), nie explizit beschreiben. Drogen nur mit glaubwürdigen Folgen, nie als Anleitung.';
+    return out;
+  }
   function userMessage(S) {
     const living = L.alive(S).map((p) => p.id);
     const ctx = {
@@ -132,6 +140,7 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
       datum: L.dateText(S), runde: S.round, monate_diese_runde: S.stepM,
       pruefungen: S.settings.exam === 'quiz' ? 'Prüfungen werden per Quiz gespielt; das Ergebnis steht bei der Person.' : 'Prüfungen werden über den Wurf entschieden.',
       weltgeschehen: S.world.slice(0, 5).map((w) => `${w.d}: ${w.t}`),
+      ...modus(S),
       personen: (S.aiTask === 'final' ? S.players.map((p) => p.id).filter((id) => S.chars[id]) : living).map((id) => {
         const x = charContext(S, id);
         if (S.chars[id].dead) x.verstorben = `${S.chars[id].deathReason}`;
@@ -254,7 +263,7 @@ Politik, Macht, Verbrechen und Krieg sind erlaubt und haben glaubwürdige Folgen
       const client = new window.Anthropic({ apiKey: k.anthropic, dangerouslyAllowBrowser: true, maxRetries: 1, timeout: 120000 });
       const model = MODELS.some(([id]) => id === k.model) ? k.model : MODELS[0][0];
       const hist = ((S.aprilChat || {})[pid] || []).slice(-12).map((m) => `${m.who === 'me' ? 'Person' : 'April'}: ${m.t}`);
-      const ctx = { aufgabe: CHAT_RULES, datum: L.dateText(S), person: charContext(S, pid), gespraech: hist };
+      const ctx = { aufgabe: CHAT_RULES, datum: L.dateText(S), person: charContext(S, pid), gespraech: hist, ...modus(S) };
       const params = (schema) => ({ model, max_tokens: 4000, system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }], messages: [{ role: 'user', content: JSON.stringify(ctx) }], output_config: { effort: 'low', format: { type: 'json_schema', schema } } });
       let res;
       try { res = await client.messages.create(params(chatLite ? CHAT_LITE : CHAT_SCHEMA)); } catch (e) {

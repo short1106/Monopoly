@@ -123,6 +123,51 @@
     });
   }
 
+  // ---------- Goofy-Modus: Look, Effekte bei kritischen Würfen, April-Sprüche ----------
+  const GOOFY_SAYS = {
+    crit: ['KRITISCHER TREFFER', 'MAIN CHARACTER MOMENT', 'AURA +1000', 'GIGA W'],
+    fumble: ['FUMBLE', 'TOTALAUSFALL', 'AURA −1000', 'COOKED'],
+    ok: ['April: Okay, das war stark. Ich gebe es nicht gern zu.', 'April: Six seven. Weiter so.', 'April: Sigma-Verhalten. Notiert.', 'April: Ich hab gejubelt. Innerlich.'],
+    bad: ['April: Das war nicht very demure.', 'April: Ich hab es kommen sehen. Du nicht.', 'April: Bro hat es gefumbelt.', 'April: Ein Moment der Stille. Okay, vorbei.'],
+  };
+  let goofyRound = -1;
+  function goofyUI(V, me) {
+    const st = V.settings || {}, g = st.goofy && st.goofy !== 'off';
+    document.body.classList.toggle('lx-goofy', !!g);
+    document.body.classList.toggle('lx-goofy-max', st.goofy === 'max');
+    document.body.classList.toggle('lx-adult', !!st.adult);
+    if (!g || V.phase !== 'act' || V.round === goofyRound) return;
+    goofyRound = V.round;
+    const ck = V.checks && V.checks[me], GF = window.DULI_GOOFY;
+    if (!ck || !GF) return;
+    const pk = (a) => a[Math.floor(Math.random() * a.length)];
+    if (ck.roll === 20) { setTimeout(() => { GF.big(pk(GOOFY_SAYS.crit), 'gold'); GF.play('airhorn'); }, 400); }
+    else if (ck.roll === 1) { setTimeout(() => { GF.big(pk(GOOFY_SAYS.fumble), 'bad'); GF.play('sad'); }, 400); }
+    else if (st.goofy === 'max') setTimeout(() => GF.pop(pk(ck.success ? GOOFY_SAYS.ok : GOOFY_SAYS.bad).replace('April: ', '')), 600);
+  }
+  const goofyLine = (V, ck) => (V.settings && V.settings.goofy && V.settings.goofy !== 'off' && ck ? GOOFY_SAYS[ck.success ? 'ok' : 'bad'][(V.round + (ck.roll || 0)) % 4] : '');
+
+  // ---------- Soundtrack passend zur Lage ----------
+  let musicAuto = false;
+  function trackFor(V, me) {
+    const c = V.chars && V.chars[me];
+    if (V.phase === 'over') return 'japan';
+    if (V.phase === 'intro' || V.phase === 'pick' || V.phase === 'setup' || !c) return 'anthem';
+    const where = `${c.abroad || ''} ${(c.away && c.away.label) || ''} ${c.location || ''}`;
+    if (/\bJP\b|Japan|Tokio|Tokyo|Osaka|Kyoto/i.test(where)) return 'japan';
+    if (/\bRU\b|Russland|Moskau|Sankt Petersburg/i.test(where)) return 'russia';
+    if (V.settings && V.settings.goofy === 'max' && V.round % 6 === 5) return 'russia';
+    return 'anthem';
+  }
+  function soundtrack(V, me) {
+    const M = window.DULI_MUSIC;
+    if (!M || !FX || !V.settings || V.settings.music === 'off') return;
+    const want = trackFor(V, me);
+    // Einmal pro Seite automatisch starten (ab der Figurenwahl); wer die Musik danach ausschaltet, bleibt in Ruhe
+    if (!musicAuto && V.phase !== 'pick') { musicAuto = true; if (!M.playing) FX.music(true, want); return; }
+    if (M.playing && M.track !== want) FX.music(true, want);
+  }
+
   // ---------- Darstellung ----------
   function render(root, V, me, api) {
     if (!V) return;
@@ -130,6 +175,8 @@
     const mine = V.chars[me];
     const canRejoin = V.phase === 'act' && V.settings.death === 'rejoin' && (!mine || mine.dead);
     clearInterval(tick);
+    goofyUI(V, me);
+    soundtrack(V, me);
     if (V.phase === 'pick' || canRejoin) { killSkel(); renderPick(root, V, me, api); }
     else if (V.phase === 'setup') { killSkel(); renderSetup(root, V, me, api); }
     else if (V.phase === 'intro') { killSkel(); renderIntro(root, V, me, api); }
@@ -456,12 +503,12 @@
     if (!story && !reps.length) return '';
     const roll = ck ? `<div class="lb-roll ${ck.success ? 'ok' : 'bad'}"><span class="lb-d20"><b>${ck.roll}</b></span><div><small>W20 ${ck.mod ? `${ck.mod > 0 ? '+' : '−'} ${Math.abs(ck.mod)} ${esc(ck.stat || '')}` : esc(ck.stat || '')} = <b>${ck.roll + (ck.mod || 0)}</b> gegen ${ck.dc}</small><strong>${ck.roll === 20 ? 'Glückswurf!' : ck.roll === 1 ? 'Totalausfall' : ck.success ? 'Geschafft' : 'Verkackt'}</strong></div></div>` : '';
     return `<div class="lb-result ${ck ? (ck.success ? 'ok' : 'bad') : ''}"><span class="lb-k">${V.round === 0 ? 'Dein Start' : 'Was passiert ist'}</span>
-      ${did && did !== '•' && V.round > 0 ? `<p class="lb-did">Du: „${esc(did)}“</p>` : ''}${roll}${story}
+      ${did && did !== '•' && V.round > 0 ? `<p class="lb-did">Du: „${esc(did)}“</p>` : ''}${roll}${goofyLine(V, ck) ? `<p class="lx-goofy-say">${esc(goofyLine(V, ck))}</p>` : ''}${story}
       ${reps.length ? `<ul class="lx-reps">${reps.map((x) => `<li class="${esc(x.tone)}"><i></i><span>${esc(x.text)}</span></li>`).join('')}</ul>` : ''}
       ${r && Object.keys(r).length ? `<div class="lb-deltas"><small>Bilanz der Runde:</small>${fx(r)}</div>` : ''}${c && c.dead ? `<p class="lb-dead">${esc(c.deathReason || '')}</p>` : ''}</div>
       ${live.length ? `<div class="lx-panel lx-live"><span class="lb-k">Gerade eben</span><ul class="lx-reps">${live.map((x) => `<li class="${esc(x.tone)}"><i></i><span>${esc(x.text)}</span></li>`).join('')}</ul></div>` : ''}`;
   }
-  const KIND = { real: 'Alltag', odd: 'Ungewöhnlich', absurd: 'Absurd', trip: 'Unterwegs' };
+  const KIND = { real: 'Alltag', odd: 'Ungewöhnlich', absurd: 'Absurd', trip: 'Unterwegs', goofy: 'GOOFY', adult: '18+' };
   function renderMonth(body, V, me, api) {
     if (!body.querySelector('#mo-result')) body.innerHTML = '<div id="mo-result"></div><div id="mo-think"></div><div id="mo-offers"></div><div id="mo-appts"></div><div id="mo-vote"></div><div id="mo-scene"></div><div id="mo-card"></div><div id="mo-focus"></div><div id="mo-drive"></div><div id="mo-send"></div><div id="mo-who"></div><div id="mo-more"></div>';
     const c = V.chars[me];
@@ -1325,8 +1372,11 @@
     id: 'larp', title: 'LARP EXTREME', kicker: 'LIVE ACTION ROLEPLAY', titleHTML: 'LARP <span class="outline">EXTREME</span>',
     min: 1, max: 6, soloBots: 0, noBots: false, botNames: ['Bot Deniz', 'Bot Lea', 'Bot Jonas', 'Bot Aylin', 'Bot Kevin'], soloLabel: 'Alleine spielen', soloChip: 'Alleine',
     tagline: 'Ihr seid 18 und lebt euer Leben. Echte Abiprüfungen nach Landesregeln, Fahrschule, Wohnungen, Autos, Unis und Jobs aus ganz Deutschland. Termine kann man schwänzen. Das hat Folgen.',
-    defaults: { pace: 'auto', years: 20, death: 'rejoin', exam: 'quiz', timer: 0, gm: 'auto' },
+    defaults: { pace: 'auto', years: 20, death: 'rejoin', exam: 'quiz', timer: 0, gm: 'auto', goofy: 'on', adult: false, music: 'auto' },
     settingsHTML: (st, host) => `
+      <label class="row lx-set-goofy"><span>GOOFY-MODUS<small>Absurde Karten, Weltereignisse für alle, krasse Effekte</small></span>${sel('goofy', st, host, [['on', 'an'], ['max', 'KOMPLETT ESKALIERT'], ['off', 'aus (realistisch)']])}</label>
+      <label class="row lx-set-adult"><span>18+-Inhalte<small>Alkohol, Partys, Kater, Dating-Chaos, derbe Sprache. Intimes nur angedeutet.</small></span><input type="checkbox" class="switch" data-set="adult" ${st.adult ? 'checked' : ''} ${host ? '' : 'disabled'}></label>
+      <label class="row"><span>Soundtrack<small>Wechselt passend zur Lage: Japan, Russland, Finale …</small></span>${sel('music', st, host, [['auto', 'automatisch'], ['off', 'aus']])}</label>
       <label class="row"><span>Spielleitung<small>Karten laufen immer. Die KI erzählt frei, braucht aber einen Schlüssel beim Host.</small></span>${sel('gm', st, host, [['auto', 'automatisch'], ['builtin', 'April mit Ereigniskarten'], ['ai', 'April als KI (Claude)']])}</label>
       <label class="row"><span>Tempo<small>Die Zeit hält immer an Terminen an</small></span>${sel('pace', st, host, [['auto', 'automatisch (Schulzeit monatlich)'], ['m', 'immer 1 Monat'], ['q', 'Quartale'], ['y', 'Jahre']])}</label>
       <label class="row"><span>Spieldauer<small>Danach kommt die Lebensbilanz</small></span>${sel('years', st, host, [[5, '5 Jahre'], [10, '10 Jahre'], [20, '20 Jahre'], [40, '40 Jahre'], [0, 'offen']])}</label>

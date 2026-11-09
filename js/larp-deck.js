@@ -652,8 +652,12 @@
     if (st === 'after') return byId('weg');
     const forced = E.find((e) => typeof e.forced === 'function' && (e.stage.includes(st) || e.stage.includes('any')) && e.forced(c, S, M) && !recently(c, e.id, 2));
     if (forced) return forced;
-    const kindRoll = Math.random(), wantKind = kindRoll < 0.6 ? 'real' : kindRoll < 0.9 ? 'odd' : 'absurd';
-    const pool = E.filter((e) => !e.forced && !RETIRED.has(e.id) && (e.stage.includes(st) || (e.stage.includes('any') && (st !== 'ai' || AI_OK.has(e.id) || c.flags.body))) && (!e.when || e.when(c, S)) && !recently(c, e.id, 8));
+    // Goofy-Modus und 18+-Modus mischen eigene Karten in den Stapel (js/larp-goofy.js)
+    const GM = goofyMod(), set = S.settings || {}, goofy = GM && set.goofy && set.goofy !== 'off', adult = GM && !!set.adult;
+    const gp = goofy ? (set.goofy === 'max' ? 0.5 : 0.25) : 0, ap = adult ? 0.18 : 0;
+    const kindRoll = Math.random(), r2 = Math.random();
+    const wantKind = r2 < gp ? 'goofy' : r2 < gp + ap ? 'adult' : kindRoll < 0.6 ? 'real' : kindRoll < 0.9 ? 'odd' : 'absurd';
+    const pool = E.filter((e) => !e.forced && !RETIRED.has(e.id) && (e.kind !== 'goofy' || goofy) && (!e.adult || adult) && (e.stage.includes(st) || (e.stage.includes('any') && (st !== 'ai' || AI_OK.has(e.id) || c.flags.body))) && (!e.when || e.when(c, S)) && !recently(c, e.id, 8));
     const prefer = pool.filter((e) => e.kind === wantKind);
     const list = prefer.length ? prefer : pool.length ? pool : [byId('alltag')];
     // Stufen-Events bevorzugen, damit das eigene Leben vorankommt
@@ -667,6 +671,13 @@
   // April lebt auf dem Server: nur Ereignisse, die ohne Körper Sinn ergeben (bis sie einen hat)
   const AI_OK = new Set(['crush', 'beziehung', 'freund-geld', 'freund-drama', 'krypto', 'erbe', 'viral', 'politik', 'buergermeister', 'kanzler', 'gewinnspiel', 'alien', 'ohio', 'lotto', 'alltag', 'familie', 'nachbar']);
   const byId = (id) => E.find((e) => e.id === id);
+  let goofyLoaded = null;
+  function goofyMod() {
+    if (goofyLoaded) return goofyLoaded;
+    const GM = root.DULI_LARP_GOOFY || (typeof module !== 'undefined' && module.exports ? require('./larp-goofy') : null);
+    if (GM) { GM.register({ events: E }); goofyLoaded = GM; }
+    return GM;
+  }
   // Steuer und Mieterhöhung laufen inzwischen über echte Systeme (Termin, Markt)
   const RETIRED = new Set(['steuer', 'vermieter']);
   const recently = (c, id, n) => (c.flags.seen || []).slice(-n).includes(id);
