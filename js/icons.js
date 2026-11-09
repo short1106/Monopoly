@@ -13,7 +13,7 @@
   const keys = Object.keys(MAP).sort((a, b) => b.length - a.length);
   const known = keys.map((k) => esc(k.replace(/\uFE0F/g, '')) + '\uFE0F?').join('|');
   // Reine Textzeichen (Pfeile, Sterne, Spielkarten-Symbole) bleiben, alles andere Bildhafte fliegt raus
-  const KEEP = '★☆✔✕✘⌫♥♦♠♣→←↑↓▶▼▲◀↻⇄©®™';
+  const KEEP = '★☆✔✕✘⌫♥♦♠♣→←↑↓▶▼▲◀↻⇄©®™♔♕♖♗♘♙♚♛♜♝♞♟';
   const RE = new RegExp(`(${known})|((?![${KEEP}])\\p{Extended_Pictographic}(?:\uFE0F|\u200D\\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*)`, 'gu');
   const TEST = new RegExp(RE.source, 'u');
   const SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'NOSCRIPT']);
