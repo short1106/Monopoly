@@ -126,6 +126,60 @@
     },
     vinyl(t, d) { const g = gain(0.012, duck); nf(t, d, 'bandpass', 1800, g, 0.4); },
     tone(t, f, d, type, v, dest) { const g = gain(0, dest || duck); env(g, t, 0.01, v, d); osc(type, f, t, d, g); },
+    // --- Japan ---
+    koto(t, n, v = 0.08, d = 1.3) { // gezupfte Saite: kurzer Anschlag, leicht von unten in den Ton gezogen
+      const lp = filt('lowpass', 3800, 1.5), g = gain(0, duck, rev, dly); lp.connect(g); env(g, t, 0.002, v, d);
+      lp.frequency.setValueAtTime(5200, t); lp.frequency.exponentialRampToValueAtTime(900, t + d * 0.6);
+      [['triangle', 0, 1], ['sawtooth', 4, 0.35]].forEach(([ty, det, a]) => { const o = osc(ty, midi(n), t, d, gain(a, lp), det); o.detune.setValueAtTime(-35 + det, t); o.detune.linearRampToValueAtTime(det, t + 0.05); });
+      const cg = gain(0, lp); env(cg, t, 0.001, v * 1.5, 0.02); nf(t, 0.03, 'bandpass', 3000, cg);
+    },
+    shaku(t, n, d, v = 0.07) { // Shakuhachi: weicher Ton mit Atem, von unten angeblasen, Vibrato wächst
+      const g = gain(0, duck, rev, dly);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.18); g.gain.setValueAtTime(v, t + Math.max(0.2, d - 0.25)); g.gain.linearRampToValueAtTime(0.0001, t + d + 0.1);
+      const o = osc('sine', midi(n), t, d + 0.15, g), o2 = osc('triangle', midi(n), t, d + 0.15, gain(0.25, g));
+      [o, o2].forEach((x) => { x.detune.setValueAtTime(-90, t); x.detune.linearRampToValueAtTime(0, t + 0.22); });
+      if (d > 0.6) { const l = ctx.createOscillator(), lg = gain(0); l.frequency.value = 5; lg.gain.setValueAtTime(0, t + 0.4); lg.gain.linearRampToValueAtTime(28, t + d); l.connect(lg); lg.connect(o.detune); lg.connect(o2.detune); l.start(t); l.stop(t + d + 0.2); }
+      const bg = gain(0, duck, rev); bg.gain.setValueAtTime(0.0001, t); bg.gain.linearRampToValueAtTime(v * 0.5, t + 0.08); bg.gain.exponentialRampToValueAtTime(v * 0.12, t + 0.4); bg.gain.linearRampToValueAtTime(0.0001, t + d + 0.1);
+      nf(t, d + 0.15, 'bandpass', midi(n) * 2, bg, 2.5);
+    },
+    taiko(t, v = 1, big = false) { // Odaiko (groß, tief) oder Shime-Daiko (hoch, trocken)
+      if (big) {
+        const g = gain(0, drums, rev); env(g, t, 0.003, 1.0 * v, 1.1); const o = osc('sine', 82, t, 1.2, g); o.frequency.exponentialRampToValueAtTime(42, t + 0.5);
+        const ng = gain(0, drums); env(ng, t, 0.002, 0.5 * v, 0.25); nf(t, 0.3, 'lowpass', 600, ng);
+        const ds = ctx.createBufferSource(); ds.buffer = duckBuf; ds.connect(duck.gain); ds.start(t);
+      } else {
+        const g = gain(0, drums); env(g, t, 0.001, 0.32 * v, 0.09); const o = osc('triangle', 330, t, 0.1, g); o.frequency.exponentialRampToValueAtTime(220, t + 0.08);
+        const ng = gain(0, drums); env(ng, t, 0.001, 0.28 * v, 0.05); nf(t, 0.06, 'bandpass', 1800, ng, 1.2);
+      }
+    },
+    clack(t, v = 1) { const g = gain(0, drums, rev); env(g, t, 0.001, 0.4 * v, 0.06); nf(t, 0.07, 'bandpass', 2600, g, 6); osc('square', 950, t, 0.04, gain(0.15 * v, g)); }, // Hyoshigi-Holzklappern
+    furin(t, n, v = 0.05) { [1, 2.76, 5.4].forEach((p, k) => { const g = gain(0, duck, rev); env(g, t, 0.002, v / (k + 1), 2.6 - k * 0.6); osc('sine', midi(n) * p, t, 2.7, g); }); }, // Windspiel-Glocke
+    wind(t, d) { const bp = filt('bandpass', 500, 0.7), g = gain(0, duck, rev); bp.connect(g); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05, t + 3); g.gain.setValueAtTime(0.05, t + d - 3); g.gain.linearRampToValueAtTime(0.0001, t + d); for (let k = 0; k < d; k += 2.5) bp.frequency.linearRampToValueAtTime(350 + Math.random() * 900, t + k); noise(t, d, bp); },
+    gong(t) { const g = gain(0, drums, rev); env(g, t, 0.01, 0.35, 4); [55, 82, 111, 147].forEach((f, k) => osc('sine', f, t, 4.2, gain(1 / (k + 1), g), (Math.random() - 0.5) * 20)); nf(t, 1.5, 'bandpass', 900, gain(0.08, g), 0.8); },
+    // --- Russland ---
+    bala(t, n, v = 0.07) { // Balalaika: heller, kurzer Zupfer
+      const hp = filt('highpass', 300), lp = filt('lowpass', 4500, 2), g = gain(0, duck, rev); hp.connect(lp).connect(g); env(g, t, 0.002, v, 0.38);
+      osc('sawtooth', midi(n), t, 0.4, hp, 3); osc('square', midi(n), t, 0.4, gain(0.4, hp), -4);
+    },
+    bajan(t, n, d, v = 0.05) { // Bajan (Knopfakkordeon): zwei verstimmte Zungen plus Oktave, leichtes Tremolo
+      const lp = filt('lowpass', 2600, 1), am = gain(1), g = gain(0, duck, rev, dly); lp.connect(am).connect(g);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.04); g.gain.setValueAtTime(v, t + Math.max(0.05, d - 0.06)); g.gain.linearRampToValueAtTime(0.0001, t + d + 0.05);
+      osc('sawtooth', midi(n), t, d + 0.1, lp, -9); osc('sawtooth', midi(n), t, d + 0.1, lp, 9); osc('square', midi(n - 12), t, d + 0.1, gain(0.3, lp));
+      const l = ctx.createOscillator(), lg = gain(0.18); l.frequency.value = 6.5; l.connect(lg).connect(am.gain); l.start(t); l.stop(t + d + 0.1);
+    },
+    choir(t, notes, d, v = 0.035) { // Chor „aah“: Sägezähne durch zwei Formant-Filter
+      const f1 = filt('bandpass', 720, 4), f2 = filt('bandpass', 1150, 5), g = gain(0, duck, rev); f1.connect(g); f2.connect(gain(0.7, g));
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + d * 0.3); g.gain.setValueAtTime(v, t + d * 0.8); g.gain.linearRampToValueAtTime(0.0001, t + d + 0.4);
+      notes.forEach((n) => [-12, 0, 12].forEach((det) => { const o = osc('sawtooth', midi(n), t, d + 0.5, f1, det); o.connect(f2); }));
+    },
+    bell(t, n, v = 0.12) { // Kirchenglocke: unharmonische Teiltöne, langer Nachklang
+      [[0.5, 1], [1, 0.8], [1.19, 0.5], [1.5, 0.4], [2, 0.35], [2.74, 0.2], [3.76, 0.12]].forEach(([p, a]) => { const g = gain(0, duck, rev); env(g, t, 0.002, v * a, 4.5 * (1.2 - p / 5)); osc('sine', midi(n) * p, t, 5, g); });
+    },
+    hardbass(t, n, d) { // Hardbass: verstimmte Sägezähne auf der Offbeat, Filter klappt zu
+      const lp = filt('lowpass', 2400, 6), g = gain(0, duck); lp.connect(g); env(g, t, 0.004, 0.085, d);
+      lp.frequency.setValueAtTime(2600, t); lp.frequency.exponentialRampToValueAtTime(320, t + d);
+      [-14, 0, 14].forEach((det) => osc('sawtooth', midi(n), t, d, lp, det)); osc('square', midi(n - 12), t, d, gain(0.5, lp));
+    },
   };
 
   // ---------- Track 1: DULIDAN ANTHEM ----------
@@ -218,16 +272,159 @@
     },
   };
 
-  const TRACKS = { anthem, classic };
+  // Abschnitte eines Tracks: Schritt → { name, bar, len }
+  function mkWhere(SEC) {
+    const total = SEC.reduce((s, x) => s + x[1], 0) * 16;
+    return { total, at(i) { let bar = Math.floor(i / 16) % (total / 16); for (const [name, len] of SEC) { if (bar < len) return { name, bar, len }; bar -= len; } return { name: SEC[0][0], bar: 0, len: SEC[0][1] }; } };
+  }
+  const notesAt = (list, s) => list.filter(([st]) => st === s);
+  const activeAt = (list, s) => list.find(([st, , len]) => s >= st && s < st + len);
+
+  // ---------- Track 3: SAKURA NO KAZE (Japan) ----------
+  // D-In-Skala (Miyako-bushi: D Eb G A Bb), 92 BPM. Wind und Shakuhachi → Koto → Taiko-Aufbau → Hauptthema → Koto-Solo → Finale.
+  const JP_CH = [[50, 57, 62], [46, 53, 58], [43, 50, 55], [45, 52, 57]]; // D · Bb · G · A (offene Quinten)
+  const JP_ROOT = [38, 34, 31, 33];
+  const JP_ARP = [[62, 69, 74, 75, 74, 69, 67, 69], [58, 62, 70, 74, 75, 74, 70, 62], [55, 62, 67, 70, 69, 67, 62, 63], [57, 63, 69, 70, 74, 70, 69, 63]];
+  const JP_HOOK = [
+    [[0, 74, 2], [2, 75, 2], [4, 79, 4], [8, 81, 2], [10, 79, 2], [12, 75, 2], [14, 74, 2]],
+    [[0, 70, 4], [4, 69, 2], [6, 70, 2], [8, 74, 6], [14, 75, 2]],
+    [[0, 79, 3], [3, 81, 3], [6, 82, 2], [8, 81, 2], [10, 79, 2], [12, 75, 4]],
+    [[0, 74, 4], [4, 75, 2], [6, 74, 2], [8, 69, 8]],
+  ];
+  const JP_SHAKU = [[[0, 62, 8], [8, 67, 4], [12, 69, 4]], [[0, 70, 12], [12, 69, 4]], [[0, 67, 6], [6, 63, 6], [12, 62, 4]], [[0, 62, 16]]];
+  const JPW = mkWhere([['intro', 8], ['verse', 8], ['build', 4], ['main', 16], ['break', 8], ['finale', 8]]);
+  const japan = {
+    name: 'SAKURA NO KAZE', sub: 'Japan · Koto, Shakuhachi, Taiko · 92 BPM', bpm: 92, total: JPW.total, where: JPW.at,
+    sections: { intro: 'Intro (Wind)', verse: 'Koto', build: 'Taiko-Aufbau', main: 'Hauptthema', break: 'Koto-Solo', finale: 'Finale' },
+    step(i, t, S) {
+      const s = i % 16, w = JPW.at(i), c = w.bar % 4, ch = JP_CH[c], root = JP_ROOT[c], last = w.bar === w.len - 1;
+      const furin = (p) => { if (s % 4 === 0 && Math.random() < p) I.furin(t, [86, 87, 91, 93, 94][Math.floor(Math.random() * 5)]); };
+      if (w.name === 'intro') {
+        if (w.bar === 0 && s === 0) I.wind(t, S * 16 * 8);
+        furin(0.15);
+        notesAt(JP_SHAKU[c], s).forEach(([, n, len]) => I.shaku(t, n, S * len));
+        if (w.bar >= 4 && s === 0) { I.pad(t, ch.map((n) => n + 12), S * 16, 650); I.koto(t, ch[2] + 12, 0.05, 2); }
+        if (w.bar >= 4 && s === 8) I.koto(t, ch[1] + 12, 0.04, 2);
+        if (last && s >= 8 && s % 2 === 0) I.taiko(t, 0.3 + (s - 8) * 0.08);
+      }
+      if (w.name === 'verse') {
+        if (s % 2 === 0) I.koto(t, JP_ARP[c][s / 2] + 12, 0.08);
+        if (s === 0) { I.tone(t, midi(root), S * 15, 'sine', 0.12, drums); I.pad(t, ch.map((n) => n + 12), S * 16, 900); I.taiko(t, 0.7, true); }
+        if (s === 8) I.taiko(t, 0.45, true);
+        if (s % 4 === 2) I.taiko(t, 0.35);
+        if (w.bar >= 4) notesAt(JP_SHAKU[c], s).forEach(([, n, len]) => I.shaku(t, n + 12, S * len, 0.04));
+        furin(0.05);
+      }
+      if (w.name === 'build') {
+        const every = w.bar < 2 ? 4 : w.bar === 2 ? 2 : 1;
+        const p = (w.bar * 16 + s) / 64;
+        if (s % every === 0) I.taiko(t, 0.35 + p * 0.3, true);
+        if (s % 2 === 0 || w.bar >= 2) I.taiko(t, 0.18 + p * 0.22);
+        I.koto(t, ch[2] + 24, 0.03 + w.bar * 0.01, 0.4);
+        if (w.bar === 2 && s === 0) I.riser(t, S * 32);
+        if (s === 0) I.pad(t, ch.map((n) => n + 12), S * 16, 1200 + w.bar * 600);
+        if (last && s === 15) I.clack(t);
+      }
+      if (w.name === 'main' || w.name === 'finale') {
+        const fin = w.name === 'finale', up = fin ? 12 : 0;
+        if (w.bar === 0 && s === 0) { I.gong(t); I.taiko(t, 1.2, true); }
+        if (fin && last) { if (s === 0) { I.gong(t); I.taiko(t, 1.3, true); I.clack(t); I.pad(t, ch.map((n) => n + 12), S * 16, 1500); I.koto(t, 74 + 12, 0.07, 3); } return; }
+        if ([0, 6, 8, 11, 14].includes(s) || (fin && s % 4 === 0)) I.taiko(t, s === 0 ? 0.75 : 0.5, true);
+        if (s % 2 === 0 || (w.bar % 2 === 1 && s >= 12)) I.taiko(t, s % 4 === 0 ? 0.55 : 0.35);
+        if (s === 0 && w.bar % 4 === 3) I.clack(t, 0.7);
+        notesAt(JP_HOOK[c], s).forEach(([, n, len]) => { I.koto(t, n + up, 0.15, Math.max(0.6, S * len * 1.5)); I.koto(t, n - 12 + up, 0.05, 0.8); });
+        if (w.bar >= 8 || fin) { const a = notesAt(JP_HOOK[c], s); if (s === 0) I.shaku(t, ch[2] + 24, S * 14, 0.06); else if (fin && a.length) I.shaku(t, a[0][1] + up, S * a[0][2] * 0.9, 0.03); }
+        if (s === 0) { I.pad(t, ch.map((n) => n + 24), S * 16, 1800); I.tone(t, midi(root), S * 7, 'sine', 0.08, drums); }
+        if (s === 8) I.tone(t, midi(root + 7), S * 7, 'sine', 0.07, drums);
+      }
+      if (w.name === 'break') {
+        const h = notesAt(JP_HOOK[c], s);
+        h.forEach(([, n, len]) => I.koto(t, n, 0.06, Math.max(1, S * len * 2)));
+        if (s === 0) { I.pad(t, ch.map((n) => n + 12), S * 16, 700); I.tone(t, midi(root), S * 15, 'sine', 0.08, drums); }
+        if (s === 0 && w.bar === 0) I.wind(t, S * 16 * 8);
+        furin(0.12);
+        if (w.bar >= 4 && s === 0) I.taiko(t, 0.5, true);
+        if (last && s >= 8) I.taiko(t, 0.4 + (s - 8) * 0.07);
+      }
+    },
+  };
+
+  // ---------- Track 4: DULIDAN KAZACHOK (Russland) ----------
+  // A-Moll harmonisch. Startet langsam in der Steppe und wird immer schneller (80 → 200 BPM), mittendrin ein Hardbass-Drop.
+  const RU_CH = [[57, 60, 64], [50, 53, 57], [52, 56, 59], [57, 60, 64]]; // Am · Dm · E · Am
+  const RU_ROOT = [45, 38, 40, 45];
+  const RU_HOOK = [
+    [[0, 69, 2], [2, 71, 2], [4, 72, 4], [8, 71, 2], [10, 69, 2], [12, 68, 2], [14, 69, 2]],
+    [[0, 74, 4], [4, 72, 2], [6, 71, 2], [8, 69, 4], [12, 65, 4]],
+    [[0, 68, 2], [2, 69, 2], [4, 71, 4], [8, 72, 2], [10, 71, 2], [12, 69, 2], [14, 68, 2]],
+    [[0, 69, 6], [6, 64, 2], [8, 69, 8]],
+  ];
+  const RUW = mkWhere([['intro', 8], ['dance', 8], ['faster', 8], ['break', 4], ['hardbass', 16], ['finale', 8]]);
+  const RU_BPM = (i) => { const w = RUW.at(i), p = (w.bar * 16 + (i % 16)) / (w.len * 16); return { intro: 80, dance: 100 + 40 * p, faster: 140 + 36 * p, break: 120, hardbass: 150, finale: 176 + 24 * p }[w.name]; };
+  const russia = {
+    name: 'DULIDAN KAZACHOK', sub: 'Russland · Balalaika, Bajan, Chor · 80 → 200 BPM', bpm: 120, total: RUW.total, where: RUW.at, stepLen: (i) => 60 / RU_BPM(i) / 4,
+    sections: { intro: 'Steppe', dance: 'Tanz', faster: 'Schneller!', break: 'Kirchenglocken', hardbass: 'HARDBASS', finale: 'Finale (Vollgas)' },
+    step(i, t, S) {
+      const s = i % 16, w = RUW.at(i), c = w.bar % 4, ch = RU_CH[c], root = RU_ROOT[c], last = w.bar === w.len - 1;
+      const oompah = (v) => {
+        if (s % 8 === 0) I.bala(t, root, v * 1.2);
+        if (s % 8 === 4) I.bala(t, root + 7, v);
+        if (s % 4 === 2) ch.forEach((n, k) => I.bala(t + k * 0.012, n + 12, v * 0.7));
+      };
+      const hookBajan = (up, v) => notesAt(RU_HOOK[c], s).forEach(([, n, len]) => I.bajan(t, n + up, S * len * 0.95, v));
+      if (w.name === 'intro') {
+        if (s === 0 && w.bar % 2 === 0) I.bell(t, w.bar % 4 === 0 ? 45 : 40);
+        if (s === 0) I.choir(t, ch, S * 16);
+        if (w.bar >= 4) { const a = activeAt(RU_HOOK[c], s); if (a) I.bala(t, a[1], 0.05); } // Balalaika-Tremolo
+      }
+      if (w.name === 'dance' || w.name === 'faster') {
+        const fast = w.name === 'faster';
+        oompah(fast ? 0.08 : 0.07);
+        if (w.bar >= 2 || fast) hookBajan(fast && w.bar >= 4 ? 12 : 0, fast ? 0.055 : 0.05);
+        if (s % 8 === 0) I.kick(t, fast ? 0.8 : 0.55);
+        if ((w.bar >= 4 || fast) && s % 8 === 4) I.clap(t, 0.6);
+        if (fast) { if (s % 4 === 0) I.clap(t, 0.35); if (s % 2 === 0) I.hat(t, 0.4); }
+        if (fast && last && s === 8) I.riser(t, S * 8);
+      }
+      if (w.name === 'break') {
+        if (s === 0) { I.bell(t, w.bar % 2 ? 40 : 45, 0.14); I.choir(t, ch.map((n) => n + 12), S * 16, 0.04); }
+        if (w.bar === 2 && s === 0) I.riser(t, S * 24);
+        if (last && s === 8) { I.snare(t, 0.6); }
+      }
+      if (w.name === 'hardbass') {
+        if (w.bar === 0 && s === 0) { I.crash(t); I.impact(t); }
+        if (s % 4 === 0) I.kick(t, 1);
+        if (s % 4 === 2) { I.hardbass(t, root, S * 1.8); I.hat(t, 0.8, true); }
+        else if (s % 2 === 1) I.hat(t, 0.35);
+        if (s % 8 === 4) I.clap(t, 0.8);
+        hookBajan(w.bar >= 8 ? 12 : 0, 0.08);
+        if (w.bar >= 8 && s === 0) I.choir(t, ch.map((n) => n + 12), S * 16, 0.025);
+        if (last && s === 12) I.riser(t, S * 4);
+      }
+      if (w.name === 'finale') {
+        if (last) { if (s === 0) { I.bell(t, 45, 0.16); I.choir(t, ch.map((n) => n + 12), S * 30, 0.05); ch.forEach((n) => I.bajan(t, n + 12, S * 16, 0.04)); I.kick(t); I.crash(t); } return; }
+        if (w.bar === 0 && s === 0) { I.crash(t); I.bell(t, 45, 0.14); }
+        oompah(0.085);
+        hookBajan(12, 0.075);
+        if (s % 4 === 0) I.kick(t, 0.9);
+        if (s % 8 === 4) I.clap(t, 0.8);
+        if (s % 2 === 0) I.hat(t, 0.5);
+      }
+    },
+  };
+
+  const TRACKS = { anthem, japan, russia, classic };
   const stepDur = (tr) => tr.stepDur || 60 / tr.bpm / 4;
+  const stepLenOf = (tr, i) => (tr.stepLen ? tr.stepLen(i) : stepDur(tr));
 
   // ---------- Sequencer ----------
   function tick() {
     if (!playing || !ctx) return;
     const tr = TRACKS[trackId] || anthem, S = stepDur(tr), ahead = document.hidden ? 1.5 : 0.18;
     while (nextT < ctx.currentTime + ahead) {
-      try { tr.step(step, nextT, S); } catch (e) { /* ein Ton fällt aus, weiter */ }
-      step++; nextT += S;
+      const L = stepLenOf(tr, step);
+      try { tr.step(step, nextT, L); } catch (e) { /* ein Ton fällt aus, weiter */ }
+      step++; nextT += L;
     }
   }
   function start(id) {
@@ -255,12 +452,20 @@
     if (ctx && playing) { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.setTargetAtTime(muted ? 0 : vol, ctx.currentTime, 0.05); }
   }
   // Abschnitt, der gerade läuft (für Anzeige)
-  const section = () => (trackId === 'anthem' && playing ? ({ intro: 'Intro', build: 'Build-up', drop: 'Drop', break: 'Breakdown', drop2: 'Drop 2' })[where(step).name] : '');
+  const section = () => {
+    if (!playing) return '';
+    if (trackId === 'anthem') return ({ intro: 'Intro', build: 'Build-up', drop: 'Drop', break: 'Breakdown', drop2: 'Drop 2' })[where(step).name];
+    const tr = TRACKS[trackId];
+    return tr && tr.where ? tr.sections[tr.where(step).name] || '' : '';
+  };
 
   // Ganzen Track offline rendern (für Download als WAV und für Tests)
   async function render(id, secs) {
     const tr = TRACKS[id] || anthem, S = stepDur(tr);
-    const len = secs || (tr === anthem ? TOTAL * S + 2.5 : 32 * S * 4), end = len - (tr === anthem && !secs ? 2.4 : 0);
+    const steps = tr === anthem ? TOTAL : tr.total || 128;
+    let full = 0; for (let k = 0; k < steps; k++) full += stepLenOf(tr, k);
+    const tail = tr === classic ? 0 : 4;
+    const len = secs || full + tail, end = len - (!secs ? tail - 0.05 : 0);
     const OC = root.OfflineAudioContext || root.webkitOfflineAudioContext;
     const live = () => [ctx, master, duck, drums, rev, dly, dlyFb, noiseBuf, shape, duckBuf];
     const use = (st) => { [ctx, master, duck, drums, rev, dly, dlyFb, noiseBuf, shape, duckBuf] = st; };
@@ -268,7 +473,7 @@
     let offState, i = 0, t = 0.05;
     try { wire(off); master.gain.value = 0.85; dly.delayTime.value = S * 3; offState = live(); } finally { use(saved); }
     // Sekundenweise planen (wie live): sonst hängen alle Töne gleichzeitig im Graphen und das Rendern wird quälend langsam
-    const plan = (until) => { const keep = live(); use(offState); try { while (t < Math.min(until, end)) { tr.step(i, t, S); i++; t += S; } } finally { use(keep); } };
+    const plan = (until) => { const keep = live(); use(offState); try { while (t < Math.min(until, end) && (secs || i < steps)) { const L = stepLenOf(tr, i); tr.step(i, t, L); i++; t += L; } } finally { use(keep); } };
     plan(1.5);
     const hop = (k) => off.suspend(k).then(() => { plan(k + 1.5); if (k + 1 < len) hop(k + 1); off.resume(); });
     if (len > 1) hop(1);
