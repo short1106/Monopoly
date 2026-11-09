@@ -18,11 +18,14 @@
         else if (V.fx.type === 'capture') FX && FX.play(V.fx.piece === 'n' && V.goofy ? 'coinUp' : 'cash');
         else if (V.fx.type === 'check') { FX && FX.play('turn'); if (V.goofy && g) g.pop('SCHACH!'); }
         else if (V.fx.type === 'duck') { g && g.play('quack'); }
+        else if (V.fx.type === 'fightwon') FX && FX.play('cash');
+        else if (V.fx.type === 'fightlost') { FX && FX.play('bigLoss'); g && g.pop('GEFALLEN'); }
+        else if (V.fx.type === 'fight') { FX && FX.play('pay'); g && g.pop('ABGEWEHRT'); }
         else FX && FX.play('step');
       }
       lastFx = V.fx.seq; sel = null;
     }
-    if (V.event && V.event.seq !== lastEvent) { if (lastEvent !== null || V.ply > 0) { const g = GF(); g && g.big(V.event.id === 'horses' ? 'PFERDE!' : V.event.id === 'boom' ? 'ATOM-ALARM' : 'APRIL GREIFT EIN', 'pink'); FX && FX.play('card'); } lastEvent = V.event.seq; }
+    if (V.event && V.event.seq !== lastEvent) { if (lastEvent !== null || V.ply > 0) { const g = GF(); g && g.big(({ horses: 'PFERDE!', boom: 'ATOM-ALARM', throne: 'THRONFOLGE', desert: 'DESERTION' })[V.event.id] || 'APRIL GREIFT EIN', V.event.id === 'desert' ? 'bad' : V.event.id === 'throne' ? 'gold' : 'pink'); FX && FX.play('card'); } lastEvent = V.event.seq; }
     if (V.over && !lastOver) {
       lastOver = true;
       if (V.winner && V.winner === side) { FX && FX.play('win'); FX && FX.confetti(); }
@@ -49,7 +52,7 @@
       if (P && P.fog) cls.push('fog');
       if (V.phase === 'duck' && myTurn && !P && s !== V.duck) cls.push('duckok');
       const label = (i % 8 === 0 ? `<small class="rk">${8 - r}</small>` : '') + (i >= 56 ? `<small class="fl">${'abcdefgh'[f]}</small>` : '');
-      const piece = !P || P.fog ? '' : P.t === 'd' ? DUCK : `<span class="sc-p ${P.c}${V.goofy && P.t === 'n' ? ' horse' : ''}">${C.GLYPH[P.t]}︎</span>`;
+      const piece = !P || P.fog ? '' : P.t === 'd' ? DUCK : `<span class="sc-p ${P.c}${V.goofy && P.t === 'n' ? ' horse' : ''}${P.w ? ' wd' : ''}">${C.GLYPH[P.t]}︎</span>`;
       cells += `<button class="${cls.join(' ')}" data-sq="${s}" aria-label="${C.sqName(s)}">${piece}${label}</button>`;
     }
     const pName = (c) => { const p = V.players.find((x) => x.side === c); return p ? `${esc(p.name)}${p.bot ? ' <small>BOT</small>' : ''}` : '?'; };
@@ -65,6 +68,7 @@
       <aside class="sc-side">
         <div class="sc-mode"><small>MODUS</small><b>${esc(C.VARIANTS[V.v].name)}${V.goofy ? ' · GOOFY' : ''}</b><p>${esc(C.VARIANTS[V.v].text)}${V.goofy ? ' Alle 3 Runden greift April ein.' : ''}</p></div>
         <p class="sc-status">${status}</p>
+        ${V.v === 'real' && V.fight ? fightBox(V.fight) : ''}
         ${V.say ? `<div class="sc-april"><svg viewBox="0 0 100 100"><use href="#april"/></svg><p>${esc(V.say.replace(/^April: /, ''))}</p></div>` : ''}
         <ol class="sc-hist">${pairs(V.hist).map(([w, b], i) => `<li><span>${i + 1}.</span><b>${esc(w || '')}</b><b>${esc(b || '')}</b></li>`).join('')}</ol>
         <div class="btn-row">${!V.over && side ? '<button class="btn btn-small btn-ghost" data-resign>Aufgeben</button>' : ''}
@@ -91,12 +95,21 @@
     sel = P && P.c === side ? s : null;
     render(root, V, me, api);
   }
+  // REALISTIC: letzter Kampf mit Würfeln
+  function fightBox(f) {
+    const res = { win: 'Angreifer siegt', draw: 'Abgewehrt – beide verwundet', lose: 'Angreifer fällt' }[f.res];
+    return `<div class="sc-fight ${f.res}"><small>LETZTER KAMPF</small>
+      <div class="sc-fight-row"><span class="sc-p ${f.ac}">${C.GLYPH[f.a]}\uFE0E</span><div><b>${esc(C.FNAME[f.a])}</b><small>Stärke ${C.STR[f.a]} + Würfel ${f.ra}${f.aw ? ' − 2 verwundet' : ''} = <b>${f.A}</b></small></div></div>
+      <div class="sc-fight-vs">gegen</div>
+      <div class="sc-fight-row"><span class="sc-p ${f.ac === 'w' ? 'b' : 'w'}">${C.GLYPH[f.d]}\uFE0E</span><div><b>${esc(C.FNAME[f.d])}</b><small>Stärke ${C.STR[f.d]} + Würfel ${f.rd}${f.db ? ` + ${f.db} Deckung/Heimvorteil` : ''}${f.dw ? ' − 2 verwundet' : ''} = <b>${f.D}</b></small></div></div>
+      <p>${res}</p></div>`;
+  }
   const pairs = (h) => { const out = []; let cur = null; h.forEach((x) => { if (x.side === 'w' || !cur) { cur = [x.side === 'w' ? x.txt : '', x.side === 'b' ? x.txt : '']; out.push(cur); } else if (x.side === 'b' && !cur[1]) cur[1] = x.txt; else { cur = ['', x.txt]; out.push(cur); } }); return out.slice(-40); };
   const fmtClock = (ms) => { const s = Math.ceil(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
   const sel2 = (key, st, host, opts) => `<select data-set="${key}" ${typeof opts[0][0] === 'number' ? 'data-num="1"' : ''} ${host ? '' : 'disabled'}>${opts.map(([v, n]) => `<option value="${v}" ${String(st[key]) === String(v) ? 'selected' : ''}>${n}</option>`).join('')}</select>`;
   window.DULI_PARTY.start({
-    id: 'schach', title: 'Schach', kicker: 'SCHACH · 9 MODI', titleHTML: 'SCH<span class="outline">ACH</span>',
+    id: 'schach', title: 'Schach', kicker: 'SCHACH · 10 MODI', titleHTML: 'SCH<span class="outline">ACH</span>',
     min: 1, max: 2, soloBots: 1, botNames: ['Stockfisch-Kevin', 'Magnus Carlsbot', 'Bauern-Bernd', 'Gaul-Gustav'],
     tagline: 'Schach mit Modi, die eigentlich verboten gehören: Nur Pferde, Atomschach, Enten-Schach, Nebel, Doppelzug und GOOFY. Online zu zweit oder gegen den Bot.',
     defaults: { variant: 'classic', goofy: false, clock: 0, level: 2 },

@@ -62,3 +62,14 @@
   .sc-sq { font-size: clamp(26px, 10vw, 52px); }
 }
 @media (prefers-reduced-motion: reduce) { .sc-p.horse, .sc-duck, .sc.goofy .sc-board, .sc-sq.ev { animation: none !important; } }
+/* REALISTIC */
+.sc-p.wd::after { content: '+'; position: absolute; right: -4px; top: -2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; color: #e0102f; font: 900 15px/16px var(--font); text-align: center; -webkit-text-stroke: 0; text-shadow: none; box-shadow: 0 0 0 2px #e0102f; }
+.sc-fight { display: grid; gap: 6px; padding: 10px 12px; border: 2px solid #000; border-radius: 14px; background: linear-gradient(160deg, rgba(255, 61, 94, .18), #140c1c); box-shadow: 3px 3px 0 #000; }
+.sc-fight > small { font: 900 11px var(--mono, monospace); letter-spacing: .2em; color: #ff8a9e; }
+.sc-fight-row { display: grid; grid-template-columns: 34px 1fr; gap: 8px; align-items: center; }
+.sc-fight-row .sc-p { font-size: 30px; }
+.sc-fight-row small { display: block; color: var(--muted); font-size: 12px; }
+.sc-fight-row small b { color: #fff; }
+.sc-fight-vs { font: 800 11px var(--mono, monospace); color: var(--muted); text-align: center; }
+.sc-fight p { margin: 0; font-weight: 900; }
+.sc-fight.win p { color: #3ce08a; } .sc-fight.draw p { color: #ffd83a; } .sc-fight.lose p { color: #ff3d5e; }

@@ -14,6 +14,7 @@
     huegel: { name: 'König des Hügels', text: 'Normales Schach – aber wer seinen König sicher auf eins der vier Mittelfelder bringt, gewinnt sofort.' },
     dreischach: { name: 'Drei-Schach', text: 'Normales Schach – wer dreimal Schach gibt, gewinnt.' },
     fischer: { name: 'Fischer-Random', text: 'Die Figuren der Grundreihe stehen zufällig (für beide gleich). Ohne Rochade.' },
+    real: { name: 'REALISTIC', text: 'Wenn Schach echter Krieg wäre: Schlagen ist ein Kampf mit Würfeln (Ritter schlägt Bauer fast immer, ein Bauer mit Mistgabel selten einen Turm). Wer verliert, stirbt; Sieger werden oft verwundet, die zweite Wunde ist tödlich. Verwundete heilen nur beim König. Fällt der König, übernimmt die Dame den Thron. Wer weit hinten liegt, dem laufen Bauern davon. Bauern werden zum Ritter geschlagen, nicht zur Dame.', kc: true },
   };
   const VAL = { p: 100, n: 310, b: 330, r: 500, q: 900, k: 20000, d: 0 };
   const NAME = { k: 'König', q: 'Dame', r: 'Turm', b: 'Läufer', n: 'Pferd', p: 'Bauer', d: 'Ente' };
@@ -50,7 +51,7 @@
       b[f] = { t: back[f], c: 'b' }; b[56 + f] = { t: back[f], c: 'w' };
       b[8 + f] = { t: v === 'pferde' ? 'n' : 'p', c: 'b' }; b[48 + f] = { t: v === 'pferde' ? 'n' : 'p', c: 'w' };
     }
-    const cast = v === 'classic' || v === 'huegel' || v === 'dreischach' || v === 'atom' || v === 'ente' || v === 'nebel' || v === 'doppel' ? { wK: 1, wQ: 1, bK: 1, bQ: 1 } : {};
+    const cast = v === 'classic' || v === 'huegel' || v === 'dreischach' || v === 'atom' || v === 'ente' || v === 'nebel' || v === 'doppel' || v === 'real' ? { wK: 1, wQ: 1, bK: 1, bQ: 1 } : {};
     return { b, ep: null, cast, v, hm: 0 };
   }
 
@@ -241,7 +242,7 @@
     if (kingSq(st, mover) < 0) return finish(S, foe, 'eigener König explodiert');
     if (S.v === 'huegel' && CENTER.includes(kingSq(st, mover))) return finish(S, mover, 'König auf dem Hügel');
     if (S.v === 'dreischach' && inCheck(st, foe)) { S.checks[mover]++; if (S.checks[mover] >= 3) return finish(S, mover, 'drei Schachs'); }
-    if (st.hm >= 100) return finish(S, null, '50-Züge-Regel');
+    if (st.hm >= 100) return finish(S, null, S.v === 'real' ? 'Waffenstillstand – 50 Züge ohne Kampf' : '50-Züge-Regel');
     if (st.b.every((P) => !P || P.t === 'k' || P.t === 'd')) return finish(S, null, 'nur noch Könige');
     return null;
   }
@@ -252,6 +253,7 @@
     S.turn = opp(S.turn); S.ply++;
     S.left = S.v === 'doppel' ? 2 : 1;
     if (S.goofy && S.ply % 6 === 0) goofyEvent(S);
+    if (S.v === 'real') realTurn(S);
     checkStuck(S);
   }
   function checkStuck(S) {
@@ -290,6 +292,11 @@
     if (!m) return 'Dieser Zug geht nicht.';
     tickClock(S);
     const P = S.st.b[f], cap = m.ep ? S.st.b[t + (P.c === 'w' ? 8 : -8)] : S.st.b[t];
+    if (S.v === 'real') {
+      if (m.promo) m.promo = 'n';
+      // fight() liefert true, wenn der Kampf den Zug schon beendet hat (abgewehrt oder Angreifer gefallen)
+      if (cap && cap.c && fight(S, m, P, cap)) return null;
+    }
     // Goofy: Umwandlung manchmal in etwas Zufälliges
     if (m.promo && S.goofy && Math.random() < 0.3) m.promo = ['n', 'r', 'b'][rnd(3)];
     const before = S.st.b.filter(Boolean).length;
@@ -303,12 +310,100 @@
     delete S.st.exploded;
     S.event = null;
     S.say = comment(S, P, cap, boom, check, m);
+    if (S.v === 'real') {
+      if (cap && S.fight && S.fight.res === 'win') { S.fx.type = 'fightwon'; S.say = fightSay(S.fight); if (S._woundAfter != null) wound(S, S._woundAfter); }
+      S._woundAfter = null;
+      if (realAfter(S, S.turn)) return null;
+      if (S.over) return null;
+    }
     if (afterMove(S, S.turn)) return null;
     if (S.over) return null;
     if (S.v === 'ente') { S.phase = 'duck'; return null; }
     endTurn(S);
     return null;
   }
+  // ---------- REALISTIC: Kämpfe, Wunden, Thronfolge, Desertion ----------
+  const STR = { p: 2, n: 6, b: 3, r: 6, q: 8, k: 3 };
+  const FNAME = { p: 'Bauer mit Mistgabel', n: 'Ritter', b: 'Bischof', r: 'Belagerungsturm', q: 'Königin', k: 'König' };
+  const d6 = () => 1 + rnd(6);
+  // Chance, dass der Angreifer gewinnt (2W6-Vergleich), für den Bot
+  function pWin(a, d, defBonus) { let w = 0; for (let x = 1; x <= 6; x++) for (let y = 1; y <= 6; y++) if (STR[a] + x > STR[d] + y + defBonus) w++; return w / 36; }
+  function defBonusOf(st, sq, c) { return (attacked(st, sq, c) ? 1 : 0) + (((sq >> 3) >= 4) === (c === 'w') ? 1 : 0); }
+  function wound(S, sq) {
+    const P = S.st.b[sq];
+    if (!P) return false;
+    if (P.w) { S.lost[P.c].push(P.t); S.st.b[sq] = null; return true; }
+    S.st.b[sq] = Object.assign({}, P, { w: S.ply + 1 });
+    return false;
+  }
+  function fight(S, m, P, cap) {
+    const st = S.st, defSq = m.ep ? m.t + (P.c === 'w' ? 8 : -8) : m.t;
+    const db = defBonusOf(st, defSq, cap.c);
+    const ra = d6(), rd = d6();
+    const A = STR[P.t] + ra - (P.w ? 2 : 0), Dv = STR[cap.t] + rd + db - (cap.w ? 2 : 0);
+    const f = { seq: (S.fight ? S.fight.seq : 0) + 1, a: P.t, d: cap.t, ac: P.c, ra, rd, A, D: Dv, db, aw: !!P.w, dw: !!cap.w, sq: defSq };
+    if (A > Dv) {
+      f.res = 'win'; S.fight = f;
+      // Knapper Sieg: Angreifer verwundet (die Wunde wird nach dem Zug am Zielfeld vermerkt)
+      S._woundAfter = A - Dv <= 2 ? m.t : null;
+      return false;
+    }
+    tickClock(S);
+    const before = S.st;
+    S.st = Object.assign({}, before, { b: before.b.slice(), ep: null, hm: 0 });
+    let died = false;
+    if (A === Dv) { f.res = 'draw'; died = wound(S, m.f); wound(S, defSq); f.adied = died; }
+    else { f.res = 'lose'; S.lost[P.c].push(P.t); S.st.b[m.f] = null; f.adied = true; if (Dv - A <= 2) f.ddied = wound(S, defSq); }
+    S.fight = f;
+    S.last = { f: m.f, t: m.t, side: S.turn };
+    S.hist.push({ side: S.turn, txt: `${GLYPH[P.t]}${sqName(m.f)}⚔${sqName(m.t)} ${f.res === 'draw' ? 'abgewehrt' : 'gefallen'}` });
+    S.fx = { type: f.adied ? 'fightlost' : 'fight', seq: ++S.fxSeq, sq: m.t, piece: P.t, cap: cap.t };
+    S.event = null;
+    S.say = fightSay(f);
+    realAfter(S, S.turn);
+    if (!S.over) endTurn(S);
+    return true;
+  }
+  const FIGHT_SAY = {
+    win: ['April: {a} besiegt {d}. Blutig, aber effektiv.', 'April: {a} gewinnt den Kampf. {d} hat es nicht geschafft.'],
+    upset: ['April: Der {a} hat den {d} besiegt. Historiker sind fassungslos.', 'April: Underdog-Moment. {a} gegen {d}. Wer hätte das gedacht.'],
+    draw: ['April: Angriff abgewehrt. Beide bluten, keiner weicht.', 'April: Patt im Nahkampf. Beide ziehen sich verwundet zurück.'],
+    lose: ['April: {a} greift an und fällt. Das war mutig. Und dumm.', 'April: {d} hält stand. Der {a} liegt im Staub.'],
+  };
+  function fightSay(f) {
+    const pool = f.res === 'win' ? (STR[f.a] < STR[f.d] ? FIGHT_SAY.upset : FIGHT_SAY.win) : FIGHT_SAY[f.res];
+    return pool[rnd(pool.length)].replace('{a}', FNAME[f.a]).replace('{d}', FNAME[f.d]);
+  }
+  // Thronfolge: fällt der König, wird die Dame (sonst der stärkste Turm) zur Herrscherin
+  function succession(S, c) {
+    const B = S.st.b, heir = B.findIndex((P) => P && P.c === c && P.t === 'q');
+    if (heir < 0) return false;
+    B[heir] = { t: 'k', c };
+    S.event = { id: 'throne', text: `Der König von ${c === 'w' ? 'Weiß' : 'Schwarz'} ist gefallen! Die Königin besteigt den Thron.`, sq: [heir], seq: S.ply + 1000 };
+    S.say = `April: ${S.event.text} Lang lebe die Königin.`;
+    return true;
+  }
+  function realAfter(S, mover) {
+    const foe = opp(mover);
+    if (kingSq(S.st, foe) < 0 && !succession(S, foe)) return finish(S, mover, 'König gefallen, keine Thronfolge');
+    if (kingSq(S.st, mover) < 0 && !succession(S, mover)) return finish(S, foe, 'eigener König im Kampf gefallen');
+    return null;
+  }
+  // Pro Zug: Heilung beim König, Desertion bei großem Rückstand
+  function realTurn(S) {
+    const c = S.turn, B = S.st.b, k = kingSq(S.st, c);
+    B.forEach((P, i) => {
+      if (!P || P.c !== c || !P.w) return;
+      const near = k >= 0 && Math.abs((i >> 3) - (k >> 3)) <= 1 && Math.abs((i & 7) - (k & 7)) <= 1;
+      if ((near && Math.random() < 0.5) || S.ply - P.w > 16) B[i] = { t: P.t, c: P.c };
+    });
+    const diff = material(S.st, opp(c)) - material(S.st, c);
+    if (diff >= 800 && Math.random() < 0.18) {
+      const pawns = B.map((P, i) => (P && P.c === c && P.t === 'p' ? i : -1)).filter((i) => i >= 0);
+      if (pawns.length) { const i = pawns[rnd(pawns.length)]; B[i] = null; S.lost[c].push('p'); S.event = { id: 'desert', text: `Desertion! Ein Bauer von ${c === 'w' ? 'Weiß' : 'Schwarz'} hat die Moral verloren und ist nach Hause gelaufen.`, sq: [i], seq: S.ply + 2000 }; S.say = `April: ${S.event.text}`; }
+    }
+  }
+
   const COMMENT = {
     capture: ['April: {p} frisst {x}. Kein Mitleid.', 'April: Weg ist {x}. Aura minus tausend.', 'April: {x} wurde gecooked.'],
     horse: ['April: Das Pferd hat Rizz.', 'April: Gallopp. Einfach Gallopp.', 'April: Pferde-Diff.'],
@@ -392,6 +487,11 @@
       if (kingSq(n, opp(c)) < 0) v = MATE;
       else if (st.v === 'huegel' && CENTER.includes(kingSq(n, c))) v = MATE - 1;
       else v = -search(n, opp(c), depth - 1, -Infinity, Infinity, S.kc, ctx);
+      if (S.v === 'real' && m.x && st.b[m.t] && st.b[m.t].c) {
+        const D2 = st.b[m.t], A2 = st.b[m.f], p = pWin(A2.t, D2.t, defBonusOf(st, m.t, D2.c) - (D2.w ? 2 : 0) + (A2.w ? 2 : 0));
+        const fail = evaluate(st, c, st.v) - VAL[A2.t] * 0.8;
+        v = v >= MATE - 10 ? p * v + (1 - p) * fail : p * v + (1 - p) * fail;
+      }
       v += (Math.random() - 0.5) * (S.level === 1 ? 120 : S.level === 2 ? 30 : 6);
       return { m, v };
     });
@@ -428,7 +528,7 @@
     return null;
   }
 
-  const CHESS = { VARIANTS, NAME, GLYPH, setup, pseudo, moves, apply, attacked, inCheck, kingSq, sqName, start, act, view, bot, evaluate };
+  const CHESS = { STR, FNAME, VARIANTS, NAME, GLYPH, setup, pseudo, moves, apply, attacked, inCheck, kingSq, sqName, start, act, view, bot, evaluate };
   if (typeof module !== 'undefined' && module.exports) module.exports = CHESS;
   else root.DULI_CHESS = CHESS;
 })(typeof window !== 'undefined' ? window : globalThis);

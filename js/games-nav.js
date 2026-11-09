@@ -23,7 +23,7 @@
     { href: 'schiffe.html', name: 'Schiffe versenken', sub: 'Seeschlacht · 2 online', ic: '🚢' },
     { href: 'kniffel.html', name: 'Kniffel', sub: 'Würfelspiel · 1–6 online', ic: '🎲' },
     { href: 'slf.html', name: 'Stadt Land Fluss', sub: 'Schreibspiel · 2–10 online', ic: '✍️' },
-    { href: 'schach.html', name: 'Schach', sub: '9 Modi · Nur Pferde, Atom, Enten, GOOFY · online', ic: '⚔️' },
+    { href: 'schach.html', name: 'Schach', sub: '10 Modi · Realistic, Nur Pferde, Atom, Enten, GOOFY · online', ic: '⚔️' },
     { href: 'risiko.html', name: 'Risiko', sub: 'Welteroberung · 2–6 online', ic: '⚔️' },
     { href: 'geo.html', name: 'GeoGuessr', sub: 'Satellit · Wo ist das? · online', ic: '🌍' },
     { href: 'aura.html', name: 'AURA GAMES', sub: 'Minispiele-Battle · jede Runde komischer · online', ic: '💥' },
