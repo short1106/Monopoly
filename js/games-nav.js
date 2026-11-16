@@ -26,6 +26,7 @@
     { href: 'schach.html', name: 'Schach', sub: '10 Modi · Realistic, Nur Pferde, Atom, Enten, GOOFY · online', ic: '⚔️' },
     { href: 'risiko.html', name: 'Risiko', sub: 'Welteroberung · 2–6 online', ic: '⚔️' },
     { href: 'geo.html', name: 'GeoGuessr', sub: 'Satellit · Wo ist das? · online', ic: '🌍' },
+    { href: 'justin.html', name: 'JUSTIN: SIGMA ODER FUMBLE', sub: 'Story · 6 Kapitel · rette Justin vor dem Fumble', ic: '💥' },
     { href: 'aura.html', name: 'AURA GAMES', sub: 'Minispiele-Battle · jede Runde komischer · online', ic: '💥' },
     { href: 'aura-clicker.html', name: 'AURA CLICKER', sub: 'Idle-Game · Aura farmen · nach Ohio aufsteigen', ic: '💥' },
     { href: 'larp.html', name: 'LARP EXTREME', sub: 'Live Action Roleplay · Abi, Führerschein, Markt · online', ic: '🎬' },

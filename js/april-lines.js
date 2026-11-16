@@ -78,6 +78,14 @@
     { id: 'larp-char-custom-3', on: 'larp-char-custom', text: 'Noch jemand. Na gut. Mehr Drama für mich.' },
     { id: 'larp-rules', on: 'larp-rules', text: 'Die Regeln. Der Würfel entscheidet. Termine kann man schwänzen, aber alles hat Folgen. Und der Tod ist endgültig.' },
     { id: 'larp-go', on: 'larp-go', text: 'Drei. Zwei. Eins. Viel Glück. Ihr werdet es brauchen.' },
+    // JUSTIN: SIGMA ODER FUMBLE
+    { id: 'justin-intro-1', on: 'justin-intro', text: 'Das ist Justin. Er gewinnt jedes Duell. Heute schauen wir, ob er auch den entscheidenden Moment gewinnt. Spoiler: eher nicht.' },
+    { id: 'justin-sigma-1', on: 'justin-sigma', text: 'Kein Fumble. Ich bin ehrlich schockiert.' },
+    { id: 'justin-sigma-2', on: 'justin-sigma', text: 'Sigma-Verhalten. Justin hat es tatsächlich durchgezogen.' },
+    { id: 'justin-fumble-1', on: 'justin-fumble', text: 'Und da ist er. Der Fumble.' },
+    { id: 'justin-fumble-2', on: 'justin-fumble', text: 'Justin hat gefumbelt. Wie immer. Six seven.' },
+    { id: 'justin-fumble-3', on: 'justin-fumble', text: 'Es war so nah. Es war so, so nah.' },
+    { id: 'justin-end-1', on: 'justin-end', text: 'Ein ganzer Tag ohne Fumble. Ich schreibe es in den Kalender. Das passiert nie wieder.' },
     // AURA GAMES
     { id: 'aura-start-1', on: 'aura-start', text: 'Willkommen bei den Aura Games. Hier gewinnt nicht der Beste, sondern der mit der meisten Aura.' },
     { id: 'aura-start-2', on: 'aura-start', text: 'Aura Games. Bitte schnallt euren Mewing-Gurt an. Es wird cringe.' },
