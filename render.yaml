@@ -1,0 +1,28 @@
+# Render Blueprint: Dashboard > New > Blueprint > dieses Repo auswählen.
+services:
+  - type: web
+    name: april-lerngruppe
+    runtime: docker
+    plan: starter          # immer an (der Wochenjob braucht das) und mit fester Festplatte
+    numInstances: 1        # genau eine Instanz wegen SQLite
+    healthCheckPath: /healthz
+    disk:
+      name: april-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: APRIL_DB_PATH
+        value: /data/april.db
+      - key: APRIL_COOKIE_SECURE
+        value: "true"
+      - key: APRIL_MODEL
+        value: claude-opus-5-5
+      - key: APRIL_TIMEZONE
+        value: Europe/Berlin
+      # Geheim, werden beim Anlegen im Dashboard abgefragt und landen nie im Repo:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: APRIL_INITIAL_PASSWORD_SHAQY
+        sync: false
+      - key: APRIL_INITIAL_PASSWORD_KIMMI
+        sync: false

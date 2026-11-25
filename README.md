@@ -57,6 +57,38 @@ Ein Passwort ändern geht mit demselben Befehl wie das Anlegen. Dabei werden all
 Sessions des Kontos beendet. Für automatisierte Setups kann das neue Passwort einmalig über die
 Umgebungsvariable `APRIL_NEW_PASSWORD` übergeben werden.
 
+## Online stellen (Render)
+
+Im Repo liegen ein `Dockerfile` und eine `render.yaml`. Damit geht es ohne Terminal:
+
+1. Auf <https://render.com> ein Konto anlegen und GitHub verbinden.
+2. **New** > **Blueprint** wählen, das Repo `short1106/Monopoly` und den Branch mit der App auswählen.
+3. Render fragt drei geheime Werte ab. Die stehen nur im Render-Dashboard, nie im Repo:
+   * `ANTHROPIC_API_KEY`: euer API-Key
+   * `APRIL_INITIAL_PASSWORD_SHAQY`: Shaqys Passwort (mindestens 10 Zeichen)
+   * `APRIL_INITIAL_PASSWORD_KIMMI`: Kimmis Passwort (mindestens 10 Zeichen)
+4. **Apply** klicken. Nach ein paar Minuten ist die App unter `https://april-lerngruppe.onrender.com`
+   (oder einer ähnlichen Adresse, die Render anzeigt) erreichbar.
+
+Hinweise:
+
+* Die Startpasswörter legen die Konten nur beim allerersten Start an. Später ändern sie nichts
+  mehr. Ein neues Passwort setzt ihr in der Render-Shell mit `python -m app.manage set-password shaqy`.
+* Der Plan `starter` kostet Geld (bei Render aktuell um die 7 Dollar im Monat plus wenige Cent für
+  die Festplatte, Preise dort prüfen). Der Gratisplan reicht nicht: Er schläft ein, dann läuft der
+  Wochenjob nicht, und er hat keine feste Festplatte, die Datenbank wäre nach jedem Neustart weg.
+* Es läuft genau eine Instanz, weil die Datenbank SQLite ist. Für zwei Leute reicht das locker.
+* HTTPS macht Render automatisch, `APRIL_COOKIE_SECURE` ist deshalb schon auf `true` gesetzt.
+
+Mit Docker geht es auch auf jedem anderen Server:
+
+```bash
+docker build -t april-lerngruppe .
+docker run -d -p 8000:8000 -v april-data:/data \
+  -e ANTHROPIC_API_KEY=... -e APRIL_INITIAL_PASSWORD_SHAQY=... -e APRIL_INITIAL_PASSWORD_KIMMI=... \
+  -e APRIL_COOKIE_SECURE=true april-lerngruppe
+```
+
 ## Konfiguration
 
 Alles steht in der `.env` (Vorlage: `.env.example`). Die `.env` und die Datenbank sind in der
@@ -79,6 +111,7 @@ Alles steht in der `.env` (Vorlage: `.env.example`). Die `.env` und die Datenban
 | `APRIL_DB_PATH` | `data/april.db` | SQLite-Datei (relativ zum Projektordner) |
 | `APRIL_SESSION_DAYS` | `14` | wie lange ein Login gültig ist |
 | `APRIL_COOKIE_SECURE` | `false` | auf `true` setzen, sobald die App über HTTPS läuft |
+| `APRIL_INITIAL_PASSWORD_SHAQY` / `_KIMMI` | (leer) | legt das Konto beim ersten Start an, falls es fehlt (fürs Hosting) |
 
 ## So funktioniert es
 
@@ -171,5 +204,5 @@ Die Tests brauchen keinen API-Key: Aprils API-Aufrufe werden durch feste Antwort
 
 ## Bewusst noch nicht drin
 
-Push-Benachrichtigungen, Handy-App, Stimme, Hosting und mehr als zwei Konten kommen frühestens
+Push-Benachrichtigungen, Handy-App, Stimme und mehr als zwei Konten kommen frühestens
 in einer späteren Phase.

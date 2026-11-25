@@ -67,3 +67,22 @@ def test_lockout_after_failures(client):
     from app.auth import login_throttle
 
     login_throttle.reset("kimmi")
+
+
+def test_bootstrap_from_env_creates_missing_only(monkeypatch):
+    from app.auth import authenticate, bootstrap_accounts_from_env
+
+    with session_scope() as conn:
+        conn.execute("DELETE FROM users WHERE username = 'kimmi'")
+    monkeypatch.setenv("APRIL_INITIAL_PASSWORD_KIMMI", "online-passwort-1")
+    monkeypatch.setenv("APRIL_INITIAL_PASSWORD_SHAQY", "darf-nicht-greifen")
+    with session_scope() as conn:
+        assert bootstrap_accounts_from_env(conn) == ["kimmi"]
+        assert authenticate(conn, "kimmi", "online-passwort-1")
+        assert authenticate(conn, "shaqy", "darf-nicht-greifen") is None
+
+
+def test_security_headers(client):
+    r = client.get("/login")
+    assert r.headers["x-frame-options"] == "DENY"
+    assert r.headers["x-content-type-options"] == "nosniff"

@@ -187,3 +187,18 @@ class LoginThrottle:
 
 
 login_throttle = LoginThrottle()
+
+
+def bootstrap_accounts_from_env(conn: sqlite3.Connection) -> list[str]:
+    """Legt fehlende Konten aus APRIL_INITIAL_PASSWORD_SHAQY / _KIMMI an (für Hosting ohne Terminal).
+    Bestehende Konten werden nie überschrieben; Passwortwechsel geht weiter über app.manage."""
+    created = []
+    for username in config.USERS:
+        pw = os.getenv(f"APRIL_INITIAL_PASSWORD_{username.upper()}", "")
+        if not pw:
+            continue
+        if conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
+            continue
+        set_password(conn, username, pw)
+        created.append(username)
+    return created

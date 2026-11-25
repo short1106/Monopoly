@@ -24,13 +24,14 @@ from app.auth import (
     SessionInfo,
     all_users,
     authenticate,
+    bootstrap_accounts_from_env,
     create_session,
     delete_session,
     load_session,
     login_throttle,
 )
 from app.calendar_view import month_weeks, shift_month, week_days
-from app.db import get_db, init_db
+from app.db import get_db, init_db, session_scope
 from app.persona import nerd_fact_des_tages, random_nerd_fact, spruch_des_tages
 from app.timeutil import (
     GERMAN_WEEKDAYS_SHORT,
@@ -76,6 +77,9 @@ async def _weekly_loop() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    with session_scope() as conn:
+        for name in bootstrap_accounts_from_env(conn):
+            log.info("Konto %s aus der Umgebung angelegt", name)
     tasks = [asyncio.create_task(_resume_jobs())]
     if config.settings.auto_generate:
         tasks.append(asyncio.create_task(_weekly_loop()))
@@ -87,6 +91,19 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="April Lerngruppe", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    if config.settings.cookie_secure:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    return response
+
+
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 
 Db = Annotated[sqlite3.Connection, Depends(get_db)]
