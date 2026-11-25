@@ -63,10 +63,11 @@ Im Repo liegen ein `Dockerfile` und eine `render.yaml`. Damit geht es ohne Termi
 
 1. Auf <https://render.com> ein Konto anlegen und GitHub verbinden.
 2. **New** > **Blueprint** wählen, das Repo `short1106/Monopoly` und den Branch mit der App auswählen.
-3. Render fragt drei geheime Werte ab. Die stehen nur im Render-Dashboard, nie im Repo:
-   * `ANTHROPIC_API_KEY`: euer API-Key
+3. Render fragt zwei geheime Werte ab. Die stehen nur im Render-Dashboard, nie im Repo:
    * `APRIL_INITIAL_PASSWORD_SHAQY`: Shaqys Passwort (mindestens 10 Zeichen)
    * `APRIL_INITIAL_PASSWORD_KIMMI`: Kimmis Passwort (mindestens 10 Zeichen)
+   Ein API-Key ist nicht nötig. Kalender, Planung, Treffen, Punkte und Dashboard laufen ohne.
+   Nur für Probeklausuren trägt man später unter **Environment** `ANTHROPIC_API_KEY` nach.
 4. **Apply** klicken. Nach ein paar Minuten ist die App unter `https://april-lerngruppe.onrender.com`
    (oder einer ähnlichen Adresse, die Render anzeigt) erreichbar.
 

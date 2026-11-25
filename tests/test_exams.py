@@ -173,3 +173,18 @@ def test_stuck_jobs_are_resumed_after_restart(shaqy, fake_april):
     # Danach kann man wieder neue Klausuren holen.
     r = shaqy.post("/klausuren/neu", data={"csrf_token": token}, follow_redirects=False)
     assert r.status_code == 303
+
+
+def test_calendar_works_without_api_key(shaqy, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+
+    def must_not_be_called(*_):
+        raise AssertionError("der kalender darf die api nicht brauchen")
+
+    monkeypatch.setattr(april, "call_april", must_not_be_called)
+    _setup_profile(shaqy)
+    month = shaqy.get("/kalender?ansicht=monat&datum=" + (today() + timedelta(days=20)).isoformat()).text
+    assert "klausur mathe" in month
+    week = shaqy.get("/kalender?ansicht=woche&datum=" + (today() + timedelta(days=17)).isoformat()).text
+    assert "schreibtag" in week and "festes treffen" in week
+    assert shaqy.get("/").status_code == 200

@@ -19,9 +19,9 @@ services:
         value: claude-opus-5-5
       - key: APRIL_TIMEZONE
         value: Europe/Berlin
-      # Geheim, werden beim Anlegen im Dashboard abgefragt und landen nie im Repo:
-      - key: ANTHROPIC_API_KEY
-        sync: false
+      # Geheim, werden beim Anlegen im Dashboard abgefragt und landen nie im Repo.
+      # ANTHROPIC_API_KEY ist optional (nur für Probeklausuren) und kann später
+      # im Dashboard unter Environment ergänzt werden.
       - key: APRIL_INITIAL_PASSWORD_SHAQY
         sync: false
       - key: APRIL_INITIAL_PASSWORD_KIMMI
