@@ -57,6 +57,13 @@ FLASH_COOKIE = "april_flash"
 WEEKLY_INTERVAL_SECONDS = 3600
 
 
+async def _resume_jobs() -> None:
+    try:
+        await asyncio.to_thread(april.resume_stuck_jobs)
+    except Exception:
+        log.exception("Hängengebliebene Klausuren konnten nicht wieder aufgenommen werden")
+
+
 async def _weekly_loop() -> None:
     while True:
         try:
@@ -69,9 +76,11 @@ async def _weekly_loop() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
-    task = asyncio.create_task(_weekly_loop()) if config.settings.auto_generate else None
+    tasks = [asyncio.create_task(_resume_jobs())]
+    if config.settings.auto_generate:
+        tasks.append(asyncio.create_task(_weekly_loop()))
     yield
-    if task:
+    for task in tasks:
         task.cancel()
         with suppress(asyncio.CancelledError):
             await task

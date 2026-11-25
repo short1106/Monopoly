@@ -511,6 +511,21 @@ def ensure_weekly_exams() -> list[int]:
     return created
 
 
+def resume_stuck_jobs() -> None:
+    """Nach einem Neustart: Klausuren, die beim Erstellen oder Bewerten hängen geblieben sind,
+    neu anstoßen. Sonst blieben sie für immer in 'generating' bzw. 'grading' stecken."""
+    with session_scope() as conn:
+        rows = conn.execute(
+            "SELECT id, status FROM mock_exams WHERE status IN ('generating', 'grading') ORDER BY id"
+        ).fetchall()
+    for row in rows:
+        log.info("Nehme hängengebliebene Klausur %s (%s) wieder auf", row["id"], row["status"])
+        if row["status"] == "generating":
+            run_generation(row["id"])
+        else:
+            run_grading(row["id"])
+
+
 def weekly_job() -> None:
     if not config.settings.api_key_present:
         log.info("Kein ANTHROPIC_API_KEY, automatische Wochenklausuren werden übersprungen.")

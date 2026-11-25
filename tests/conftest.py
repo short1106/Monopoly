@@ -6,6 +6,7 @@ import pytest
 # Muss vor dem Import der App passieren.
 os.environ["APRIL_AUTO_GENERATE"] = "false"
 os.environ["ANTHROPIC_API_KEY"] = "test-dummy-key"
+os.environ["APRIL_BCRYPT_ROUNDS"] = "4"
 
 from app import config  # noqa: E402
 

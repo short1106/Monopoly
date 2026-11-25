@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 import sqlite3
 import threading
@@ -17,6 +18,8 @@ from app.timeutil import now
 
 MIN_PASSWORD_LENGTH = 10
 MAX_PASSWORD_BYTES = 72  # Grenze von bcrypt
+# 12 Runden im Betrieb; nur die Tests setzen das per Umgebungsvariable herunter.
+BCRYPT_ROUNDS = max(4, min(int(os.getenv("APRIL_BCRYPT_ROUNDS", "12")), 16))
 
 # Damit unbekannte Benutzernamen nicht schneller abgelehnt werden als falsche Passwörter.
 _DUMMY_HASH = bcrypt.hashpw(b"april-dummy-password", bcrypt.gensalt())
@@ -61,7 +64,7 @@ def validate_password(password: str) -> None:
 
 def hash_password(password: str) -> str:
     validate_password(password)
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("ascii")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode("ascii")
 
 
 def verify_password(password: str, password_hash: str) -> bool:

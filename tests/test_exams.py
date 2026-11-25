@@ -157,3 +157,19 @@ def test_all_pages_render(shaqy):
     for path in ["/", "/profil", "/kalender", "/kalender?ansicht=monat", "/klausuren", "/gruppe", "/healthz"]:
         assert shaqy.get(path).status_code == 200, path
     assert shaqy.get("/gibtsnicht").status_code == 404
+
+
+def test_stuck_jobs_are_resumed_after_restart(shaqy, fake_april):
+    from app.db import session_scope
+
+    token = _setup_profile(shaqy)
+    with session_scope() as conn:
+        uid = conn.execute("SELECT id FROM users WHERE username = 'shaqy'").fetchone()["id"]
+        stuck = april.create_exam_record(conn, uid, "mathe", "integrale")
+    # Simulierter Neustart: der Job von vorher ist weg, die Klausur hängt auf 'generating'.
+    april.resume_stuck_jobs()
+    assert _latest_exam()["status"] == "open"
+    assert _latest_exam()["id"] == stuck
+    # Danach kann man wieder neue Klausuren holen.
+    r = shaqy.post("/klausuren/neu", data={"csrf_token": token}, follow_redirects=False)
+    assert r.status_code == 303
