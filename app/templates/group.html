@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Gruppe · April Lerngruppe{% endblock %}
+{% block content %}
+<h1>die gruppe</h1>
+<p class="april">zwei leute, ein ziel: shaqys abi retten und kimmis zwölfte sauber durchziehen. treffen jeden montag und dienstag um {{ settings.meeting_time.strftime('%H:%M') }}, egal was.</p>
+<p>nächstes treffen: <b>{{ format_date_de(next_meeting.date()) }}, {{ next_meeting.strftime('%H:%M') }}</b></p>
+
+<div class="grid">
+  <section class="card">
+    <h2>rangliste {{ format_month_de(today.year, today.month) }}</h2>
+    <ol class="ranking">
+      {% for r in ranking %}
+      <li style="--c: {{ r.user.color }}"><span class="dot"></span>{{ r.rank }}. {{ r.user.display_name }} <b>{{ r.points }}</b></li>
+      {% endfor %}
+    </ol>
+    <p class="muted small">probeklausur bestanden +{{ settings.points_exam_passed }}, bestes ergebnis der woche +{{ settings.points_best_of_week }}, pünktlich beim treffen +{{ settings.points_on_time }}, treffen geschwänzt {{ settings.points_absent }}.</p>
+  </section>
+
+  <section class="card">
+    <h2>letzter monat</h2>
+    {% if verdict.tie %}
+      <p>gleichstand. ich bestimme das thema, und ihr bringt beide snacks mit.</p>
+    {% elif verdict.winner %}
+      <p><b>{{ verdict.winner.display_name }}</b> war platz 1 und darf das nächste lernthema bestimmen.</p>
+      <p><b>{{ verdict.snack_bringers[0].display_name }}</b> bringt snacks mit. keine diskussion.</p>
+    {% else %}
+      <p class="muted">noch keine daten.</p>
+    {% endif %}
+    <p class="label">thema des monats</p>
+    {% if group_topic %}
+      <p>{{ group_topic.topic }} <span class="muted">(gewählt von {{ group_topic.display_name }})</span></p>
+    {% else %}
+      <p class="muted">noch nicht gewählt.</p>
+    {% endif %}
+    {% if can_choose %}
+    <form method="post" action="/gruppe/thema" class="row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input name="topic" maxlength="200" placeholder="nächstes lernthema" required>
+      <button type="submit">festlegen</button>
+    </form>
+    {% endif %}
+  </section>
+
+  {% for m in members %}
+  <section class="card member" style="--c: {{ m.user.color }}">
+    <h2>{{ m.user.display_name }} <span class="muted">{{ m.user.grade }}</span></h2>
+    <p class="muted">{{ m.total }} punkte insgesamt</p>
+    <p class="label">nächste klausuren</p>
+    <ul class="list">
+      {% for e in m.upcoming %}<li><b>{{ e.exam_date }}</b> {{ e.subject }}{% if e.title %}: {{ e.title }}{% endif %}</li>
+      {% else %}<li class="muted">keine eingetragen</li>{% endfor %}
+    </ul>
+    <p class="label">letzte probeklausuren</p>
+    <ul class="list">
+      {% for x in m.last %}<li>{{ x.subject }}: {{ x.topic }} <span class="{{ 'ok' if x.passed else 'bad' }}">{{ '%.0f'|format(x.score_percent) }} %</span></li>
+      {% else %}<li class="muted">noch keine</li>{% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+
+  <section class="card wide">
+    <h2>deine punkte</h2>
+    <table class="table">
+      <thead><tr><th>datum</th><th>grund</th><th>punkte</th></tr></thead>
+      <tbody>
+      {% for p in ledger %}
+      <tr><td>{{ p.event_date }}</td><td>{{ p.reason }}</td><td class="{{ 'ok' if p.amount > 0 else 'bad' }}">{{ '%+d'|format(p.amount) }}</td></tr>
+      {% else %}
+      <tr><td colspan="3" class="muted">noch keine punkte.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

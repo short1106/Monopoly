@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Fehler {{ status }} · April Lerngruppe{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>fehler {{ status }}</h1>
+  <p class="april">{{ message }}</p>
+  <p><a href="/">zurück zum dashboard</a></p>
+</section>
+{% endblock %}

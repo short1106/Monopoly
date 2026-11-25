@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.subject }} · Probeklausur{% endblock %}
+{% block content %}
+<p><a href="/klausuren">‹ alle probeklausuren</a></p>
+<h1>{{ content.title if content else 'probeklausur' }}</h1>
+<p class="muted">{{ exam.subject }}: {{ exam.topic }} · runde {{ exam.round }} · woche {{ exam.week_key }}</p>
+
+{% if exam.status in ('generating', 'grading') %}
+<section class="card waiting" data-poll="/api/klausuren/{{ exam.id }}/status" data-status="{{ exam.status }}">
+  <div class="spinner" aria-hidden="true"></div>
+  <p class="april">{{ 'ich schreib gerade deine klausur. nicht weglaufen.' if exam.status == 'generating' else 'ich korrigiere. pingelig, wie versprochen.' }}</p>
+  <p class="muted small">die seite lädt von selbst neu, wenn ich fertig bin.</p>
+</section>
+{% endif %}
+
+{% if exam.error_message %}
+<div class="flash error">{{ exam.error_message }}</div>
+{% endif %}
+{% if exam.status == 'error' %}
+<form method="post" action="/klausuren/{{ exam.id }}/nochmal">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit">nochmal versuchen</button>
+</form>
+{% endif %}
+
+{% if content %}
+<section class="card">
+  <p class="april">{{ content.intro }}</p>
+  <p class="muted">bearbeitungszeit: {{ content.duration_minutes }} minuten · {{ content.total_points }} punkte · bestanden ab {{ pass_threshold }} %</p>
+  <p class="fact">{{ content.nerd_fact }}</p>
+</section>
+
+{% if result %}
+<section class="card result {{ 'pass' if exam.passed else 'fail' }}">
+  <h2>{{ '%.1f'|format(result.percent) }} % · {{ result.achieved_points }} von {{ result.total_points }} punkten · {{ 'bestanden' if exam.passed else 'durchgefallen' }}</h2>
+  <p class="april">{{ result.overall_feedback }}</p>
+  {% if result.next_steps %}
+  <p class="label">deine nächsten schritte</p>
+  <ul>{% for s in result.next_steps %}<li>{{ s }}</li>{% endfor %}</ul>
+  {% endif %}
+  <p class="fact">{{ result.nerd_fact }}</p>
+  {% if not exam.passed %}
+    {% if retry %}
+    <p>neue runde zum gleichen thema: <a href="/klausuren/{{ retry.id }}">runde {{ exam.round + 1 }} öffnen</a></p>
+    {% endif %}
+  {% else %}
+    <p class="ok">plus {{ points_passed }} punkte. weiter so, aber nicht abheben.</p>
+  {% endif %}
+</section>
+{% endif %}
+
+<form method="post" action="/klausuren/{{ exam.id }}/abgeben" class="exam" {% if exam.status == 'open' %}data-draft="/api/klausuren/{{ exam.id }}/entwurf"{% endif %}>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% for t in content.tasks %}
+  {% set graded = result.tasks[loop.index0] if result else None %}
+  <section class="card task">
+    <h3>aufgabe {{ t.number }} {% if t.operator %}<span class="tag">{{ t.operator }}</span>{% endif %} <span class="muted">({{ t.points }} p)</span></h3>
+    <div class="question">{{ t.question }}</div>
+    {% if exam.status == 'open' %}
+      <textarea name="answer_{{ t.number }}" rows="8" maxlength="8000" placeholder="deine antwort">{{ answers.get(t.number|string, '') }}</textarea>
+    {% else %}
+      <div class="answer">{{ answers.get(t.number|string, '') or '(keine antwort)' }}</div>
+    {% endif %}
+    {% if graded %}
+      <p class="score">{{ graded.achieved_points }} / {{ graded.max_points }} punkte</p>
+      <p class="april">{{ graded.feedback }}</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+  {% if exam.status == 'open' %}
+  <div class="row">
+    <button type="submit" data-confirm="wirklich abgeben? danach wird bewertet.">abgeben</button>
+    <span class="muted small draft-state"></span>
+  </div>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}

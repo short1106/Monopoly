@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}April Lerngruppe{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">april<span>lerngruppe</span></a>
+    {% if user %}
+    <nav>
+      <a href="/" class="{{ 'on' if active == 'dashboard' }}">dashboard</a>
+      <a href="/kalender" class="{{ 'on' if active == 'calendar' }}">kalender</a>
+      <a href="/klausuren" class="{{ 'on' if active in ('exams', 'exam_detail') }}">probeklausuren</a>
+      <a href="/gruppe" class="{{ 'on' if active == 'group' }}">gruppe</a>
+      <a href="/profil" class="{{ 'on' if active == 'profile' }}">profil</a>
+    </nav>
+    <form method="post" action="/logout" class="logout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <span class="who" style="--c: {{ user.color }}">{{ user.display_name }}</span>
+      <button type="submit" class="link">logout</button>
+    </form>
+    {% endif %}
+  </header>
+
+  <main>
+    {% if flash %}
+    <div class="flash {{ flash.kind }}" role="status">{{ flash.message }}</div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <p>{{ footer_fact }}</p>
+  </footer>
+</body>
+</html>

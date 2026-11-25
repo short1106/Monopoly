@@ -1,0 +1,13 @@
+<div class="ev k-{{ ev.kind }} {{ 'done' if ev.done }}" {% if ev.owner %}style="--c: {{ ev.owner.color }}"{% endif %} title="{{ ev.title }}{% if ev.note %} ({{ ev.note }}){% endif %}">
+  {% if ev.item_id and ev.owner and ev.owner.id == user.id %}
+  <form method="post" action="/kalender/eintrag/{{ ev.item_id }}/erledigt" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="zurueck" value="/kalender?ansicht={{ ansicht }}&datum={{ anchor.isoformat() }}&wer={{ wer }}">
+    <button type="submit" class="check" aria-label="erledigt umschalten">{{ '✓' if ev.done else '' }}</button>
+  </form>
+  {% endif %}
+  {% if ev.time %}<b>{{ ev.time }}</b>{% endif %}
+  {% if ev.owner %}<span class="owner">{{ ev.owner.display_name }}</span>{% endif %}
+  <span class="evtitle">{{ ev.title }}</span>
+  {% if ev.note and not compact %}<small>{{ ev.note }}</small>{% endif %}
+</div>

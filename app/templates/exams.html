@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Probeklausuren · April Lerngruppe{% endblock %}
+{% block content %}
+<h1>probeklausuren</h1>
+<p class="april">jede woche schreib ich dir eine probeklausur zum aktuellen thema. bestanden ab {{ pass_threshold }} prozent. durchgefallen heißt: gleiches thema, neue runde. so lange, bis es sitzt.</p>
+
+<section class="card">
+  <h2>neue probeklausur</h2>
+  {% if not api_ready %}
+    <div class="flash error">kein ANTHROPIC_API_KEY in der .env. ohne key keine klausur.</div>
+  {% endif %}
+  {% if topic %}<p>aktuelles thema laut plan: <b>{{ topic.subject }}: {{ topic.topic }}</b></p>{% endif %}
+  <form method="post" action="/klausuren/neu" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <select name="subject">
+      <option value="">fach laut plan</option>
+      {% for s in subjects %}<option value="{{ s.name }}">{{ s.name }}</option>{% endfor %}
+    </select>
+    <input name="topic" placeholder="eigenes thema (optional)" maxlength="300">
+    <button type="submit" {{ 'disabled' if not api_ready }}>klausur holen</button>
+  </form>
+  <p class="muted small">ohne fach und thema nimmt april das aktuelle thema aus deinem plan.</p>
+</section>
+
+<section class="card">
+  <h2>deine klausuren</h2>
+  <table class="table">
+    <thead><tr><th>woche</th><th>fach</th><th>thema</th><th>runde</th><th>status</th><th>ergebnis</th></tr></thead>
+    <tbody>
+    {% for e in exams %}
+    <tr>
+      <td>{{ e.week_key }}</td>
+      <td>{{ e.subject }}</td>
+      <td><a href="/klausuren/{{ e.id }}">{{ e.topic }}</a></td>
+      <td>{{ e.round }}</td>
+      <td><span class="status s-{{ e.status }}">{{ {'generating': 'april schreibt', 'open': 'offen', 'grading': 'wird korrigiert', 'graded': 'bewertet', 'error': 'fehler'}[e.status] }}</span></td>
+      <td>{% if e.status == 'graded' %}<span class="{{ 'ok' if e.passed else 'bad' }}">{{ '%.0f'|format(e.score_percent) }} % {{ 'bestanden' if e.passed else 'durchgefallen' }}</span>{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">noch keine probeklausuren.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

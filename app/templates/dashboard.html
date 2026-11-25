@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero card">
+  <p class="label">aprils spruch des tages</p>
+  <blockquote>{{ spruch }}</blockquote>
+</section>
+
+{% if not api_ready %}
+<div class="flash error">kein ANTHROPIC_API_KEY in der .env. probeklausuren gehen erst, wenn der key drin ist.</div>
+{% endif %}
+
+<div class="grid">
+  <section class="card">
+    <h2>nächstes treffen</h2>
+    <p class="big">{{ format_date_de(next_meeting.date()) }}, {{ next_meeting.strftime('%H:%M') }}</p>
+    {% if minutes_until > 0 %}
+      <p class="muted">noch {{ minutes_until // 60 }} h {{ minutes_until % 60 }} min</p>
+    {% else %}
+      <p class="muted">läuft gerade</p>
+    {% endif %}
+    {% if attendance == 'on_time' %}
+      <p class="ok">du bist pünktlich eingecheckt. slay.</p>
+    {% elif attendance == 'late' %}
+      <p class="warn">eingecheckt, aber zu spät.</p>
+    {% elif checkin_open %}
+      <form method="post" action="/treffen/einchecken">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">ich bin da</button>
+      </form>
+    {% else %}
+      <p class="muted">einchecken geht ab kurz vor beginn. montag und dienstag, egal was.</p>
+    {% endif %}
+    {% if group_topic %}
+      <p class="label">thema des monats</p>
+      <p>{{ group_topic.topic }} <span class="muted">(gewählt von {{ group_topic.display_name }})</span></p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>punktestand</h2>
+    <p class="big">{{ my_rank.points if my_rank else 0 }} <span class="muted">punkte diesen monat</span></p>
+    <p class="muted">insgesamt {{ total_points }} punkte</p>
+    <ol class="ranking">
+      {% for r in ranking %}
+      <li style="--c: {{ r.user.color }}"><span class="dot"></span>{{ r.rank }}. {{ r.user.display_name }} <b>{{ r.points }}</b></li>
+      {% endfor %}
+    </ol>
+    <a href="/gruppe">zur rangliste</a>
+  </section>
+
+  <section class="card">
+    <h2>offene probeklausuren</h2>
+    {% if open_exams %}
+    <ul class="list">
+      {% for e in open_exams %}
+      <li>
+        <a href="/klausuren/{{ e.id }}">{{ e.subject }}: {{ e.topic }}</a>
+        {% if e.round > 1 %}<span class="tag">runde {{ e.round }}</span>{% endif %}
+        <span class="status s-{{ e.status }}">{{ {'generating': 'april schreibt', 'open': 'offen', 'grading': 'wird korrigiert', 'error': 'fehler'}[e.status] }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="muted">nichts offen.</p>
+    {% endif %}
+    {% if not week_has_exam %}
+      {% if topic %}
+      <p>diese woche noch keine probeklausur. aktuelles thema: <b>{{ topic.subject }}: {{ topic.topic }}</b></p>
+      <form method="post" action="/klausuren/neu">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" {{ 'disabled' if not api_ready }}>probeklausur holen</button>
+      </form>
+      {% else %}
+      <p class="muted">trag im <a href="/profil">profil</a> fächer, themen und klausuren ein, dann weiß ich, was dran ist.</p>
+      {% endif %}
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2>heute dran</h2>
+    {% if today_items %}
+    <ul class="list">
+      {% for it in today_items %}
+      <li class="{{ 'done' if it.done }}">
+        <form method="post" action="/kalender/eintrag/{{ it.id }}/erledigt" class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="zurueck" value="/">
+          <button type="submit" class="check" aria-label="erledigt umschalten">{{ '✓' if it.done else '' }}</button>
+        </form>
+        <span class="kind k-{{ it.kind }}">{{ it.kind }}</span> {{ it.title.split(': ', 1)[-1] }}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+      <p class="muted">heute nichts geplant. heißt nicht, dass du nichts machen sollst.</p>
+    {% endif %}
+    {% for w in plan_warnings %}
+      <p class="warn">{{ w }}</p>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

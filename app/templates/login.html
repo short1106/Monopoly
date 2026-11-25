@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Login · April Lerngruppe{% endblock %}
+{% block content %}
+<section class="login card">
+  <h1>einloggen</h1>
+  <p class="april">ich bin april. hier wird gelernt, nicht gechillt. login und los.</p>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  {% if no_users %}
+  <div class="flash error">noch keine konten angelegt. im terminal: <code>python -m app.manage set-password shaqy</code> und dasselbe für kimmi.</div>
+  {% endif %}
+  <form method="post" action="/login" class="stack">
+    <label>benutzername
+      <input name="username" autocomplete="username" required autofocus>
+    </label>
+    <label>passwort
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">rein da</button>
+  </form>
+</section>
+{% endblock %}

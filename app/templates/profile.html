@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Profil · April Lerngruppe{% endblock %}
+{% block content %}
+<h1>profil von {{ user.display_name }} <span class="muted">{{ user.grade }}</span></h1>
+<p class="april">alles, was hier steht, nutze ich für deinen plan und deine probeklausuren. also ehrlich eintragen, auch die schwächen.</p>
+
+<div class="grid">
+  <section class="card">
+    <h2>fächer</h2>
+    <ul class="list">
+      {% for s in subjects %}
+      <li>{{ s.name }}
+        <form method="post" action="/profil/fach/{{ s.id }}/loeschen" class="inline" data-confirm="fach {{ s.name }} mit allen klausuren und themen löschen?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="link danger">löschen</button>
+        </form>
+      </li>
+      {% else %}
+      <li class="muted">noch keine fächer.</li>
+      {% endfor %}
+    </ul>
+    <form method="post" action="/profil/fach" class="row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input name="name" placeholder="z. b. mathe" maxlength="60" required>
+      <button type="submit">hinzufügen</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>klausurtermine</h2>
+    <ul class="list">
+      {% for e in exams %}
+      <li class="{{ 'past' if e.exam_date < today.isoformat() }}">
+        <b>{{ e.exam_date }}</b> {{ e.subject }}{% if e.title %}: {{ e.title }}{% endif %}
+        {% if e.notes %}<br><span class="muted">{{ e.notes }}</span>{% endif %}
+        <form method="post" action="/profil/klausur/{{ e.id }}/loeschen" class="inline" data-confirm="klausur löschen?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button type="submit" class="link danger">löschen</button>
+        </form>
+      </li>
+      {% else %}
+      <li class="muted">keine klausuren eingetragen.</li>
+      {% endfor %}
+    </ul>
+    {% if subjects %}
+    <form method="post" action="/profil/klausur" class="stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>fach
+        <select name="subject_id" required>
+          {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>datum <input type="date" name="exam_date" required></label>
+      <label>titel / stoff <input name="title" maxlength="120" placeholder="z. b. analysis, integralrechnung"></label>
+      <label>notizen <textarea name="notes" maxlength="500" rows="2"></textarea></label>
+      <button type="submit">klausur eintragen</button>
+    </form>
+    {% else %}
+      <p class="muted">erst ein fach anlegen.</p>
+    {% endif %}
+  </section>
+
+  <section class="card wide">
+    <h2>themen und schwächen</h2>
+    <table class="table">
+      <thead><tr><th>fach</th><th>thema</th><th>art</th><th></th></tr></thead>
+      <tbody>
+      {% for t in topics %}
+      <tr class="{{ 'done' if t.done }}">
+        <td>{{ t.subject }}</td>
+        <td>{{ t.name }}</td>
+        <td>{% if t.is_weakness %}<span class="tag weak">schwäche</span>{% else %}<span class="tag">thema</span>{% endif %}</td>
+        <td class="actions">
+          <form method="post" action="/profil/thema/{{ t.id }}/erledigt" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="link">{{ 'wieder offen' if t.done else 'sitzt' }}</button>
+          </form>
+          <form method="post" action="/profil/thema/{{ t.id }}/loeschen" class="inline" data-confirm="thema löschen?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="link danger">löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">noch keine themen.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if subjects %}
+    <form method="post" action="/profil/thema" class="row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <select name="subject_id" required>
+        {% for s in subjects %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+      </select>
+      <input name="name" placeholder="thema, das dran ist" maxlength="150" required>
+      <label class="checkbox"><input type="checkbox" name="is_weakness" value="1"> schwäche</label>
+      <button type="submit">hinzufügen</button>
+    </form>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

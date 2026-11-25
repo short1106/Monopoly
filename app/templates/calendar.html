@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Kalender · April Lerngruppe{% endblock %}
+{% block content %}
+<div class="calhead">
+  <h1>kalender</h1>
+  <div class="toolbar">
+    <a class="btn {{ 'on' if ansicht == 'woche' }}" href="/kalender?ansicht=woche&datum={{ anchor.isoformat() }}&wer={{ wer }}">woche</a>
+    <a class="btn {{ 'on' if ansicht == 'monat' }}" href="/kalender?ansicht=monat&datum={{ anchor.isoformat() }}&wer={{ wer }}">monat</a>
+    <span class="sep"></span>
+    <a class="btn {{ 'on' if wer == 'alle' }}" href="/kalender?ansicht={{ ansicht }}&datum={{ anchor.isoformat() }}&wer=alle">beide</a>
+    <a class="btn {{ 'on' if wer == 'ich' }}" href="/kalender?ansicht={{ ansicht }}&datum={{ anchor.isoformat() }}&wer=ich">nur ich</a>
+    <span class="sep"></span>
+    <a class="btn" href="/kalender?ansicht={{ ansicht }}&datum={{ prev.isoformat() }}&wer={{ wer }}" aria-label="zurück">‹</a>
+    <a class="btn" href="/kalender?ansicht={{ ansicht }}&wer={{ wer }}">heute</a>
+    <a class="btn" href="/kalender?ansicht={{ ansicht }}&datum={{ next.isoformat() }}&wer={{ wer }}" aria-label="weiter">›</a>
+  </div>
+</div>
+<p class="legend">
+  {% for u in users %}<span class="who" style="--c: {{ u.color }}">{{ u.display_name }}</span>{% endfor %}
+  <span class="kind k-treffen">treffen</span><span class="kind k-klausur">klausur</span>
+  <span class="kind k-schreibtag">schreibtag</span><span class="kind k-wiederholung">wiederholung</span>
+  <span class="kind k-lernblock">lernblock</span>
+</p>
+
+{% if ansicht == 'woche' %}
+<h2>woche ab {{ format_date_de(days[0].date) }}</h2>
+<div class="week">
+  {% for day in days %}
+  <div class="day {{ 'today' if day.is_today }}">
+    <div class="dayhead">{{ weekdays_short[day.date.weekday()] }} {{ day.date.strftime('%d.%m.') }}</div>
+    {% for ev in day.events %}{% set compact = False %}{% include "_event.html" %}{% else %}<p class="muted small">frei</p>{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<h2>{{ format_month_de(anchor.year, anchor.month) }}</h2>
+<div class="month">
+  {% for wd in weekdays_short %}<div class="mhead">{{ wd }}</div>{% endfor %}
+  {% for week in weeks %}{% for day in week %}
+  <div class="mday {{ 'other' if not day.in_month }} {{ 'today' if day.is_today }}">
+    <a class="mnum" href="/kalender?ansicht=woche&datum={{ day.date.isoformat() }}&wer={{ wer }}">{{ day.date.day }}</a>
+    {% for ev in day.events %}{% set compact = True %}{% include "_event.html" %}{% endfor %}
+  </div>
+  {% endfor %}{% endfor %}
+</div>
+{% endif %}
+{% endblock %}
